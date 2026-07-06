@@ -5,6 +5,7 @@ import { PageHeader, StatCard, PaymentBadge } from '../components/ui.jsx'
 import { money, time } from '../utils/format.js'
 import { STAFF, TABLES } from '../data/mockData.js'
 import { Receipt } from './Billing.jsx'
+import { canModify } from '../config/permissions.js'
 import {
   IconOrders,
   IconTrend,
@@ -537,6 +538,7 @@ export default function Dashboard() {
           orderTotal={orderTotal}
           onClose={() => setActiveReceipt(null)}
           onMarkPaid={handleMarkPaid}
+          canMarkPaid={user && canModify(user.role, 'billing')}
         />
       )}
     </div>

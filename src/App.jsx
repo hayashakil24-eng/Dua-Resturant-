@@ -14,8 +14,16 @@ function Protected({ path, children }) {
   const { user } = useApp()
   const location = useLocation()
   if (!user) return <Navigate to="/login" replace state={{ from: location }} />
-  const allowed = navForRole(user.role).some((n) => n.to === path)
-  if (!allowed) return <Navigate to="/" replace />
+  
+  const allowedNavs = navForRole(user.role)
+  const allowed = allowedNavs.some((n) => n.to === path)
+  
+  if (!allowed) {
+    if (allowedNavs.length > 0) {
+      return <Navigate to={allowedNavs[0].to} replace />
+    }
+    return <Navigate to="/login" replace />
+  }
   return <Layout>{children}</Layout>
 }
 

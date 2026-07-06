@@ -6,7 +6,7 @@ import { TAX_RATE } from '../data/mockData.js'
 import Logo from '../components/Logo.jsx'
 import { IconReceipt, IconPrint, IconCheck, IconClose } from '../components/Icons.jsx'
 
-export function Receipt({ order, orderTotal, onClose, onMarkPaid }) {
+export function Receipt({ order, orderTotal, onClose, onMarkPaid, canMarkPaid = true }) {
   const { subtotal, tax, total } = orderTotal(order.items)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -101,7 +101,7 @@ export function Receipt({ order, orderTotal, onClose, onMarkPaid }) {
 
         {/* Controls */}
         <div className="mt-4 flex gap-3 no-print">
-          {order.payment === 'Unpaid' && (
+          {order.payment === 'Unpaid' && canMarkPaid && (
             <button
               onClick={() => onMarkPaid(order.id)}
               className="flex-1 rounded-xl border border-emerald-500/40 bg-emerald-500/10 py-3 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/20"
@@ -123,8 +123,10 @@ export function Receipt({ order, orderTotal, onClose, onMarkPaid }) {
   )
 }
 
+import { canModify } from '../config/permissions.js'
+
 export default function Billing() {
-  const { orders, orderTotal, markPaid } = useApp()
+  const { orders, orderTotal, markPaid, user } = useApp()
   const [active, setActive] = useState(null)
 
   const paidTotal = orders
@@ -197,6 +199,7 @@ export default function Billing() {
           orderTotal={orderTotal}
           onClose={() => setActive(null)}
           onMarkPaid={handleMarkPaid}
+          canMarkPaid={user && canModify(user.role, 'billing')}
         />
       )}
     </div>

@@ -3,11 +3,13 @@ import { useApp } from '../context/AppContext.jsx'
 import { PageHeader, PaymentBadge, EmptyState } from '../components/ui.jsx'
 import { money, time } from '../utils/format.js'
 import { IconOrders, IconSearch, IconCheck } from '../components/Icons.jsx'
+import { canModify } from '../config/permissions.js'
 
 const FILTERS = ['All', 'Paid', 'Unpaid']
 
 export default function Orders() {
-  const { orders, orderTotal, markPaid } = useApp()
+  const { orders, orderTotal, markPaid, user } = useApp()
+  const canMarkPaid = user && canModify(user.role, 'orders')
   const [filter, setFilter] = useState('All')
   const [query, setQuery] = useState('')
 
@@ -105,7 +107,7 @@ export default function Orders() {
                       </td>
                       <td className="px-5 py-4 text-cream-dim">{time(o.createdAt)}</td>
                       <td className="px-5 py-4 text-right">
-                        {o.payment === 'Unpaid' && (
+                        {o.payment === 'Unpaid' && canMarkPaid && (
                           <button
                             onClick={() => markPaid(o.id)}
                             className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-500/20"
@@ -143,7 +145,7 @@ export default function Orders() {
                   <span className="font-serif text-lg font-semibold text-cream">
                     {money(orderTotal(o.items).total)}
                   </span>
-                  {o.payment === 'Unpaid' && (
+                  {o.payment === 'Unpaid' && canMarkPaid && (
                     <button
                       onClick={() => markPaid(o.id)}
                       className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300"

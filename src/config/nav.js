@@ -6,13 +6,15 @@ import {
   IconReceipt,
 } from '../components/Icons.jsx'
 
-// Role-based navigation. `roles` lists which roles may see the item.
+import { hasAccess } from './permissions.js'
+
+// Role-based navigation using central permissions
 export const NAV = [
-  { to: '/', label: 'Dashboard', icon: IconDashboard, roles: ['Admin', 'Manager', 'Cashier'] },
-  { to: '/pos', label: 'New Order', icon: IconPOS, roles: ['Admin', 'Manager', 'Cashier'] },
-  { to: '/orders', label: 'Orders', icon: IconOrders, roles: ['Admin', 'Manager', 'Cashier'] },
-  { to: '/attendance', label: 'Attendance', icon: IconAttendance, roles: ['Admin', 'Manager'] },
-  { to: '/billing', label: 'Billing & Receipts', icon: IconReceipt, roles: ['Admin', 'Cashier'] },
+  { to: '/', label: 'Dashboard', icon: IconDashboard, pageKey: 'dashboard' },
+  { to: '/pos', label: 'New Order', icon: IconPOS, pageKey: 'pos' },
+  { to: '/orders', label: 'Orders', icon: IconOrders, pageKey: 'orders' },
+  { to: '/attendance', label: 'Attendance', icon: IconAttendance, pageKey: 'attendance' },
+  { to: '/billing', label: 'Billing & Receipts', icon: IconReceipt, pageKey: 'billing' },
 ]
 
-export const navForRole = (role) => NAV.filter((n) => n.roles.includes(role))
+export const navForRole = (role) => NAV.filter((n) => hasAccess(role, n.pageKey))

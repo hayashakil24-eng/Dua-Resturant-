@@ -40,7 +40,7 @@ function Toast({ order, onClose }) {
 }
 
 export default function POS() {
-  const { addOrder, orderTotal } = useApp()
+  const { addOrder, orderTotal, user } = useApp()
   const [cat, setCat] = useState('All')
   const [query, setQuery] = useState('')
   const [cart, setCart] = useState({}) // { menuId: qty }
@@ -96,8 +96,8 @@ export default function POS() {
       table: Number(table),
       waiter,
       items: items.map(({ id, name, price, qty }) => ({ id, name, price, qty })),
-      payment,
-      method,
+      payment: user?.role === 'Manager' ? 'Unpaid' : payment,
+      method: user?.role === 'Manager' ? '—' : method,
     })
     setToast(order)
     clear()
@@ -313,45 +313,47 @@ export default function POS() {
               </div>
 
               {/* Payment status */}
-              <div className="mt-4">
-                <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
-                  Payment status
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {['Paid', 'Unpaid'].map((p) => (
-                    <button
-                      key={p}
-                      onClick={() => setPayment(p)}
-                      className={`rounded-xl border py-2.5 text-sm font-semibold transition ${
-                        payment === p
-                          ? p === 'Paid'
-                            ? 'border-emerald-500/50 bg-emerald-500/12 text-emerald-300'
-                            : 'border-amber-500/50 bg-amber-500/12 text-amber-300'
-                          : 'border-ink-line bg-ink-soft text-cream-dim hover:text-cream'
-                      }`}
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </div>
-                {payment === 'Paid' && (
-                  <div className="mt-2 grid grid-cols-3 gap-2">
-                    {['Cash', 'Card', 'Online'].map((mth) => (
+              {user?.role !== 'Manager' && (
+                <div className="mt-4">
+                  <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+                    Payment status
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {['Paid', 'Unpaid'].map((p) => (
                       <button
-                        key={mth}
-                        onClick={() => setMethod(mth)}
-                        className={`rounded-lg border py-2 text-xs font-medium transition ${
-                          method === mth
-                            ? 'border-gold/50 bg-gold/12 text-gold'
+                        key={p}
+                        onClick={() => setPayment(p)}
+                        className={`rounded-xl border py-2.5 text-sm font-semibold transition ${
+                          payment === p
+                            ? p === 'Paid'
+                              ? 'border-emerald-500/50 bg-emerald-500/12 text-emerald-300'
+                              : 'border-amber-500/50 bg-amber-500/12 text-amber-300'
                             : 'border-ink-line bg-ink-soft text-cream-dim hover:text-cream'
                         }`}
                       >
-                        {mth}
+                        {p}
                       </button>
                     ))}
                   </div>
-                )}
-              </div>
+                  {payment === 'Paid' && (
+                    <div className="mt-2 grid grid-cols-3 gap-2">
+                      {['Cash', 'Card', 'Online'].map((mth) => (
+                        <button
+                          key={mth}
+                          onClick={() => setMethod(mth)}
+                          className={`rounded-lg border py-2 text-xs font-medium transition ${
+                            method === mth
+                              ? 'border-gold/50 bg-gold/12 text-gold'
+                              : 'border-ink-line bg-ink-soft text-cream-dim hover:text-cream'
+                          }`}
+                        >
+                          {mth}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {error && (
                 <p className="mt-3 rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
