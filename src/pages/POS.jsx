@@ -39,6 +39,31 @@ function Toast({ order, onClose }) {
   )
 }
 
+function MenuImage({ item }) {
+  const [error, setError] = useState(false)
+
+  if (item.image && !error) {
+    return (
+      <div className="relative h-28 w-full overflow-hidden rounded-xl bg-ink-line">
+        <img
+          src={item.image}
+          alt={item.name}
+          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          onError={() => setError(true)}
+        />
+        <span className="absolute left-2 top-2 rounded-lg bg-ink/75 px-2 py-0.5 text-xs backdrop-blur-sm">
+          {item.emoji}
+        </span>
+      </div>
+    )
+  }
+
+  // Plain solid-color placeholder layout (no icons, no emojis, matching gold/black theme)
+  return (
+    <div className="relative h-28 w-full rounded-xl bg-ink-soft border border-ink-line shadow-inner" />
+  )
+}
+
 export default function POS() {
   const { addOrder, orderTotal, user } = useApp()
   const [cat, setCat] = useState('All')
@@ -151,17 +176,7 @@ export default function POS() {
                 onClick={() => add(m.id)}
                 className="card group relative flex flex-col p-3 text-left transition hover:border-gold/40 hover:shadow-gold"
               >
-                {/* Food Image Container */}
-                <div className="relative h-28 w-full overflow-hidden rounded-xl bg-ink-line">
-                  <img
-                    src={m.image}
-                    alt={m.name}
-                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  />
-                  <span className="absolute left-2 top-2 rounded-lg bg-ink/75 px-2 py-0.5 text-xs backdrop-blur-sm">
-                    {m.emoji}
-                  </span>
-                </div>
+                <MenuImage item={m} />
 
                 <span className="mt-3 line-clamp-2 text-sm font-semibold text-cream">
                   {m.name}
