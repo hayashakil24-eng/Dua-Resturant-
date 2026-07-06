@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-ink text-cream font-sans antialiased;
+    background-image: radial-gradient(
+      1200px 600px at 85% -15%,
+      rgba(201, 162, 39, 0.08),
+      transparent 60%
+    );
+    background-attachment: fixed;
+  }
+  ::selection {
+    background: rgba(201, 162, 39, 0.35);
+    color: #fff;
+  }
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0b0b0d;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #26262e;
+    border-radius: 999px;
+    border: 2px solid #0b0b0d;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3a3a45;
+  }
+}
+
+@layer components {
+  .text-gold-gradient {
+    @apply bg-gold-grad bg-clip-text text-transparent;
+  }
+  .card {
+    @apply rounded-2xl border border-ink-line bg-ink-card/80 backdrop-blur;
+  }
+  .btn-gold {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-gold-grad px-5 py-2.5
+      font-semibold text-ink shadow-gold transition hover:brightness-110 active:brightness-95
+      disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-ink-line
+      bg-ink-soft px-5 py-2.5 font-medium text-cream transition hover:border-gold/60 hover:text-white;
+  }
+  .input {
+    @apply w-full rounded-xl border border-ink-line bg-ink-soft px-4 py-2.5 text-cream
+      placeholder:text-cream-dim/60 outline-none transition focus:border-gold/70
+      focus:ring-2 focus:ring-gold/20;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold;
+  }
+}
+
+/* Print styles for receipts */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #printable-receipt,
+  #printable-receipt * {
+    visibility: visible;
+  }
+  #printable-receipt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
