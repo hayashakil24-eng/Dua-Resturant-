@@ -120,19 +120,19 @@ export const INITIAL_MENU = [
   { id: 'mkh12', name: 'Batair Karahi', category: 'Mutton Karahi', price: 3699, active: true },
   { id: 'mkh13', name: 'Lamb Zaitoon Karahi', category: 'Mutton Karahi', price: 5660, active: true },
   { id: 'mkh14', name: 'Mutton Zaitoon Karahi', category: 'Mutton Karahi', price: 5560, active: true },
-  { id: 'mkh15', name: 'Balochi Tikkah Karahi', category: 'Mutton Karahi', price: 2549, active: true },
+  { id: 'mkh15', name: 'Balochi Tikkah Karahi', category: 'Mutton Karahi', price: 2549, image: '/Balochi Tikkah Karahi.jfif', active: true },
 
   // Chicken Karahi
   { id: 'ckh1', name: 'Chicken Shahi Karahi', category: 'Chicken Karahi', price: 2699, image: '/chicken karahi.jfif', active: true },
   { id: 'ckh2', name: 'Chicken White Karahi', category: 'Chicken Karahi', price: 2699, active: true },
   { id: 'ckh3', name: 'Chicken Boneless Karahi', category: 'Chicken Karahi', price: 3799, active: true },
-  { id: 'ckh4', name: 'Chicken Brown Karahi', category: 'Chicken Karahi', price: 2699, active: true },
+  { id: 'ckh4', name: 'Chicken Brown Karahi', category: 'Chicken Karahi', price: 2699, image: '/Chicken Brown Karah.jfif', active: true },
   { id: 'ckh5', name: 'Chicken Peshawari Karahi', category: 'Chicken Karahi', price: 2699, active: true },
   { id: 'ckh6', name: 'Chicken Zaitoon Karahi', category: 'Chicken Karahi', price: 2799, active: true },
 
   // Handi (per kg)
   { id: 'hd1', name: 'Mutton Shahi Handi Boneless', category: 'Handi', price: 7400, active: true },
-  { id: 'hd2', name: 'Mutton Paneer Handi', category: 'Handi', price: 7560, active: true },
+  { id: 'hd2', name: 'Mutton Paneer Handi', category: 'Handi', price: 7560, image: '/Mutton Paneer Handi.jfif', active: true },
   { id: 'hd3', name: 'Mutton Makhni Handi', category: 'Handi', price: 7399, active: true },
   { id: 'hd4', name: 'Chicken Shahi Handi', category: 'Handi', price: 3299, active: true },
   { id: 'hd5', name: 'Chicken Makhni Handi', category: 'Handi', price: 3199, active: true },
@@ -142,7 +142,7 @@ export const INITIAL_MENU = [
 
   // Pulao
   { id: 'pl1', name: 'Mutton Pulao', category: 'Pulao', price: 1599, active: true },
-  { id: 'pl2', name: 'Chicken Pulao', category: 'Pulao', price: 740, active: true },
+  { id: 'pl2', name: 'Chicken Pulao', category: 'Pulao', price: 740, image: '/Chicken Pulao.jfif', active: true },
 
   // BBQ Special
   { id: 'bbq1', name: 'Mutton Chops', category: 'BBQ Special', price: 4999, active: true },
@@ -152,7 +152,7 @@ export const INITIAL_MENU = [
   { id: 'bbq5', name: 'Shahi Batair (6 Piece)', category: 'BBQ Special', price: 1499, active: true },
   { id: 'bbq6', name: 'Grilled Prawn', category: 'BBQ Special', price: 6450, active: true },
   { id: 'bbq7', name: 'Fish Grilled Namkin / Spicy', category: 'BBQ Special', price: 3260, active: true },
-  { id: 'bbq8', name: 'Fish Boneless Boti', category: 'BBQ Special', price: 1299, active: true },
+  { id: 'bbq8', name: 'Fish Boneless Boti', category: 'BBQ Special', price: 1299, image: '/Fish Boneless Boti.jfif', active: true },
   { id: 'bbq9', name: 'Lamb Namkin Boti', category: 'BBQ Special', price: 4999, active: true },
   { id: 'bbq10', name: 'Chicken Grilled Chargha', category: 'BBQ Special', price: 2699, active: true },
 
@@ -163,7 +163,7 @@ export const INITIAL_MENU = [
   { id: 'bbf4', name: 'Beef Chullu Kabab', category: 'Beef BBQ', price: 1449, active: true },
 
   // Chicken BBQ
-  { id: 'cbq1', name: 'Chicken Arbic Boti', category: 'Chicken BBQ', price: 2599, active: true },
+  { id: 'cbq1', name: 'Chicken Arbic Boti', category: 'Chicken BBQ', price: 2599, image: '/Chicken Arbic Boti.jfif', active: true },
   { id: 'cbq2', name: 'Chicken Milali Boti', category: 'Chicken BBQ', price: 1099, image: '/chicken-malai-boti.jfif', active: true },
   { id: 'cbq3', name: 'Chicken Behari Kabab', category: 'Chicken BBQ', price: 1049, active: true },
   { id: 'cbq4', name: 'Chicken Spicy Boti', category: 'Chicken BBQ', price: 1049, active: true },
@@ -173,8 +173,8 @@ export const INITIAL_MENU = [
   { id: 'cbq8', name: 'Chicken Malai Tikkah', category: 'Chicken BBQ', price: 699, active: true },
 
   // Chef Special
-  { id: 'cs1', name: 'Khaddi Kabab', category: 'Chef Special', price: 4999, active: true },
-  { id: 'cs2', name: 'Dum Pukht', category: 'Chef Special', price: 4999, active: true },
+  { id: 'cs1', name: 'Khaddi Kabab', category: 'Chef Special', price: 4999, image: '/Khaddi Kabab.jfif', active: true },
+  { id: 'cs2', name: 'Dum Pukht', category: 'Chef Special', price: 4999, image: '/Dum Pukht.jpg', active: true },
   { id: 'cs3', name: 'Lamb Namkeen Boneless Boti', category: 'Chef Special', price: 7499, active: true },
   { id: 'cs4', name: 'Mutton Namkeen Boneless Boti', category: 'Chef Special', price: 7499, active: true },
   { id: 'cs5', name: 'Café Ali Special Platter Full', category: 'Chef Special', price: 11999, active: true },
