@@ -88,7 +88,7 @@ export const INITIAL_MENU = [
   { id: 'sk6', name: 'Icecream Oreo Shake', category: 'Shakes', price: 550, image: '/Icecream Oreo Shake.jfif', active: true },
   { id: 'sk7', name: 'Banana Milk Shake', category: 'Shakes', price: 550, image: '/Banana Milk Shake.jpg', active: true },
   { id: 'sk8', name: 'Mango Milk Shake', category: 'Shakes', price: 550, image: '/Mango Milk Shake.jfif', active: true },
-  { id: 'sk9', name: 'Dates Milk Shake', category: 'Shakes', price: 550, active: true },
+  { id: 'sk9', name: 'Dates Milk Shake', category: 'Shakes', price: 550, image: '/Dates Milk Shake.jfif', active: true },
 
   // Mocktails — Rs. 550
   { id: 'mk1', name: 'Pink Lady', category: 'Mocktails', price: 550, active: true },
