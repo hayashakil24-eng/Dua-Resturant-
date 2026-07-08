@@ -22,27 +22,293 @@ export const TABLES = Array.from({ length: 12 }, (_, i) => ({
   seats: [2, 4, 6][i % 3],
 }))
 
-export const MENU_CATEGORIES = ['All', 'Starters', 'BBQ & Grill', 'Main Course', 'Beverages', 'Desserts']
+// Ordered category list for the Café Ali menu (POS prepends "All").
+export const MENU_CATEGORIES = [
+  'Coladas',
+  'Slush',
+  'Fresh Juice',
+  'Shakes',
+  'Mocktails',
+  'Ice Cream',
+  'Mutton Karahi',
+  'Chicken Karahi',
+  'Handi',
+  'Pulao',
+  'BBQ Special',
+  'Beef BBQ',
+  'Chicken BBQ',
+  'Chef Special',
+  'Pakistani Cuisine',
+  'Breads',
+  'Salads & Raita',
+  'Starters',
+  'Soups',
+  'Kids Special',
+  'Steaks',
+  'Pizza',
+  'Seafood',
+  'Chinese',
+  'Rice',
+  'Pasta',
+  'Burgers & Sandwiches',
+  'Broast',
+  'Rolls',
+]
 
-export const MENU = [
-  { id: 'M01', name: 'Chicken Malai Boti', category: 'BBQ & Grill', price: 850, emoji: '🍢', image: '/chicken-malai-boti.jfif' },
-  { id: 'M02', name: 'Seekh Kebab', category: 'BBQ & Grill', price: 650, emoji: '🥩', image: '/seekh-kabab.jfif' },
-  { id: 'M03', name: 'Beef Ribs', category: 'BBQ & Grill', price: 1450, emoji: '🍖', image: '/ribs.jfif' },
-  { id: 'M04', name: 'Chicken Karahi', category: 'Main Course', price: 1650, emoji: '🍛', image: '/chicken karahi.jfif' },
-  { id: 'M05', name: 'Mutton Biryani', category: 'Main Course', price: 950, emoji: '🍚', image: '/briyani picture.jpg' },
-  { id: 'M06', name: 'Butter Chicken', category: 'Main Course', price: 1250, emoji: '🍗', image: '/butter chicken.jfif' },
-  { id: 'M07', name: 'Daal Makhani', category: 'Main Course', price: 550, emoji: '🥘', image: '/Daal-makhni.jfif' },
-  { id: 'M08', name: 'Chicken Samosa', category: 'Starters', price: 120, emoji: '🥟', image: '/chickend-samoosa.jfif' },
-  { id: 'M09', name: 'Fries', category: 'Starters', price: 350, emoji: '🍟', image: '/Fries.jpeg' },
-  { id: 'M10', name: 'Chicken Soup', category: 'Starters', price: 400, emoji: '🍲', image: '/Soups.jfif' },
-  { id: 'M11', name: 'Garlic Naan', category: 'Main Course', price: 90, emoji: '🫓', image: '/naan.jfif' },
-  { id: 'M12', name: 'Fresh Lime', category: 'Beverages', price: 250, emoji: '🍋', image: '/fresh lime.jfif' },
-  { id: 'M13', name: 'Kashmiri Chai', category: 'Beverages', price: 300, emoji: '☕', image: '/kashmiri chaiii.jfif' },
-  { id: 'M14', name: 'Soft Drink', category: 'Beverages', price: 150, emoji: '🥤', image: '/softdrinks.jfif' },
-  { id: 'M15', name: 'Mineral Water', category: 'Beverages', price: 80, emoji: '💧', image: '/mineral water.jfif' },
-  { id: 'M16', name: 'Gulab Jamun', category: 'Desserts', price: 320, emoji: '🍡', image: '/gulab jamun.jfif' },
-  { id: 'M17', name: 'Kheer', category: 'Desserts', price: 280, emoji: '🍮', image: '/kheer.jfif' },
-  { id: 'M18', name: 'Ice Cream', category: 'Desserts', price: 220, emoji: '🍨', image: '/ice cream.jfif' },
+// ---------------------------------------------------------------------------
+// Café Ali full menu. Items with size/type options carry a `variants` array;
+// `price` is the default (from) price. Managed live via Menu Management and
+// consumed by the POS. A few dishes reuse existing local images.
+// ---------------------------------------------------------------------------
+export const INITIAL_MENU = [
+  // Coladas — Rs. 550
+  { id: 'cd1', name: 'Pina Colada', category: 'Coladas', price: 550, image: '/Pina Colada.jfif', active: true },
+  { id: 'cd2', name: 'Strawberry Colada', category: 'Coladas', price: 550, image: '/Strawberry Colada.jfif', active: true },
+  { id: 'cd3', name: 'Blue Colada', category: 'Coladas', price: 550, image: '/Blue Colada.jfif', active: true },
+  { id: 'cd4', name: 'Tropical Colada', category: 'Coladas', price: 550, image: '/Tropical Colada.jpg', active: true },
+
+  // Slush — Rs. 350
+  { id: 'sl1', name: 'Blueberry Slush', category: 'Slush', price: 350, image: '/Blueberry Slush.jfif', active: true },
+  { id: 'sl2', name: 'Mint Slush', category: 'Slush', price: 350, image: '/Mint Slush.jfif', active: true },
+  { id: 'sl3', name: 'Mango Slush', category: 'Slush', price: 350, image: '/Mango Slush.jfif', active: true },
+  { id: 'sl4', name: 'Falsa Slush', category: 'Slush', price: 350, image: '/Falsa Slush.jfif', active: true },
+  { id: 'sl5', name: 'Peach Slush', category: 'Slush', price: 350, image: '/Peach Slush.jfif', active: true },
+  { id: 'sl6', name: 'Lemon Slush', category: 'Slush', price: 350, active: true },
+
+  // Fresh Juice — Rs. 350
+  { id: 'jc1', name: 'Apple Juice', category: 'Fresh Juice', price: 350, active: true },
+  { id: 'jc2', name: 'Seasonal Juice', category: 'Fresh Juice', price: 350, active: true },
+
+  // Shakes — Rs. 550
+  { id: 'sk1', name: 'Icecream Shake', category: 'Shakes', price: 550, active: true },
+  { id: 'sk2', name: 'Icecream Vanilla Shake', category: 'Shakes', price: 550, active: true },
+  { id: 'sk3', name: 'Icecream Chocolate Shake', category: 'Shakes', price: 550, active: true },
+  { id: 'sk4', name: 'Icecream Strawberry Shake', category: 'Shakes', price: 550, active: true },
+  { id: 'sk5', name: 'Icecream Kitkat Shake', category: 'Shakes', price: 550, active: true },
+  { id: 'sk6', name: 'Icecream Oreo Shake', category: 'Shakes', price: 550, active: true },
+  { id: 'sk7', name: 'Banana Milk Shake', category: 'Shakes', price: 550, active: true },
+  { id: 'sk8', name: 'Mango Milk Shake', category: 'Shakes', price: 550, active: true },
+  { id: 'sk9', name: 'Dates Milk Shake', category: 'Shakes', price: 550, active: true },
+
+  // Mocktails — Rs. 550
+  { id: 'mk1', name: 'Pink Lady', category: 'Mocktails', price: 550, active: true },
+  { id: 'mk2', name: 'Angle Mist', category: 'Mocktails', price: 550, active: true },
+  { id: 'mk3', name: 'Strawberry Burst', category: 'Mocktails', price: 550, active: true },
+  { id: 'mk4', name: 'Apple Mint', category: 'Mocktails', price: 550, active: true },
+  { id: 'mk5', name: 'Blushing Berry', category: 'Mocktails', price: 550, active: true },
+  { id: 'mk6', name: 'Punching Fruit', category: 'Mocktails', price: 550, active: true },
+  { id: 'mk7', name: 'Flavour Lassi', category: 'Mocktails', price: 550, active: true },
+
+  // Ice Cream
+  { id: 'ic1', name: 'Two Scoops', category: 'Ice Cream', price: 350, image: '/ice cream.jfif', active: true },
+  { id: 'ic2', name: 'Single Scoop', category: 'Ice Cream', price: 180, image: '/ice cream.jfif', active: true },
+  { id: 'ic3', name: 'Single Scoop Premium', category: 'Ice Cream', price: 1200, active: true },
+  { id: 'ic4', name: 'Special Faluda', category: 'Ice Cream', price: 500, active: true },
+
+  // Mutton Karahi (per kg)
+  { id: 'mkh1', name: 'Mutton Shahi Karahi', category: 'Mutton Karahi', price: 4999, active: true },
+  { id: 'mkh2', name: 'Mutton White Karahi', category: 'Mutton Karahi', price: 5199, active: true },
+  { id: 'mkh3', name: 'Mutton Peshawari Karahi', category: 'Mutton Karahi', price: 4999, active: true },
+  { id: 'mkh4', name: 'Mutton Sizzling Karahi', category: 'Mutton Karahi', price: 4999, active: true },
+  { id: 'mkh5', name: 'Lamb Peshawari Karahi', category: 'Mutton Karahi', price: 5499, active: true },
+  { id: 'mkh6', name: 'Lamb White Karahi', category: 'Mutton Karahi', price: 5699, active: true },
+  { id: 'mkh7', name: 'Lamb Brown Karahi', category: 'Mutton Karahi', price: 4999, active: true },
+  { id: 'mkh8', name: 'Mutton Brown Karahi', category: 'Mutton Karahi', price: 4999, active: true },
+  { id: 'mkh9', name: 'Mutton Namkee Bonles Karahi', category: 'Mutton Karahi', price: 6799, active: true },
+  { id: 'mkh10', name: 'Desi Murga Karahi', category: 'Mutton Karahi', price: 4999, active: true },
+  { id: 'mkh11', name: 'Prawn Karahi Red/White', category: 'Mutton Karahi', price: 4699, active: true },
+  { id: 'mkh12', name: 'Batair Karahi', category: 'Mutton Karahi', price: 3699, active: true },
+  { id: 'mkh13', name: 'Lamb Zaitoon Karahi', category: 'Mutton Karahi', price: 5660, active: true },
+  { id: 'mkh14', name: 'Mutton Zaitoon Karahi', category: 'Mutton Karahi', price: 5560, active: true },
+  { id: 'mkh15', name: 'Balochi Tikkah Karahi', category: 'Mutton Karahi', price: 2549, active: true },
+
+  // Chicken Karahi
+  { id: 'ckh1', name: 'Chicken Shahi Karahi', category: 'Chicken Karahi', price: 2699, image: '/chicken karahi.jfif', active: true },
+  { id: 'ckh2', name: 'Chicken White Karahi', category: 'Chicken Karahi', price: 2699, active: true },
+  { id: 'ckh3', name: 'Chicken Boneless Karahi', category: 'Chicken Karahi', price: 3799, active: true },
+  { id: 'ckh4', name: 'Chicken Brown Karahi', category: 'Chicken Karahi', price: 2699, active: true },
+  { id: 'ckh5', name: 'Chicken Peshawari Karahi', category: 'Chicken Karahi', price: 2699, active: true },
+  { id: 'ckh6', name: 'Chicken Zaitoon Karahi', category: 'Chicken Karahi', price: 2799, active: true },
+
+  // Handi (per kg)
+  { id: 'hd1', name: 'Mutton Shahi Handi Boneless', category: 'Handi', price: 7400, active: true },
+  { id: 'hd2', name: 'Mutton Paneer Handi', category: 'Handi', price: 7560, active: true },
+  { id: 'hd3', name: 'Mutton Makhni Handi', category: 'Handi', price: 7399, active: true },
+  { id: 'hd4', name: 'Chicken Shahi Handi', category: 'Handi', price: 3299, active: true },
+  { id: 'hd5', name: 'Chicken Makhni Handi', category: 'Handi', price: 3199, active: true },
+  { id: 'hd6', name: 'Chicken Tikkah Handi', category: 'Handi', price: 3299, active: true },
+  { id: 'hd7', name: 'Chicken Paneer Reshmi', category: 'Handi', price: 3299, active: true },
+  { id: 'hd8', name: 'Prawn Handi', category: 'Handi', price: 5999, active: true },
+
+  // Pulao
+  { id: 'pl1', name: 'Mutton Pulao', category: 'Pulao', price: 1599, active: true },
+  { id: 'pl2', name: 'Chicken Pulao', category: 'Pulao', price: 740, active: true },
+
+  // BBQ Special
+  { id: 'bbq1', name: 'Mutton Chops', category: 'BBQ Special', price: 4999, active: true },
+  { id: 'bbq2', name: 'Mutton Ribbs', category: 'BBQ Special', price: 4999, image: '/ribs.jfif', active: true },
+  { id: 'bbq3', name: 'Mutton Leg', category: 'BBQ Special', price: 4999, active: true },
+  { id: 'bbq4', name: 'Mutton Namkeen Boti', category: 'BBQ Special', price: 4999, active: true },
+  { id: 'bbq5', name: 'Shahi Batair (6 Piece)', category: 'BBQ Special', price: 1499, active: true },
+  { id: 'bbq6', name: 'Grilled Prawn', category: 'BBQ Special', price: 6450, active: true },
+  { id: 'bbq7', name: 'Fish Grilled Namkin / Spicy', category: 'BBQ Special', price: 3260, active: true },
+  { id: 'bbq8', name: 'Fish Boneless Boti', category: 'BBQ Special', price: 1299, active: true },
+  { id: 'bbq9', name: 'Lamb Namkin Boti', category: 'BBQ Special', price: 4999, active: true },
+  { id: 'bbq10', name: 'Chicken Grilled Chargha', category: 'BBQ Special', price: 2699, active: true },
+
+  // Beef BBQ
+  { id: 'bbf1', name: 'Afghani Seekh Boti (12 Piece)', category: 'Beef BBQ', price: 2149, active: true },
+  { id: 'bbf2', name: 'Beef Bihari Kabab', category: 'Beef BBQ', price: 1199, active: true },
+  { id: 'bbf3', name: 'Beef Seekh Kabab', category: 'Beef BBQ', price: 999, image: '/seekh-kabab.jfif', active: true },
+  { id: 'bbf4', name: 'Beef Chullu Kabab', category: 'Beef BBQ', price: 1449, active: true },
+
+  // Chicken BBQ
+  { id: 'cbq1', name: 'Chicken Arbic Boti', category: 'Chicken BBQ', price: 2599, active: true },
+  { id: 'cbq2', name: 'Chicken Milali Boti', category: 'Chicken BBQ', price: 1099, image: '/chicken-malai-boti.jfif', active: true },
+  { id: 'cbq3', name: 'Chicken Behari Kabab', category: 'Chicken BBQ', price: 1049, active: true },
+  { id: 'cbq4', name: 'Chicken Spicy Boti', category: 'Chicken BBQ', price: 1049, active: true },
+  { id: 'cbq5', name: 'Chicken Tikkah Spicy', category: 'Chicken BBQ', price: 660, active: true },
+  { id: 'cbq6', name: 'Chicken Reshmi Kabab', category: 'Chicken BBQ', price: 699, active: true },
+  { id: 'cbq7', name: 'Chicken Balochi Boti', category: 'Chicken BBQ', price: 1049, active: true },
+  { id: 'cbq8', name: 'Chicken Malai Tikkah', category: 'Chicken BBQ', price: 699, active: true },
+
+  // Chef Special
+  { id: 'cs1', name: 'Khaddi Kabab', category: 'Chef Special', price: 4999, active: true },
+  { id: 'cs2', name: 'Dum Pukht', category: 'Chef Special', price: 4999, active: true },
+  { id: 'cs3', name: 'Lamb Namkeen Boneless Boti', category: 'Chef Special', price: 7499, active: true },
+  { id: 'cs4', name: 'Mutton Namkeen Boneless Boti', category: 'Chef Special', price: 7499, active: true },
+  { id: 'cs5', name: 'Café Ali Special Platter Full', category: 'Chef Special', price: 11999, active: true },
+  { id: 'cs6', name: 'Café Ali Special Platter Half', category: 'Chef Special', price: 6200, active: true },
+  { id: 'cs7', name: 'Chicken Platter Full', category: 'Chef Special', price: 7500, active: true },
+  { id: 'cs8', name: 'Chicken Platter Half', category: 'Chef Special', price: 3800, active: true },
+
+  // Pakistani Cuisine
+  { id: 'pk1', name: 'Namkeen Rosh (Lamb / Mutton)', category: 'Pakistani Cuisine', price: 1799, active: true },
+  { id: 'pk2', name: 'Mutton Joint', category: 'Pakistani Cuisine', price: 1999, active: true },
+  { id: 'pk3', name: 'Mutton Fry', category: 'Pakistani Cuisine', price: 999, active: true },
+  { id: 'pk4', name: 'Mutton Queema', category: 'Pakistani Cuisine', price: 1299, active: true },
+  { id: 'pk5', name: 'Special Chicken Biryani Double', category: 'Pakistani Cuisine', price: 700, image: '/briyani picture.jpg', active: true },
+  { id: 'pk6', name: 'Special Chicken Biryani Single', category: 'Pakistani Cuisine', price: 400, image: '/briyani picture.jpg', active: true },
+  { id: 'pk7', name: 'Daal Mash Fry', category: 'Pakistani Cuisine', price: 499, active: true },
+  { id: 'pk8', name: 'Daal Chana Fry', category: 'Pakistani Cuisine', price: 450, active: true },
+  { id: 'pk9', name: 'Anda Chana', category: 'Pakistani Cuisine', price: 449, active: true },
+  { id: 'pk10', name: 'Mix Vegetable', category: 'Pakistani Cuisine', price: 599, active: true },
+  { id: 'pk11', name: 'Vegetable Handi', category: 'Pakistani Cuisine', price: 849, active: true },
+  { id: 'pk12', name: 'Dall Makhni', category: 'Pakistani Cuisine', price: 849, image: '/Daal-makhni.jfif', active: true },
+  { id: 'pk13', name: 'Chicken Lacha', category: 'Pakistani Cuisine', price: 1199, active: true },
+  { id: 'pk14', name: 'Katakat', category: 'Pakistani Cuisine', price: 1499, active: true },
+  { id: 'pk15', name: 'Brain Masala', category: 'Pakistani Cuisine', price: 1199, active: true },
+
+  // Breads
+  { id: 'br1', name: 'Plain Naan', category: 'Breads', price: 80, active: true },
+  { id: 'br2', name: 'Garlic Naan', category: 'Breads', price: 150, image: '/naan.jfif', active: true },
+  { id: 'br3', name: 'Tandoori Paratha', category: 'Breads', price: 160, active: true },
+  { id: 'br4', name: 'Roghni Naan', category: 'Breads', price: 150, active: true },
+  { id: 'br5', name: 'Kandhari Naan', category: 'Breads', price: 180, active: true },
+  { id: 'br6', name: 'Farmaishi Chapati', category: 'Breads', price: 70, active: true },
+
+  // Salads & Raita
+  { id: 'sd1', name: 'Rassian Salad', category: 'Salads & Raita', price: 649, active: true },
+  { id: 'sd2', name: 'Fresh Green Salad', category: 'Salads & Raita', price: 199, active: true },
+  { id: 'sd3', name: 'Zeera Raita Special', category: 'Salads & Raita', price: 249, active: true },
+
+  // Starters
+  { id: 'st1', name: 'Dynamite Chicken', category: 'Starters', price: 1050, active: true },
+  { id: 'st2', name: 'Dynamite Prawn', category: 'Starters', price: 1299, active: true },
+  { id: 'st3', name: 'Chicken Strip', category: 'Starters', price: 1050, active: true },
+  { id: 'st4', name: 'Dhaka Chicken', category: 'Starters', price: 1190, active: true },
+  { id: 'st5', name: 'Buffalo Wings', category: 'Starters', price: 999, active: true },
+  { id: 'st6', name: 'Peri Chilli Bites', category: 'Starters', price: 850, active: true },
+  { id: 'st7', name: 'Finger Fish', category: 'Starters', price: 1399, active: true },
+  { id: 'st8', name: 'Dhaka Fish', category: 'Starters', price: 1299, active: true },
+  { id: 'st9', name: 'Crispy Fried Prawn', category: 'Starters', price: 1299, active: true },
+  { id: 'st10', name: 'Cafe Ali Starters Platter', category: 'Starters', price: 2499, active: true },
+
+  // Soups
+  { id: 'sp1', name: 'Chicken Corn Soup', category: 'Soups', price: 499, image: '/Soups.jfif', active: true },
+  { id: 'sp2', name: 'Hot & Sour Soup Red / White', category: 'Soups', price: 499, active: true },
+  { id: 'sp3', name: 'Creamy Mushroom Soup', category: 'Soups', price: 599, active: true },
+  { id: 'sp4', name: 'Chicken Corn Soup Family Bowl', category: 'Soups', price: 890, active: true },
+  { id: 'sp5', name: 'Hot & Sour Soup Family Bowl', category: 'Soups', price: 890, active: true },
+
+  // Kids Special
+  { id: 'kd1', name: 'Cheese Fries', category: 'Kids Special', price: 649, active: true },
+  { id: 'kd2', name: 'French Fries', category: 'Kids Special', price: 345, image: '/Fries.jpeg', active: true },
+  { id: 'kd3', name: 'Creamy Macorni', category: 'Kids Special', price: 799, active: true },
+  { id: 'kd4', name: 'Kids Fish & Fries', category: 'Kids Special', price: 1049, active: true },
+  { id: 'kd5', name: 'FIRE Fries', category: 'Kids Special', price: 550, active: true },
+  { id: 'kd6', name: 'Crunchi Chicken', category: 'Kids Special', price: 850, active: true },
+
+  // Steaks (Beef / Chicken)
+  { id: 'stk1', name: 'Mushroom Steak', category: 'Steaks', price: 1900, active: true,
+    variants: [{ label: 'Beef', price: 2399 }, { label: 'Chicken', price: 1900 }] },
+  { id: 'stk2', name: 'Morracan Steak', category: 'Steaks', price: 1900, active: true,
+    variants: [{ label: 'Beef', price: 2399 }, { label: 'Chicken', price: 1900 }] },
+  { id: 'stk3', name: 'Tarragon Steak', category: 'Steaks', price: 1900, active: true,
+    variants: [{ label: 'Beef', price: 2399 }, { label: 'Chicken', price: 1900 }] },
+  { id: 'stk4', name: 'Mexicen Steak', category: 'Steaks', price: 1900, active: true,
+    variants: [{ label: 'Beef', price: 2399 }, { label: 'Chicken', price: 1900 }] },
+
+  // Pizza (Small / Medium / Large)
+  { id: 'pz1', name: 'Chicken Tikka Pizza', category: 'Pizza', price: 699, active: true,
+    variants: [{ label: 'Small', price: 699 }, { label: 'Medium', price: 1190 }, { label: 'Large', price: 1499 }] },
+  { id: 'pz2', name: 'Chicken Malai Boti Pizza', category: 'Pizza', price: 699, active: true,
+    variants: [{ label: 'Small', price: 699 }, { label: 'Medium', price: 1190 }, { label: 'Large', price: 1499 }] },
+  { id: 'pz3', name: 'Chicken Fajita Pizza', category: 'Pizza', price: 699, active: true,
+    variants: [{ label: 'Small', price: 699 }, { label: 'Medium', price: 1190 }, { label: 'Large', price: 1499 }] },
+  { id: 'pz4', name: 'Chicken Pepperoni Pizza', category: 'Pizza', price: 699, active: true,
+    variants: [{ label: 'Small', price: 699 }, { label: 'Medium', price: 1190 }, { label: 'Large', price: 1499 }] },
+  { id: 'pz5', name: 'Vegetable Pizza', category: 'Pizza', price: 500, active: true,
+    variants: [{ label: 'Small', price: 500 }, { label: 'Medium', price: 650 }, { label: 'Large', price: 1050 }] },
+
+  // Seafood
+  { id: 'sf1', name: 'Canton Whole Fish', category: 'Seafood', price: 2999, active: true },
+  { id: 'sf2', name: 'Garlic & Pepper Fish', category: 'Seafood', price: 2149, active: true },
+  { id: 'sf3', name: 'Mexicen Fish', category: 'Seafood', price: 2149, active: true },
+  { id: 'sf4', name: 'Lemon Butter Fish', category: 'Seafood', price: 2299, active: true },
+
+  // Chinese
+  { id: 'ch1', name: 'Chicken Shashlik with Rice', category: 'Chinese', price: 1099, active: true },
+  { id: 'ch2', name: 'Chicken Jalfrezi with Rice', category: 'Chinese', price: 1149, active: true },
+  { id: 'ch3', name: 'Chicken Chilli Dry', category: 'Chinese', price: 1098, active: true },
+  { id: 'ch4', name: 'Chicken Manchurian Red / White', category: 'Chinese', price: 1099, active: true },
+  { id: 'ch5', name: 'Cashew Nut Chicken', category: 'Chinese', price: 1349, active: true },
+  { id: 'ch6', name: 'Dragon Chicken', category: 'Chinese', price: 1099, active: true },
+  { id: 'ch7', name: 'Chicken Chowmin', category: 'Chinese', price: 1099, active: true },
+  { id: 'ch8', name: 'Vegetable Chowmin', category: 'Chinese', price: 899, active: true },
+  { id: 'ch9', name: 'Kung Pao Chicken', category: 'Chinese', price: 1099, active: true },
+  { id: 'ch10', name: 'Beef Chilli Dry', category: 'Chinese', price: 1299, active: true },
+
+  // Rice
+  { id: 'rc1', name: 'Singaporian Rice', category: 'Rice', price: 1099, active: true },
+  { id: 'rc2', name: 'Chicken Fried Rice', category: 'Rice', price: 850, active: true },
+  { id: 'rc3', name: 'Egg Fried Rice', category: 'Rice', price: 595, active: true },
+  { id: 'rc4', name: 'Vegetable Fried Rice', category: 'Rice', price: 490, active: true },
+  { id: 'rc5', name: 'Garlic Fried Rice', category: 'Rice', price: 450, active: true },
+  { id: 'rc6', name: 'Plain Rice', category: 'Rice', price: 300, active: true },
+
+  // Pasta
+  { id: 'pa1', name: 'Fettuccini Al Fredo Pasta', category: 'Pasta', price: 1299, active: true },
+  { id: 'pa2', name: 'Penne Arrabbiata', category: 'Pasta', price: 1399, active: true },
+  { id: 'pa3', name: 'Spinach & Mozzarella Pasta', category: 'Pasta', price: 1399, active: true },
+  { id: 'pa4', name: 'Penne Al Fredo', category: 'Pasta', price: 1399, active: true },
+
+  // Burgers & Sandwiches
+  { id: 'bg1', name: 'Zinger Burger with Cheese', category: 'Burgers & Sandwiches', price: 1050, active: true },
+  { id: 'bg2', name: 'Chicken Burger with Cheese', category: 'Burgers & Sandwiches', price: 1050, active: true },
+  { id: 'bg3', name: 'Supreme Beef Burger With Cheese', category: 'Burgers & Sandwiches', price: 1150, active: true },
+  { id: 'bg4', name: 'Special Club Sandwich', category: 'Burgers & Sandwiches', price: 950, active: true },
+  { id: 'bg5', name: 'Chicken Malai Club Sandwich', category: 'Burgers & Sandwiches', price: 1299, active: true },
+
+  // Broast
+  { id: 'bo1', name: 'Broast Quarter (Leg/Chest)', category: 'Broast', price: 799, active: true },
+  { id: 'bo2', name: 'Broast Half (Leg/Chest)', category: 'Broast', price: 1299, active: true },
+
+  // Rolls
+  { id: 'rl1', name: 'Chicken Cheesy Roll', category: 'Rolls', price: 395, active: true },
+  { id: 'rl2', name: 'Mayo Garlic Roll', category: 'Rolls', price: 349, active: true },
+  { id: 'rl3', name: 'Zinger Cheesy Roll', category: 'Rolls', price: 399, active: true },
+  { id: 'rl4', name: 'Vegetable Roll', category: 'Rolls', price: 249, active: true },
 ]
 
 // ---------------------------------------------------------------------------

@@ -4,6 +4,8 @@ import {
   INITIAL_ATTENDANCE,
   INVENTORY,
   INITIAL_TRANSACTIONS,
+  INITIAL_MENU,
+  MENU_CATEGORIES,
   STAFF,
   TAX_RATE,
 } from '../data/mockData.js'
@@ -15,6 +17,7 @@ export function AppProvider({ children }) {
   const [orders, setOrders] = useState(INITIAL_ORDERS)
   const [attendance, setAttendance] = useState(INITIAL_ATTENDANCE)
   const [inventory, setInventory] = useState(INVENTORY)
+  const [menu, setMenu] = useState(INITIAL_MENU)
   const [transactions, setTransactions] = useState(INITIAL_TRANSACTIONS)
   const [orderSeq, setOrderSeq] = useState(1046)
   const [txnSeq, setTxnSeq] = useState(500)
@@ -105,6 +108,28 @@ export function AppProvider({ children }) {
   const deleteTransaction = (id) =>
     setTransactions((prev) => prev.filter((tx) => tx.id !== id))
 
+  // Menu management — edits here flow straight to the POS.
+  const addMenuItem = (item) => {
+    const created = { active: true, ...item, id: `MI-${Date.now()}` }
+    setMenu((prev) => [...prev, created])
+    return created
+  }
+  const updateMenuItem = (id, updates) =>
+    setMenu((prev) => prev.map((m) => (m.id === id ? { ...m, ...updates } : m)))
+  const deleteMenuItem = (id) =>
+    setMenu((prev) => prev.filter((m) => m.id !== id))
+  const toggleMenuItem = (id) =>
+    setMenu((prev) => prev.map((m) => (m.id === id ? { ...m, active: !m.active } : m)))
+  const replaceMenu = (items) => setMenu(items)
+
+  // Categories present in the menu, in canonical order (extras appended).
+  const menuCategories = useMemo(() => {
+    const present = [...new Set(menu.map((m) => m.category))]
+    const ordered = MENU_CATEGORIES.filter((c) => present.includes(c))
+    const extras = present.filter((c) => !MENU_CATEGORIES.includes(c))
+    return [...ordered, ...extras]
+  }, [menu])
+
   // Items at or below their threshold — drives low-stock alerts
   const lowStock = useMemo(
     () => inventory.filter((i) => i.stock <= i.threshold),
@@ -154,6 +179,13 @@ export function AppProvider({ children }) {
     transactions,
     addTransaction,
     deleteTransaction,
+    menu,
+    menuCategories,
+    addMenuItem,
+    updateMenuItem,
+    deleteMenuItem,
+    toggleMenuItem,
+    replaceMenu,
     stats,
   }
 

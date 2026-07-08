@@ -6,6 +6,7 @@ import Login from './pages/Login.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import POS from './pages/POS.jsx'
 import Orders from './pages/Orders.jsx'
+import MenuManagement from './pages/MenuManagement.jsx'
 import Inventory from './pages/Inventory.jsx'
 import Attendance from './pages/Attendance.jsx'
 import Payroll from './pages/Payroll.jsx'
@@ -41,6 +42,7 @@ export default function App() {
       <Route path="/" element={<Protected path="/"><Dashboard /></Protected>} />
       <Route path="/pos" element={<Protected path="/pos"><POS /></Protected>} />
       <Route path="/orders" element={<Protected path="/orders"><Orders /></Protected>} />
+      <Route path="/menu" element={<Protected path="/menu"><MenuManagement /></Protected>} />
       <Route path="/inventory" element={<Protected path="/inventory"><Inventory /></Protected>} />
       <Route
         path="/attendance"

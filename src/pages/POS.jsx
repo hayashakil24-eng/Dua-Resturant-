@@ -3,13 +3,7 @@ import { useApp } from '../context/AppContext.jsx'
 import { PageHeader } from '../components/ui.jsx'
 import { money } from '../utils/format.js'
 import { Receipt } from './Billing.jsx'
-import {
-  MENU,
-  MENU_CATEGORIES,
-  WAITERS,
-  TABLES,
-  TAX_RATE,
-} from '../data/mockData.js'
+import { WAITERS, TABLES, TAX_RATE } from '../data/mockData.js'
 import {
   IconPlus,
   IconMinus,
@@ -196,11 +190,46 @@ function MenuImage({ item }) {
   )
 }
 
+// Quick size/type chooser for items that have variants (Pizza, Steaks).
+function VariantModal({ item, onPick, onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-sm animate-fade-up">
+        <div className="card p-6">
+          <div className="flex items-start justify-between">
+            <div>
+              <h3 className="font-serif text-xl text-cream">{item.name}</h3>
+              <p className="mt-0.5 text-xs text-cream-dim">Choose an option</p>
+            </div>
+            <button onClick={onClose} className="text-cream-dim hover:text-cream">
+              <IconClose size={20} />
+            </button>
+          </div>
+          <div className="mt-5 space-y-2">
+            {item.variants.map((v) => (
+              <button
+                key={v.label}
+                onClick={() => onPick(v)}
+                className="flex w-full items-center justify-between rounded-xl border border-ink-line bg-ink-soft px-4 py-3 text-left transition hover:border-gold/50 hover:bg-gold/5"
+              >
+                <span className="text-sm font-semibold text-cream">{v.label}</span>
+                <span className="font-serif text-lg text-gold">{money(v.price)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function POS() {
-  const { addOrder, orderTotal } = useApp()
+  const { addOrder, orderTotal, menu, menuCategories } = useApp()
   const [cat, setCat] = useState('All')
   const [query, setQuery] = useState('')
-  const [cart, setCart] = useState({}) // { menuId: qty }
+  const [cart, setCart] = useState({}) // { lineKey: qty }, lineKey = id or `id::variant`
+  const [variantPick, setVariantPick] = useState(null) // menu item awaiting a variant
   const [table, setTable] = useState('')
   const [waiter, setWaiter] = useState('')
   const [showPayment, setShowPayment] = useState(false)
@@ -208,41 +237,72 @@ export default function POS() {
   const [toast, setToast] = useState(null)
   const [error, setError] = useState('')
 
+  const activeMenu = useMemo(() => menu.filter((m) => m.active !== false), [menu])
+
   const filtered = useMemo(
     () =>
-      MENU.filter(
+      activeMenu.filter(
         (m) =>
           (cat === 'All' || m.category === cat) &&
           m.name.toLowerCase().includes(query.toLowerCase()),
       ),
-    [cat, query],
+    [activeMenu, cat, query],
   )
 
+  // Resolve a cart line key ("id" or "id::variant") to a priced line item.
+  const resolveLine = (key, qty) => {
+    const [id, label] = key.split('::')
+    const base = menu.find((m) => m.id === id)
+    if (!base) return null
+    const variant = label ? (base.variants || []).find((v) => v.label === label) : null
+    return {
+      key,
+      id,
+      name: label ? `${base.name} (${label})` : base.name,
+      price: variant ? variant.price : base.price,
+      emoji: base.emoji,
+      qty,
+    }
+  }
+
   const items = Object.entries(cart)
-    .map(([id, qty]) => {
-      const m = MENU.find((x) => x.id === id)
-      return { ...m, qty }
-    })
-    .filter((i) => i.qty > 0)
+    .map(([key, qty]) => resolveLine(key, qty))
+    .filter((i) => i && i.qty > 0)
 
   const { subtotal, tax, total } = orderTotal(items)
 
-  const add = (id) => setCart((c) => ({ ...c, [id]: (c[id] || 0) + 1 }))
-  const dec = (id) =>
+  const add = (key) => setCart((c) => ({ ...c, [key]: (c[key] || 0) + 1 }))
+  const dec = (key) =>
     setCart((c) => {
-      const q = (c[id] || 0) - 1
+      const q = (c[key] || 0) - 1
       const next = { ...c }
-      if (q <= 0) delete next[id]
-      else next[id] = q
+      if (q <= 0) delete next[key]
+      else next[key] = q
       return next
     })
-  const removeItem = (id) =>
+  const removeItem = (key) =>
     setCart((c) => {
       const next = { ...c }
-      delete next[id]
+      delete next[key]
       return next
     })
   const clear = () => setCart({})
+
+  // Tapping a menu item: variant items open the picker, others add directly.
+  const onItemClick = (m) => {
+    if (m.variants && m.variants.length) setVariantPick(m)
+    else add(m.id)
+  }
+  const chooseVariant = (m, v) => {
+    add(`${m.id}::${v.label}`)
+    setVariantPick(null)
+  }
+  // Total quantity of a menu item across all its variant lines (for the badge).
+  const qtyFor = (m) =>
+    Object.entries(cart).reduce(
+      (s, [key, q]) => (key.split('::')[0] === m.id ? s + q : s),
+      0,
+    )
 
   // Returns an error message if the order isn't ready to place, else null.
   const validate = () => {
@@ -262,7 +322,7 @@ export default function POS() {
     const order = addOrder({
       table: Number(table),
       waiter,
-      items: items.map(({ id, name, price, qty }) => ({ id, name, price, qty })),
+      items: items.map(({ key, name, price, qty }) => ({ id: key, name, price, qty })),
       payment,
       method,
     })
@@ -317,7 +377,7 @@ export default function POS() {
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
-            {MENU_CATEGORIES.map((c) => (
+            {['All', ...menuCategories].map((c) => (
               <button
                 key={c}
                 onClick={() => setCat(c)}
@@ -333,31 +393,41 @@ export default function POS() {
           </div>
 
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-            {filtered.map((m) => (
-              <button
-                key={m.id}
-                onClick={() => add(m.id)}
-                className="card group relative flex flex-col p-3 text-left transition hover:border-gold/40 hover:shadow-gold"
-              >
-                <MenuImage item={m} />
+            {filtered.map((m) => {
+              const count = qtyFor(m)
+              const hasVariants = m.variants && m.variants.length
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => onItemClick(m)}
+                  className="card group relative flex flex-col p-3 text-left transition hover:border-gold/40 hover:shadow-gold"
+                >
+                  <MenuImage item={m} />
 
-                <span className="mt-3 line-clamp-2 text-sm font-semibold text-cream">
-                  {m.name}
-                </span>
-                <span className="mt-1 text-xs text-cream-dim">{m.category}</span>
-                <div className="mt-3 flex items-center justify-between">
-                  <span className="font-serif text-base text-gold">{money(m.price)}</span>
-                  <span className="grid h-7 w-7 place-items-center rounded-lg bg-gold/10 text-gold ring-1 ring-gold/20 transition group-hover:bg-gold-grad group-hover:text-ink">
-                    <IconPlus size={16} />
+                  <span className="mt-3 line-clamp-2 text-sm font-semibold text-cream">
+                    {m.name}
                   </span>
-                </div>
-                {cart[m.id] > 0 && (
-                  <span className="absolute right-2 top-2 grid h-6 min-w-6 place-items-center rounded-full bg-gold-grad px-1.5 text-xs font-bold text-ink shadow-md">
-                    {cart[m.id]}
+                  <span className="mt-1 text-xs text-cream-dim">
+                    {m.category}
+                    {hasVariants && ' · options'}
                   </span>
-                )}
-              </button>
-            ))}
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className="font-serif text-base text-gold">
+                      {hasVariants && 'from '}
+                      {money(m.price)}
+                    </span>
+                    <span className="grid h-7 w-7 place-items-center rounded-lg bg-gold/10 text-gold ring-1 ring-gold/20 transition group-hover:bg-gold-grad group-hover:text-ink">
+                      <IconPlus size={16} />
+                    </span>
+                  </div>
+                  {count > 0 && (
+                    <span className="absolute right-2 top-2 grid h-6 min-w-6 place-items-center rounded-full bg-gold-grad px-1.5 text-xs font-bold text-ink shadow-md">
+                      {count}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
             {filtered.length === 0 && (
               <p className="col-span-full py-10 text-center text-sm text-cream-dim">
                 No items match your search.
@@ -433,15 +503,15 @@ export default function POS() {
               ) : (
                 <ul className="space-y-3">
                   {items.map((it) => (
-                    <li key={it.id} className="flex items-center gap-3">
-                      <span className="text-xl">{it.emoji}</span>
+                    <li key={it.key} className="flex items-center gap-3">
+                      {it.emoji && <span className="text-xl">{it.emoji}</span>}
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-cream">{it.name}</p>
                         <p className="text-xs text-cream-dim">{money(it.price)}</p>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <button
-                          onClick={() => dec(it.id)}
+                          onClick={() => dec(it.key)}
                           className="grid h-7 w-7 place-items-center rounded-lg border border-ink-line text-cream-dim hover:text-cream"
                         >
                           <IconMinus size={14} />
@@ -450,7 +520,7 @@ export default function POS() {
                           {it.qty}
                         </span>
                         <button
-                          onClick={() => add(it.id)}
+                          onClick={() => add(it.key)}
                           className="grid h-7 w-7 place-items-center rounded-lg border border-ink-line text-cream-dim hover:text-cream"
                         >
                           <IconPlus size={14} />
@@ -460,7 +530,7 @@ export default function POS() {
                         {money(it.price * it.qty)}
                       </span>
                       <button
-                        onClick={() => removeItem(it.id)}
+                        onClick={() => removeItem(it.key)}
                         className="text-cream-dim hover:text-rose-300"
                       >
                         <IconTrash size={16} />
@@ -509,6 +579,14 @@ export default function POS() {
           </div>
         </div>
       </div>
+
+      {variantPick && (
+        <VariantModal
+          item={variantPick}
+          onPick={(v) => chooseVariant(variantPick, v)}
+          onClose={() => setVariantPick(null)}
+        />
+      )}
 
       {showPayment && (
         <PaymentModal

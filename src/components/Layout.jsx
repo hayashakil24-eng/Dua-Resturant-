@@ -79,13 +79,15 @@ export default function Layout({ children }) {
         <div className="px-1">
           <Logo />
         </div>
-        <div className="mt-8 flex-1">
+        <div className="mt-6 min-h-0 flex-1 overflow-y-auto">
           <p className="mb-2 px-3 text-[10px] uppercase tracking-[0.25em] text-cream-dim/70">
             Menu
           </p>
           <SidebarLinks role={user.role} />
         </div>
-        <UserCard user={user} onLogout={logout} />
+        <div className="mt-4 shrink-0">
+          <UserCard user={user} onLogout={logout} />
+        </div>
       </aside>
 
       {/* Mobile drawer */}
@@ -105,10 +107,12 @@ export default function Layout({ children }) {
                 <IconClose size={20} />
               </button>
             </div>
-            <div className="mt-8 flex-1">
+            <div className="mt-8 min-h-0 flex-1 overflow-y-auto">
               <SidebarLinks role={user.role} onNavigate={() => setOpen(false)} />
             </div>
-            <UserCard user={user} onLogout={logout} />
+            <div className="mt-4 shrink-0">
+              <UserCard user={user} onLogout={logout} />
+            </div>
           </aside>
         </div>
       )}

@@ -247,6 +247,28 @@ export const IconCalendar = (p) => (
     }
   />
 )
+export const IconEdit = (p) => (
+  <Icon
+    {...p}
+    path={
+      <>
+        <path d="M4 20h4L18.5 9.5a2.12 2.12 0 0 0-3-3L5 17v3Z" />
+        <path d="M13.5 6.5l3 3" />
+      </>
+    }
+  />
+)
+export const IconMenuBook = (p) => (
+  <Icon
+    {...p}
+    path={
+      <>
+        <path d="M12 6c-1.5-1.2-3.5-2-6-2v13c2.5 0 4.5.8 6 2 1.5-1.2 3.5-2 6-2V4c-2.5 0-4.5.8-6 2Z" />
+        <path d="M12 6v13" />
+      </>
+    }
+  />
+)
 export const IconReport = (p) => (
   <Icon
     {...p}
