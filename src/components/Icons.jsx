@@ -178,3 +178,117 @@ export const IconCheck = (p) => <Icon {...p} path={<path d="M5 12l5 5L20 6" />} 
 export const IconClock = (p) => (
   <Icon {...p} path={<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>} />
 )
+export const IconInventory = (p) => (
+  <Icon
+    {...p}
+    path={
+      <>
+        <path d="M3 7l9-4 9 4v10l-9 4-9-4V7Z" />
+        <path d="M3 7l9 4 9-4M12 11v10" />
+      </>
+    }
+  />
+)
+export const IconAlert = (p) => (
+  <Icon
+    {...p}
+    path={
+      <>
+        <path d="M12 3l9 16H3L12 3Z" />
+        <path d="M12 10v4M12 17h.01" />
+      </>
+    }
+  />
+)
+export const IconWallet = (p) => (
+  <Icon
+    {...p}
+    path={
+      <>
+        <path d="M3 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v0" />
+        <path d="M3 7v10a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-3" />
+        <path d="M21 11h-4a2 2 0 0 0 0 4h4v-4Z" />
+      </>
+    }
+  />
+)
+export const IconChart = (p) => (
+  <Icon
+    {...p}
+    path={
+      <>
+        <path d="M3 3v18h18" />
+        <rect x="7" y="12" width="3" height="6" rx="0.5" />
+        <rect x="12" y="8" width="3" height="10" rx="0.5" />
+        <rect x="17" y="5" width="3" height="13" rx="0.5" />
+      </>
+    }
+  />
+)
+export const IconTrendDown = (p) => (
+  <Icon
+    {...p}
+    path={
+      <>
+        <path d="M3 7l6 6 4-4 8 8" />
+        <path d="M21 17v-5h-5" />
+      </>
+    }
+  />
+)
+export const IconCalendar = (p) => (
+  <Icon
+    {...p}
+    path={
+      <>
+        <rect x="3" y="4" width="18" height="17" rx="2" />
+        <path d="M3 9h18M8 2v4M16 2v4" />
+      </>
+    }
+  />
+)
+export const IconReport = (p) => (
+  <Icon
+    {...p}
+    path={
+      <>
+        <path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" />
+        <path d="M14 3v5h5M9 13h6M9 17h6M9 9h2" />
+      </>
+    }
+  />
+)
+export const IconWhatsApp = (p) => (
+  <Icon
+    {...p}
+    path={
+      <>
+        <path d="M12 3a9 9 0 0 0-7.7 13.6L3 21l4.5-1.2A9 9 0 1 0 12 3Z" />
+        <path d="M9 8.5c.2 2 1.4 3.5 3.3 4.6.9.5 1.6.6 2 .1l.6-.8-1.8-1.1-.7.6c-.7-.4-1.3-1-1.7-1.7l.6-.7-1.1-1.8-.8.5c-.3.2-.4.5-.7 0Z" />
+      </>
+    }
+  />
+)
+export const IconKitchen = (p) => (
+  <Icon
+    {...p}
+    path={
+      <>
+        <path d="M6 12a4 4 0 1 1 1.2-7.8 4.5 4.5 0 0 1 9.6 0A4 4 0 1 1 18 12" />
+        <path d="M7 12h10v6a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-6Z" />
+        <path d="M10 16h4" />
+      </>
+    }
+  />
+)
+export const IconRefresh = (p) => (
+  <Icon
+    {...p}
+    path={
+      <>
+        <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+        <path d="M21 4v5h-5" />
+      </>
+    }
+  />
+)

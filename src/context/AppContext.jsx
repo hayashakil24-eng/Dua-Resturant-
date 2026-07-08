@@ -2,6 +2,8 @@ import { createContext, useContext, useMemo, useState } from 'react'
 import {
   INITIAL_ORDERS,
   INITIAL_ATTENDANCE,
+  INVENTORY,
+  INITIAL_TRANSACTIONS,
   STAFF,
   TAX_RATE,
 } from '../data/mockData.js'
@@ -12,7 +14,10 @@ export function AppProvider({ children }) {
   const [user, setUser] = useState(null) // { name, role }
   const [orders, setOrders] = useState(INITIAL_ORDERS)
   const [attendance, setAttendance] = useState(INITIAL_ATTENDANCE)
+  const [inventory, setInventory] = useState(INVENTORY)
+  const [transactions, setTransactions] = useState(INITIAL_TRANSACTIONS)
   const [orderSeq, setOrderSeq] = useState(1046)
+  const [txnSeq, setTxnSeq] = useState(500)
 
   const login = ({ role, name }) => setUser({ role, name: name || `${role} User` })
   const logout = () => setUser(null)
@@ -32,6 +37,7 @@ export function AppProvider({ children }) {
       items,
       payment,
       method: payment === 'Paid' ? method : '—',
+      kitchen: 'Pending',
       createdAt: new Date().toISOString(),
     }
     setOrders((prev) => [newOrder, ...prev])
@@ -42,6 +48,17 @@ export function AppProvider({ children }) {
   const markPaid = (id, method = 'Cash') =>
     setOrders((prev) =>
       prev.map((o) => (o.id === id ? { ...o, payment: 'Paid', method } : o)),
+    )
+
+  // Kitchen Display: Pending → Ready → Served (Served drops off the board)
+  const markReady = (id) =>
+    setOrders((prev) =>
+      prev.map((o) => (o.id === id ? { ...o, kitchen: 'Ready' } : o)),
+    )
+
+  const clearKitchen = (id) =>
+    setOrders((prev) =>
+      prev.map((o) => (o.id === id ? { ...o, kitchen: 'Served' } : o)),
     )
 
   const checkIn = (staffId) =>
@@ -59,6 +76,40 @@ export function AppProvider({ children }) {
         status: 'Checked Out',
       },
     }))
+
+  // Adjust a stock line by a delta (restock or consume); never drops below 0
+  const adjustStock = (id, delta) =>
+    setInventory((prev) =>
+      prev.map((i) =>
+        i.id === id ? { ...i, stock: Math.max(0, i.stock + delta) } : i,
+      ),
+    )
+
+  const restock = (id, amount = 10) => adjustStock(id, Math.abs(amount))
+
+  // Accounting ledger
+  const addTransaction = ({ type, category, description, amount, date }) => {
+    const txn = {
+      id: `TXN-${txnSeq}`,
+      type,
+      category,
+      description,
+      amount: Number(amount),
+      date: date || new Date().toISOString(),
+    }
+    setTransactions((prev) => [txn, ...prev])
+    setTxnSeq((n) => n + 1)
+    return txn
+  }
+
+  const deleteTransaction = (id) =>
+    setTransactions((prev) => prev.filter((tx) => tx.id !== id))
+
+  // Items at or below their threshold — drives low-stock alerts
+  const lowStock = useMemo(
+    () => inventory.filter((i) => i.stock <= i.threshold),
+    [inventory],
+  )
 
   // Derived stats for dashboard
   const stats = useMemo(() => {
@@ -79,8 +130,9 @@ export function AppProvider({ children }) {
       activeTables,
       present,
       totalStaff: STAFF.length,
+      lowStockCount: lowStock.length,
     }
-  }, [orders, attendance])
+  }, [orders, attendance, lowStock])
 
   const value = {
     user,
@@ -89,10 +141,19 @@ export function AppProvider({ children }) {
     orders,
     addOrder,
     markPaid,
+    markReady,
+    clearKitchen,
     orderTotal,
     attendance,
     checkIn,
     checkOut,
+    inventory,
+    lowStock,
+    adjustStock,
+    restock,
+    transactions,
+    addTransaction,
+    deleteTransaction,
     stats,
   }
 

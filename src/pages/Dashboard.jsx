@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useApp } from '../context/AppContext.jsx'
 import { PageHeader, StatCard, PaymentBadge } from '../components/ui.jsx'
 import { money, time } from '../utils/format.js'
+import { payrollTotal } from '../utils/payroll.js'
 import { STAFF, TABLES } from '../data/mockData.js'
 import { Receipt } from './Billing.jsx'
 import { canModify } from '../config/permissions.js'
@@ -14,7 +15,114 @@ import {
   IconPOS,
   IconCash,
   IconReceipt,
+  IconAlert,
+  IconInventory,
+  IconWallet,
 } from '../components/Icons.jsx'
+
+// ============================================================================
+// LIVE CLOCK + AUTO-REFRESH  (header)
+// ============================================================================
+
+// Auto-updating clock (1s) with a "Live" pulse. The 5s auto-refresh handler is
+// passed in so the same widget shows when data was last synced.
+function LiveClock({ lastRefresh, onRefresh }) {
+  const [now, setNow] = useState(new Date())
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const clock = now.toLocaleTimeString('en-PK', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  })
+  const day = now.toLocaleDateString('en-PK', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  })
+  const ago = Math.max(0, Math.round((now - lastRefresh) / 1000))
+
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-ink-line bg-ink-soft px-4 py-2">
+      <span className="relative flex h-2 w-2">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+      </span>
+      <div className="leading-tight">
+        <p className="font-serif text-sm font-semibold tabular-nums text-cream">{clock}</p>
+        <p className="text-[10px] text-cream-dim">{day} · synced {ago}s ago</p>
+      </div>
+      <button
+        onClick={onRefresh}
+        title="Refresh now"
+        className="ml-1 text-xs font-semibold text-gold hover:underline"
+      >
+        Refresh
+      </button>
+    </div>
+  )
+}
+
+// ============================================================================
+// LOW STOCK ALERT
+// ============================================================================
+
+function LowStockAlert({ items }) {
+  if (!items.length) return null
+
+  return (
+    <div className="rounded-2xl border border-amber-500/30 bg-amber-500/[0.07] p-5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30">
+            <IconAlert size={20} />
+          </span>
+          <div>
+            <h3 className="font-serif text-lg text-cream">Low Stock Alert</h3>
+            <p className="text-xs text-cream-dim">
+              {items.length} item{items.length > 1 ? 's' : ''} need restocking soon.
+            </p>
+          </div>
+        </div>
+        <Link
+          to="/inventory"
+          className="hidden items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20 sm:inline-flex"
+        >
+          <IconInventory size={14} /> View Inventory
+        </Link>
+      </div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {items.map((it) => {
+          const critical = it.stock <= it.threshold * 0.5
+          return (
+            <div
+              key={it.id}
+              className="flex items-center justify-between rounded-xl border border-ink-line bg-ink-soft/60 px-3 py-2"
+            >
+              <span className="text-sm font-medium text-cream">{it.name}</span>
+              <span
+                className={`text-xs font-semibold ${critical ? 'text-rose-300' : 'text-amber-300'}`}
+              >
+                {it.stock} {it.unit} left
+              </span>
+            </div>
+          )
+        })}
+      </div>
+      <Link
+        to="/inventory"
+        className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-amber-200 hover:underline sm:hidden"
+      >
+        <IconInventory size={14} /> View Inventory →
+      </Link>
+    </div>
+  )
+}
 
 // ============================================================================
 // SHARED DASHBOARD COMPONENT PARTS
@@ -139,7 +247,7 @@ function OnDutyStaff({ attendance }) {
 // 1. ADMIN DASHBOARD VIEW
 // ============================================================================
 
-function AdminDashboard({ stats, orders, orderTotal, attendance }) {
+function AdminDashboard({ stats, orders, orderTotal, attendance, lowStock }) {
   let cashTotal = 0
   let cardTotal = 0
   
@@ -158,6 +266,11 @@ function AdminDashboard({ stats, orders, orderTotal, attendance }) {
   const cashPct = grandTotal > 0 ? (cashTotal / grandTotal) * 100 : 0
   const cardPct = grandTotal > 0 ? (cardTotal / grandTotal) * 100 : 0
 
+  // Estimated payroll for the current month (before ad-hoc deductions).
+  const now = new Date()
+  const monthlyPayroll = payrollTotal(now.getFullYear(), now.getMonth(), now)
+  const monthName = now.toLocaleDateString('en-PK', { month: 'long' })
+
   return (
     <div className="space-y-6">
       {/* Cards Row */}
@@ -167,6 +280,8 @@ function AdminDashboard({ stats, orders, orderTotal, attendance }) {
         <StatCard icon={IconTable} label="Active Tables" value={stats.activeTables} sub="Currently dining" delay={120} />
         <StatCard icon={IconUsers} label="Staff Present" value={`${stats.present}/${stats.totalStaff}`} sub="On duty now" delay={180} />
       </div>
+
+      <LowStockAlert items={lowStock} />
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Main Column */}
@@ -207,6 +322,29 @@ function AdminDashboard({ stats, orders, orderTotal, attendance }) {
               <span className="font-serif font-bold text-sm text-gold">{money(grandTotal)}</span>
             </div>
           </div>
+
+          <div className="card p-6">
+            <div className="flex items-center gap-3">
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-gold/10 text-gold ring-1 ring-gold/25">
+                <IconWallet size={20} />
+              </span>
+              <div>
+                <h3 className="font-serif text-xl text-cream">Monthly Payroll</h3>
+                <p className="text-xs text-cream-dim">{monthName} · estimated</p>
+              </div>
+            </div>
+            <p className="mt-4 font-serif text-3xl font-semibold text-gold">{money(monthlyPayroll)}</p>
+            <p className="mt-1 text-xs text-cream-dim">
+              Across {STAFF.length} staff · before deductions
+            </p>
+            <Link
+              to="/payroll"
+              className="btn-ghost mt-5 w-full text-sm"
+            >
+              View payroll →
+            </Link>
+          </div>
+
           <OnDutyStaff attendance={attendance} />
         </div>
       </div>
@@ -218,7 +356,7 @@ function AdminDashboard({ stats, orders, orderTotal, attendance }) {
 // 2. MANAGER DASHBOARD VIEW
 // ============================================================================
 
-function ManagerDashboard({ stats, orders, orderTotal, attendance, unpaidTotal }) {
+function ManagerDashboard({ stats, orders, orderTotal, attendance, unpaidTotal, lowStock }) {
   return (
     <div className="space-y-6">
       {/* Cards Row */}
@@ -228,6 +366,8 @@ function ManagerDashboard({ stats, orders, orderTotal, attendance, unpaidTotal }
         <StatCard icon={IconUsers} label="Staff Present" value={`${stats.present}/${stats.totalStaff}`} sub="On duty now" delay={120} />
         <StatCard icon={IconCash} label="Outstanding" value={money(unpaidTotal)} sub={`${stats.pending} unpaid orders`} delay={180} />
       </div>
+
+      <LowStockAlert items={lowStock} />
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Main Column */}
@@ -474,9 +614,18 @@ function PendingBillsQueue({ orders, orderTotal, onProcessBill }) {
 // ============================================================================
 
 export default function Dashboard() {
-  const { stats, orders, orderTotal, attendance, user, markPaid } = useApp()
+  const { stats, orders, orderTotal, attendance, lowStock, user, markPaid } = useApp()
   const [activeReceipt, setActiveReceipt] = useState(null)
-  
+  const [lastRefresh, setLastRefresh] = useState(() => new Date())
+
+  // Auto-refresh every 5s. Data is reactive client state today, so this bumps
+  // the "synced" timestamp; swap refreshData() for a real fetch once wired.
+  useEffect(() => {
+    const refreshData = () => setLastRefresh(new Date())
+    const interval = setInterval(refreshData, 5000)
+    return () => clearInterval(interval)
+  }, [])
+
   const role = user.role
 
   const unpaidTotal = orders
@@ -498,6 +647,7 @@ export default function Dashboard() {
   return (
     <div>
       <PageHeader title={`${heading.title} · ${user.name.split(' ')[0]}`} subtitle={heading.sub}>
+        <LiveClock lastRefresh={lastRefresh} onRefresh={() => setLastRefresh(new Date())} />
         <Link to="/pos" className="btn-gold">
           <IconPOS size={18} /> New Order
         </Link>
@@ -510,6 +660,7 @@ export default function Dashboard() {
           orders={orders}
           orderTotal={orderTotal}
           attendance={attendance}
+          lowStock={lowStock}
         />
       )}
       {role === 'Manager' && (
@@ -519,6 +670,7 @@ export default function Dashboard() {
           orderTotal={orderTotal}
           attendance={attendance}
           unpaidTotal={unpaidTotal}
+          lowStock={lowStock}
         />
       )}
       {role === 'Cashier' && (

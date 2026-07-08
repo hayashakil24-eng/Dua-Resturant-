@@ -68,16 +68,19 @@
   }
 }
 
-/* Print styles for receipts */
+/* Print styles for receipts and reports */
 @media print {
   body * {
     visibility: hidden;
   }
   #printable-receipt,
-  #printable-receipt * {
+  #printable-receipt *,
+  #printable-report,
+  #printable-report * {
     visibility: visible;
   }
-  #printable-receipt {
+  #printable-receipt,
+  #printable-report {
     position: absolute;
     left: 0;
     top: 0;

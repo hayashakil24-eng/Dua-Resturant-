@@ -12,6 +12,14 @@ export const time = (iso) => {
   })
 }
 
+export const dateShort = (iso) => {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString('en-PK', {
+    day: '2-digit',
+    month: 'short',
+  })
+}
+
 export const dateLong = (iso = new Date().toISOString()) =>
   new Date(iso).toLocaleDateString('en-PK', {
     weekday: 'long',

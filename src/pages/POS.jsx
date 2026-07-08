@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { PageHeader } from '../components/ui.jsx'
 import { money } from '../utils/format.js'
+import { Receipt } from './Billing.jsx'
 import {
   MENU,
   MENU_CATEGORIES,
@@ -16,6 +17,8 @@ import {
   IconSearch,
   IconCash,
   IconCheck,
+  IconClose,
+  IconReceipt,
 } from '../components/Icons.jsx'
 
 function Toast({ order, onClose }) {
@@ -34,6 +37,135 @@ function Toast({ order, onClose }) {
         <button onClick={onClose} className="ml-3 text-xs text-gold hover:underline">
           Dismiss
         </button>
+      </div>
+    </div>
+  )
+}
+
+// Round up to the next multiple of `step` (for quick-cash suggestions).
+const roundUp = (n, step) => Math.ceil(n / step) * step
+
+function PaymentModal({ total, onClose, onConfirm }) {
+  const [method, setMethod] = useState('Cash')
+  const [tendered, setTendered] = useState('')
+
+  const isCash = method === 'Cash'
+  const tenderedNum = Number(tendered) || 0
+  const change = tenderedNum - total
+  const canConfirm = !isCash || tenderedNum >= total
+
+  // Handy cash denominations at or above the bill total.
+  const suggestions = [
+    ...new Set([total, roundUp(total, 100), roundUp(total, 500), roundUp(total, 1000)]),
+  ]
+    .filter((v) => v >= total)
+    .slice(0, 4)
+
+  const confirm = () => {
+    if (!canConfirm) return
+    onConfirm(method, isCash ? tenderedNum : total)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-md animate-fade-up">
+        <div className="card p-6">
+          <div className="flex items-start justify-between">
+            <div>
+              <h3 className="font-serif text-2xl text-cream">Take Payment</h3>
+              <p className="mt-0.5 text-xs text-cream-dim">Select method and collect the amount due.</p>
+            </div>
+            <button onClick={onClose} className="text-cream-dim hover:text-cream">
+              <IconClose size={20} />
+            </button>
+          </div>
+
+          {/* Amount due */}
+          <div className="mt-5 rounded-2xl border border-gold/25 bg-gold/[0.06] p-5 text-center">
+            <p className="text-[11px] uppercase tracking-widest text-gold/80">Amount due</p>
+            <p className="mt-1 font-serif text-4xl font-semibold text-gold">{money(total)}</p>
+          </div>
+
+          {/* Method */}
+          <div className="mt-5">
+            <label className="mb-2 block text-[11px] uppercase tracking-wider text-cream-dim">
+              Payment method
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {['Cash', 'Card', 'Online'].map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setMethod(m)}
+                  className={`rounded-xl border py-2.5 text-sm font-semibold transition ${
+                    method === m
+                      ? 'border-gold/50 bg-gold/12 text-gold'
+                      : 'border-ink-line bg-ink-soft text-cream-dim hover:text-cream'
+                  }`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Cash tendered + change */}
+          {isCash && (
+            <div className="mt-5">
+              <label className="mb-2 block text-[11px] uppercase tracking-wider text-cream-dim">
+                Cash received
+              </label>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                autoFocus
+                className="input"
+                placeholder="Enter amount received…"
+                value={tendered}
+                onChange={(e) => setTendered(e.target.value)}
+              />
+              <div className="mt-2 flex flex-wrap gap-2">
+                {suggestions.map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => setTendered(String(v))}
+                    className="rounded-lg border border-ink-line bg-ink-soft px-3 py-1.5 text-xs font-medium text-cream-dim transition hover:border-gold/40 hover:text-cream"
+                  >
+                    {money(v)}
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-4 flex items-center justify-between rounded-xl border border-ink-line bg-ink-soft px-4 py-3">
+                <span className="text-sm text-cream-dim">
+                  {change >= 0 ? 'Change due' : 'Remaining'}
+                </span>
+                <span
+                  className={`font-serif text-2xl font-semibold ${
+                    change >= 0 ? 'text-emerald-300' : 'text-rose-300'
+                  }`}
+                >
+                  {money(Math.abs(change))}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="mt-6 flex gap-3">
+            <button onClick={onClose} className="btn-ghost flex-1 py-3">
+              Cancel
+            </button>
+            <button
+              onClick={confirm}
+              disabled={!canConfirm}
+              className="btn-gold flex-1 py-3 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <IconCheck size={18} /> Confirm {money(total)}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -65,14 +197,14 @@ function MenuImage({ item }) {
 }
 
 export default function POS() {
-  const { addOrder, orderTotal, user } = useApp()
+  const { addOrder, orderTotal } = useApp()
   const [cat, setCat] = useState('All')
   const [query, setQuery] = useState('')
   const [cart, setCart] = useState({}) // { menuId: qty }
   const [table, setTable] = useState('')
   const [waiter, setWaiter] = useState('')
-  const [payment, setPayment] = useState('Unpaid')
-  const [method, setMethod] = useState('Cash')
+  const [showPayment, setShowPayment] = useState(false)
+  const [activeReceipt, setActiveReceipt] = useState(null)
   const [toast, setToast] = useState(null)
   const [error, setError] = useState('')
 
@@ -112,23 +244,54 @@ export default function POS() {
     })
   const clear = () => setCart({})
 
-  const checkout = () => {
-    if (items.length === 0) return setError('Add at least one item to the order.')
-    if (!table) return setError('Please select a table number.')
-    if (!waiter) return setError('Please assign a waiter.')
-    setError('')
+  // Returns an error message if the order isn't ready to place, else null.
+  const validate = () => {
+    if (items.length === 0) return 'Add at least one item to the order.'
+    if (!table) return 'Please select a table number.'
+    if (!waiter) return 'Please assign a waiter.'
+    return null
+  }
+
+  const resetForm = () => {
+    clear()
+    setTable('')
+    setWaiter('')
+  }
+
+  const placeOrder = ({ payment, method }) => {
     const order = addOrder({
       table: Number(table),
       waiter,
       items: items.map(({ id, name, price, qty }) => ({ id, name, price, qty })),
-      payment: user?.role === 'Manager' ? 'Unpaid' : payment,
-      method: user?.role === 'Manager' ? '—' : method,
+      payment,
+      method,
     })
+    resetForm()
+    return order
+  }
+
+  // "Pay Now" — validate, then open the payment modal.
+  const openPayment = () => {
+    const err = validate()
+    if (err) return setError(err)
+    setError('')
+    setShowPayment(true)
+  }
+
+  // Confirmed in the payment modal → mark paid, then auto-open receipt to print.
+  const confirmPayment = (method) => {
+    const order = placeOrder({ payment: 'Paid', method })
+    setShowPayment(false)
+    setActiveReceipt(order)
+  }
+
+  // "Place as Unpaid" — send to kitchen now, collect payment later at billing.
+  const placeUnpaid = () => {
+    const err = validate()
+    if (err) return setError(err)
+    setError('')
+    const order = placeOrder({ payment: 'Unpaid', method: '—' })
     setToast(order)
-    clear()
-    setTable('')
-    setWaiter('')
-    setPayment('Unpaid')
     setTimeout(() => setToast(null), 4000)
   }
 
@@ -327,62 +490,43 @@ export default function POS() {
                 </div>
               </div>
 
-              {/* Payment status */}
-              {user?.role !== 'Manager' && (
-                <div className="mt-4">
-                  <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
-                    Payment status
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {['Paid', 'Unpaid'].map((p) => (
-                      <button
-                        key={p}
-                        onClick={() => setPayment(p)}
-                        className={`rounded-xl border py-2.5 text-sm font-semibold transition ${
-                          payment === p
-                            ? p === 'Paid'
-                              ? 'border-emerald-500/50 bg-emerald-500/12 text-emerald-300'
-                              : 'border-amber-500/50 bg-amber-500/12 text-amber-300'
-                            : 'border-ink-line bg-ink-soft text-cream-dim hover:text-cream'
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    ))}
-                  </div>
-                  {payment === 'Paid' && (
-                    <div className="mt-2 grid grid-cols-3 gap-2">
-                      {['Cash', 'Card', 'Online'].map((mth) => (
-                        <button
-                          key={mth}
-                          onClick={() => setMethod(mth)}
-                          className={`rounded-lg border py-2 text-xs font-medium transition ${
-                            method === mth
-                              ? 'border-gold/50 bg-gold/12 text-gold'
-                              : 'border-ink-line bg-ink-soft text-cream-dim hover:text-cream'
-                          }`}
-                        >
-                          {mth}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
               {error && (
                 <p className="mt-3 rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
                   {error}
                 </p>
               )}
 
-              <button onClick={checkout} className="btn-gold mt-4 w-full py-3">
-                <IconCash size={18} /> Place Order · {money(total)}
+              <button onClick={openPayment} className="btn-gold mt-4 w-full py-3">
+                <IconCash size={18} /> Pay Now · {money(total)}
+              </button>
+              <button
+                onClick={placeUnpaid}
+                className="btn-ghost mt-2 w-full py-2.5 text-sm"
+              >
+                <IconReceipt size={16} /> Place as Unpaid
               </button>
             </div>
           </div>
         </div>
       </div>
+
+      {showPayment && (
+        <PaymentModal
+          total={total}
+          onClose={() => setShowPayment(false)}
+          onConfirm={confirmPayment}
+        />
+      )}
+
+      {activeReceipt && (
+        <Receipt
+          order={activeReceipt}
+          orderTotal={orderTotal}
+          onClose={() => setActiveReceipt(null)}
+          onMarkPaid={() => {}}
+          canMarkPaid={false}
+        />
+      )}
 
       {toast && <Toast order={toast} onClose={() => setToast(null)} />}
     </div>
