@@ -73,21 +73,21 @@ export const INITIAL_MENU = [
   { id: 'sl3', name: 'Mango Slush', category: 'Slush', price: 350, image: '/Mango Slush.jfif', active: true },
   { id: 'sl4', name: 'Falsa Slush', category: 'Slush', price: 350, image: '/Falsa Slush.jfif', active: true },
   { id: 'sl5', name: 'Peach Slush', category: 'Slush', price: 350, image: '/Peach Slush.jfif', active: true },
-  { id: 'sl6', name: 'Lemon Slush', category: 'Slush', price: 350, active: true },
+  { id: 'sl6', name: 'Lemon Slush', category: 'Slush', price: 350, image: '/Lemon Slush.jfif', active: true },
 
   // Fresh Juice — Rs. 350
-  { id: 'jc1', name: 'Apple Juice', category: 'Fresh Juice', price: 350, active: true },
-  { id: 'jc2', name: 'Seasonal Juice', category: 'Fresh Juice', price: 350, active: true },
+  { id: 'jc1', name: 'Apple Juice', category: 'Fresh Juice', price: 350, image: '/Apple Juice.jfif', active: true },
+  { id: 'jc2', name: 'Seasonal Juice', category: 'Fresh Juice', price: 350, image: '/Seasonal Juice.jfif', active: true },
 
   // Shakes — Rs. 550
-  { id: 'sk1', name: 'Icecream Shake', category: 'Shakes', price: 550, active: true },
-  { id: 'sk2', name: 'Icecream Vanilla Shake', category: 'Shakes', price: 550, active: true },
-  { id: 'sk3', name: 'Icecream Chocolate Shake', category: 'Shakes', price: 550, active: true },
-  { id: 'sk4', name: 'Icecream Strawberry Shake', category: 'Shakes', price: 550, active: true },
-  { id: 'sk5', name: 'Icecream Kitkat Shake', category: 'Shakes', price: 550, active: true },
-  { id: 'sk6', name: 'Icecream Oreo Shake', category: 'Shakes', price: 550, active: true },
-  { id: 'sk7', name: 'Banana Milk Shake', category: 'Shakes', price: 550, active: true },
-  { id: 'sk8', name: 'Mango Milk Shake', category: 'Shakes', price: 550, active: true },
+  { id: 'sk1', name: 'Icecream Shake', category: 'Shakes', price: 550, image: '/Icecream Shake.jfif', active: true },
+  { id: 'sk2', name: 'Icecream Vanilla Shake', category: 'Shakes', price: 550, image: '/Icecream Vanilla Shake.jfif', active: true },
+  { id: 'sk3', name: 'Icecream Chocolate Shake', category: 'Shakes', price: 550, image: '/Icecream Chocolate.jfif', active: true },
+  { id: 'sk4', name: 'Icecream Strawberry Shake', category: 'Shakes', price: 550, image: '/Icecream Strawberry.jfif', active: true },
+  { id: 'sk5', name: 'Icecream Kitkat Shake', category: 'Shakes', price: 550, image: '/Icecream Kitkat Shake.jfif', active: true },
+  { id: 'sk6', name: 'Icecream Oreo Shake', category: 'Shakes', price: 550, image: '/Icecream Oreo Shake.jfif', active: true },
+  { id: 'sk7', name: 'Banana Milk Shake', category: 'Shakes', price: 550, image: '/Banana Milk Shake.jpg', active: true },
+  { id: 'sk8', name: 'Mango Milk Shake', category: 'Shakes', price: 550, image: '/Mango Milk Shake.jfif', active: true },
   { id: 'sk9', name: 'Dates Milk Shake', category: 'Shakes', price: 550, active: true },
 
   // Mocktails — Rs. 550
@@ -106,13 +106,13 @@ export const INITIAL_MENU = [
   { id: 'ic4', name: 'Special Faluda', category: 'Ice Cream', price: 500, active: true },
 
   // Mutton Karahi (per kg)
-  { id: 'mkh1', name: 'Mutton Shahi Karahi', category: 'Mutton Karahi', price: 4999, active: true },
-  { id: 'mkh2', name: 'Mutton White Karahi', category: 'Mutton Karahi', price: 5199, active: true },
-  { id: 'mkh3', name: 'Mutton Peshawari Karahi', category: 'Mutton Karahi', price: 4999, active: true },
-  { id: 'mkh4', name: 'Mutton Sizzling Karahi', category: 'Mutton Karahi', price: 4999, active: true },
-  { id: 'mkh5', name: 'Lamb Peshawari Karahi', category: 'Mutton Karahi', price: 5499, active: true },
-  { id: 'mkh6', name: 'Lamb White Karahi', category: 'Mutton Karahi', price: 5699, active: true },
-  { id: 'mkh7', name: 'Lamb Brown Karahi', category: 'Mutton Karahi', price: 4999, active: true },
+  { id: 'mkh1', name: 'Mutton Shahi Karahi', category: 'Mutton Karahi', price: 4999, image: '/Mutton Shahi Karahi.jfif', active: true },
+  { id: 'mkh2', name: 'Mutton White Karahi', category: 'Mutton Karahi', price: 5199, image: '/Mutton White Karahi.jfif', active: true },
+  { id: 'mkh3', name: 'Mutton Peshawari Karahi', category: 'Mutton Karahi', price: 4999, image: '/Mutton Peshawari karahi.jpg', active: true },
+  { id: 'mkh4', name: 'Mutton Sizzling Karahi', category: 'Mutton Karahi', price: 4999, image: '/Mutton Sizzling Karahi.jfif', active: true },
+  { id: 'mkh5', name: 'Lamb Peshawari Karahi', category: 'Mutton Karahi', price: 5499, image: '/lamb pehawari karahi.jfif', active: true },
+  { id: 'mkh6', name: 'Lamb White Karahi', category: 'Mutton Karahi', price: 5699, image: '/Lamb White Karahi.jfif', active: true },
+  { id: 'mkh7', name: 'Lamb Brown Karahi', category: 'Mutton Karahi', price: 4999, image: '/Lamb Brown Karahi.jpg', active: true },
   { id: 'mkh8', name: 'Mutton Brown Karahi', category: 'Mutton Karahi', price: 4999, active: true },
   { id: 'mkh9', name: 'Mutton Namkee Bonles Karahi', category: 'Mutton Karahi', price: 6799, active: true },
   { id: 'mkh10', name: 'Desi Murga Karahi', category: 'Mutton Karahi', price: 4999, active: true },
