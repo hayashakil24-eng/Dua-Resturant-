@@ -236,15 +236,15 @@ export const INITIAL_MENU = [
   { id: 'kd2', name: 'French Fries', category: 'Kids Special', price: 345, image: '/Fries.jpeg', active: true },
   { id: 'kd3', name: 'Creamy Macorni', category: 'Kids Special', price: 799, active: true },
   { id: 'kd4', name: 'Kids Fish & Fries', category: 'Kids Special', price: 1049, active: true },
-  { id: 'kd5', name: 'FIRE Fries', category: 'Kids Special', price: 550, active: true },
-  { id: 'kd6', name: 'Crunchi Chicken', category: 'Kids Special', price: 850, active: true },
+  { id: 'kd5', name: 'FIRE Fries', category: 'Kids Special', price: 550, image: '/FIRE Fries.jfif', active: true },
+  { id: 'kd6', name: 'Crunchi Chicken', category: 'Kids Special', price: 850, image: '/Crunchi Chicken.jpg', active: true },
 
   // Steaks (Beef / Chicken)
   { id: 'stk1', name: 'Mushroom Steak', category: 'Steaks', price: 1900, active: true,
     variants: [{ label: 'Beef', price: 2399 }, { label: 'Chicken', price: 1900 }] },
   { id: 'stk2', name: 'Morracan Steak', category: 'Steaks', price: 1900, active: true,
     variants: [{ label: 'Beef', price: 2399 }, { label: 'Chicken', price: 1900 }] },
-  { id: 'stk3', name: 'Tarragon Steak', category: 'Steaks', price: 1900, active: true,
+  { id: 'stk3', name: 'Tarragon Steak', category: 'Steaks', price: 1900, image: '/Tarragon Steak.jfif', active: true,
     variants: [{ label: 'Beef', price: 2399 }, { label: 'Chicken', price: 1900 }] },
   { id: 'stk4', name: 'Mexicen Steak', category: 'Steaks', price: 1900, active: true,
     variants: [{ label: 'Beef', price: 2399 }, { label: 'Chicken', price: 1900 }] },
@@ -263,14 +263,14 @@ export const INITIAL_MENU = [
 
   // Seafood
   { id: 'sf1', name: 'Canton Whole Fish', category: 'Seafood', price: 2999, active: true },
-  { id: 'sf2', name: 'Garlic & Pepper Fish', category: 'Seafood', price: 2149, active: true },
+  { id: 'sf2', name: 'Garlic & Pepper Fish', category: 'Seafood', price: 2149, image: '/Garlic & Pepper Fish.jpg', active: true },
   { id: 'sf3', name: 'Mexicen Fish', category: 'Seafood', price: 2149, active: true },
   { id: 'sf4', name: 'Lemon Butter Fish', category: 'Seafood', price: 2299, active: true },
 
   // Chinese
   { id: 'ch1', name: 'Chicken Shashlik with Rice', category: 'Chinese', price: 1099, active: true },
-  { id: 'ch2', name: 'Chicken Jalfrezi with Rice', category: 'Chinese', price: 1149, active: true },
-  { id: 'ch3', name: 'Chicken Chilli Dry', category: 'Chinese', price: 1098, active: true },
+  { id: 'ch2', name: 'Chicken Jalfrezi with Rice', category: 'Chinese', price: 1149, image: '/Chicken Jalfrezi with Rice.jfif', active: true },
+  { id: 'ch3', name: 'Chicken Chilli Dry', category: 'Chinese', price: 1098, image: '/Chicken Chilli Dry.jfif', active: true },
   { id: 'ch4', name: 'Chicken Manchurian Red / White', category: 'Chinese', price: 1099, active: true },
   { id: 'ch5', name: 'Cashew Nut Chicken', category: 'Chinese', price: 1349, active: true },
   { id: 'ch6', name: 'Dragon Chicken', category: 'Chinese', price: 1099, active: true },
@@ -280,9 +280,9 @@ export const INITIAL_MENU = [
   { id: 'ch10', name: 'Beef Chilli Dry', category: 'Chinese', price: 1299, active: true },
 
   // Rice
-  { id: 'rc1', name: 'Singaporian Rice', category: 'Rice', price: 1099, active: true },
-  { id: 'rc2', name: 'Chicken Fried Rice', category: 'Rice', price: 850, active: true },
-  { id: 'rc3', name: 'Egg Fried Rice', category: 'Rice', price: 595, active: true },
+  { id: 'rc1', name: 'Singaporian Rice', category: 'Rice', price: 1099, image: '/Singaporian Rice.jfif', active: true },
+  { id: 'rc2', name: 'Chicken Fried Rice', category: 'Rice', price: 850, image: '/Chicken Fried Rice.jfif', active: true },
+  { id: 'rc3', name: 'Egg Fried Rice', category: 'Rice', price: 595, image: '/Egg Fried Rice.jfif', active: true },
   { id: 'rc4', name: 'Vegetable Fried Rice', category: 'Rice', price: 490, active: true },
   { id: 'rc5', name: 'Garlic Fried Rice', category: 'Rice', price: 450, active: true },
   { id: 'rc6', name: 'Plain Rice', category: 'Rice', price: 300, active: true },
@@ -294,7 +294,7 @@ export const INITIAL_MENU = [
   { id: 'pa4', name: 'Penne Al Fredo', category: 'Pasta', price: 1399, active: true },
 
   // Burgers & Sandwiches
-  { id: 'bg1', name: 'Zinger Burger with Cheese', category: 'Burgers & Sandwiches', price: 1050, active: true },
+  { id: 'bg1', name: 'Zinger Burger with Cheese', category: 'Burgers & Sandwiches', price: 1050, image: '/Zinger Burger with Cheese.jfif', active: true },
   { id: 'bg2', name: 'Chicken Burger with Cheese', category: 'Burgers & Sandwiches', price: 1050, active: true },
   { id: 'bg3', name: 'Supreme Beef Burger With Cheese', category: 'Burgers & Sandwiches', price: 1150, active: true },
   { id: 'bg4', name: 'Special Club Sandwich', category: 'Burgers & Sandwiches', price: 950, active: true },
@@ -306,9 +306,9 @@ export const INITIAL_MENU = [
 
   // Rolls
   { id: 'rl1', name: 'Chicken Cheesy Roll', category: 'Rolls', price: 395, active: true },
-  { id: 'rl2', name: 'Mayo Garlic Roll', category: 'Rolls', price: 349, active: true },
+  { id: 'rl2', name: 'Mayo Garlic Roll', category: 'Rolls', price: 349, image: '/Mayo Garlic Roll.jfif', active: true },
   { id: 'rl3', name: 'Zinger Cheesy Roll', category: 'Rolls', price: 399, active: true },
-  { id: 'rl4', name: 'Vegetable Roll', category: 'Rolls', price: 249, active: true },
+  { id: 'rl4', name: 'Vegetable Roll', category: 'Rolls', price: 249, image: '/Vegetable Roll.jfif', active: true },
 ]
 
 // ---------------------------------------------------------------------------
