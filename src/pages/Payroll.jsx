@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
+import { useApp } from '../context/AppContext.jsx'
 import { PageHeader, StatCard } from '../components/ui.jsx'
-import { money } from '../utils/format.js'
+import { money, dateShort } from '../utils/format.js'
 import { monthAttendance, calcSalary } from '../utils/payroll.js'
 import { STAFF } from '../data/mockData.js'
 import {
@@ -9,6 +10,8 @@ import {
   IconCalendar,
   IconCheck,
   IconClose,
+  IconPlus,
+  IconTrash,
 } from '../components/Icons.jsx'
 
 // ---------------------------------------------------------------------------
@@ -83,30 +86,43 @@ function DetailsModal({ staff, att, year, month, monthLabel, onClose }) {
 }
 
 // ---------------------------------------------------------------------------
-// Salary edit modal (deductions)
+// Salary & advances modal — multiple dated advances, deducted from salary
 // ---------------------------------------------------------------------------
-function EditModal({ staff, att, calculated, deduction, onSave, onClose }) {
-  const [ded, setDed] = useState(String(deduction || ''))
-  const dedNum = Math.min(calculated, Math.max(0, Number(ded) || 0))
-  const final = calculated - dedNum
+const ADV_STATUS = {
+  pending: 'bg-amber-500/12 text-amber-300 ring-amber-500/30',
+  recovered: 'bg-emerald-500/12 text-emerald-300 ring-emerald-500/30',
+}
 
-  const Row = ({ label, value, strong }) => (
+function EditModal({ staff, att, calculated, advances, onAddAdvance, onDeleteAdvance, onClose }) {
+  const [amount, setAmount] = useState('')
+  const [reason, setReason] = useState('')
+
+  const advTotal = advances.reduce((s, a) => s + a.amount, 0)
+  const final = Math.max(0, calculated - advTotal)
+  const canAdd = Number(amount) > 0
+
+  const Row = ({ label, value }) => (
     <div className="flex items-center justify-between py-2">
       <span className="text-sm text-cream-dim">{label}</span>
-      <span className={strong ? 'font-serif text-lg font-semibold text-gold' : 'text-sm font-semibold text-cream'}>
-        {value}
-      </span>
+      <span className="text-sm font-semibold text-cream">{value}</span>
     </div>
   )
+
+  const submit = () => {
+    if (!canAdd) return
+    onAddAdvance({ amount: Number(amount), reason: reason.trim() })
+    setAmount('')
+    setReason('')
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-md animate-fade-up">
-        <div className="card p-6">
+        <div className="card max-h-[90vh] overflow-y-auto p-6">
           <div className="flex items-start justify-between">
             <div>
-              <h3 className="font-serif text-2xl text-cream">Edit Salary</h3>
+              <h3 className="font-serif text-2xl text-cream">Salary & Advances</h3>
               <p className="mt-0.5 text-xs text-cream-dim">
                 {staff.name} · {staff.role}
               </p>
@@ -119,45 +135,92 @@ function EditModal({ staff, att, calculated, deduction, onSave, onClose }) {
           <div className="mt-4 divide-y divide-ink-line">
             <Row label="Base salary (locked)" value={money(staff.baseSalary)} />
             <Row label="Present days" value={`${att.present} / ${att.workingDays}`} />
-            <Row label="Absent days" value={att.absent} />
             <Row label="Calculated salary" value={money(calculated)} />
           </div>
 
+          {/* Advances this month */}
           <div className="mt-4">
-            <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
-              Deductions (advances, fines, etc.)
+            <label className="mb-2 block text-[11px] uppercase tracking-wider text-cream-dim">
+              Advances this month
             </label>
-            <input
-              type="number"
-              inputMode="numeric"
-              min={0}
-              max={calculated}
-              className="input"
-              placeholder="0"
-              value={ded}
-              onChange={(e) => setDed(e.target.value)}
-            />
+            {advances.length === 0 ? (
+              <p className="rounded-lg border border-ink-line bg-ink-soft/50 px-3 py-2 text-xs text-cream-dim">
+                No advances recorded this month.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {advances.map((a) => (
+                  <div
+                    key={a.id}
+                    className="flex items-center justify-between rounded-lg border border-ink-line bg-ink-soft/50 px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-cream">
+                        {money(a.amount)}{' '}
+                        <span className="text-xs font-normal text-cream-dim">· {dateShort(a.date)}</span>
+                      </p>
+                      {a.reason && <p className="truncate text-xs text-cream-dim">{a.reason}</p>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`badge ring-1 ${ADV_STATUS[a.status] || ADV_STATUS.pending}`}>
+                        {a.status}
+                      </span>
+                      {a.status === 'pending' && (
+                        <button
+                          onClick={() => onDeleteAdvance(a.id)}
+                          className="text-cream-dim transition hover:text-rose-300"
+                          title="Remove advance"
+                        >
+                          <IconTrash size={15} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add advance */}
+            <div className="mt-3 flex gap-2">
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                className="input py-2"
+                placeholder="Amount"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+              <input
+                className="input py-2"
+                placeholder="Reason (optional)"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+              />
+              <button
+                onClick={submit}
+                disabled={!canAdd}
+                className="btn-gold shrink-0 px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <IconPlus size={16} /> Add
+              </button>
+            </div>
           </div>
 
-          <div className="mt-4 flex items-center justify-between rounded-xl border border-gold/25 bg-gold/[0.06] px-4 py-3">
-            <span className="text-sm text-cream-dim">Final salary</span>
-            <span className="font-serif text-2xl font-semibold text-gold">{money(final)}</span>
+          <div className="mt-4 space-y-1 rounded-xl border border-gold/25 bg-gold/[0.06] px-4 py-3">
+            <div className="flex items-center justify-between text-xs text-cream-dim">
+              <span>Total advances</span>
+              <span className="text-rose-300">− {money(advTotal)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-cream-dim">Final salary</span>
+              <span className="font-serif text-2xl font-semibold text-gold">{money(final)}</span>
+            </div>
           </div>
 
-          <div className="mt-6 flex gap-3">
-            <button onClick={onClose} className="btn-ghost flex-1 py-3">
-              Cancel
-            </button>
-            <button
-              onClick={() => {
-                onSave(dedNum)
-                onClose()
-              }}
-              className="btn-gold flex-1 py-3"
-            >
-              <IconCheck size={18} /> Save
-            </button>
-          </div>
+          <button onClick={onClose} className="btn-ghost mt-6 w-full py-3">
+            <IconCheck size={18} /> Done
+          </button>
         </div>
       </div>
     </div>
@@ -167,7 +230,7 @@ function EditModal({ staff, att, calculated, deduction, onSave, onClose }) {
 // ---------------------------------------------------------------------------
 // Staff payroll card
 // ---------------------------------------------------------------------------
-function PayrollCard({ staff, att, calculated, deduction, final, onDetails, onEdit }) {
+function PayrollCard({ staff, att, calculated, advTotal, final, onDetails, onEdit }) {
   const pct = att.workingDays > 0 ? (att.present / att.workingDays) * 100 : 0
   return (
     <div className="card p-5">
@@ -202,10 +265,10 @@ function PayrollCard({ staff, att, calculated, deduction, final, onDetails, onEd
           <span>Calculated</span>
           <span className="text-cream">{money(calculated)}</span>
         </div>
-        {deduction > 0 && (
+        {advTotal > 0 && (
           <div className="flex justify-between text-cream-dim">
-            <span>Deductions</span>
-            <span className="text-rose-300">− {money(deduction)}</span>
+            <span>Advances</span>
+            <span className="text-rose-300">− {money(advTotal)}</span>
           </div>
         )}
         <div className="flex items-center justify-between pt-1">
@@ -246,8 +309,8 @@ export default function Payroll() {
     return opts
   }, [today])
 
+  const { advances, addAdvance, deleteAdvance, recoverAdvances } = useApp()
   const [monthKey, setMonthKey] = useState(monthOptions[0].key)
-  const [deductions, setDeductions] = useState({}) // { [staffId]: amount }
   const [detailStaff, setDetailStaff] = useState(null)
   const [editStaff, setEditStaff] = useState(null)
   const [saved, setSaved] = useState(false)
@@ -256,18 +319,29 @@ export default function Payroll() {
   const monthIndex = month - 1
   const monthLabel = monthOptions.find((m) => m.key === monthKey)?.label
 
-  // Compute every staff member's payroll for the selected month.
+  // Compute every staff member's payroll (incl. this month's advances).
   const rows = useMemo(
     () =>
       STAFF.map((staff) => {
         const att = monthAttendance(staff.id, year, monthIndex, today)
         const calculated = calcSalary(staff.baseSalary, att.workingDays, att.present)
-        const deduction = deductions[staff.id] || 0
-        const final = Math.max(0, calculated - deduction)
-        return { staff, att, calculated, deduction, final }
+        const staffAdvances = advances.filter((a) => {
+          if (a.staffId !== staff.id) return false
+          const d = new Date(a.date)
+          return d.getFullYear() === year && d.getMonth() === monthIndex
+        })
+        const advTotal = staffAdvances.reduce((s, a) => s + a.amount, 0)
+        const final = Math.max(0, calculated - advTotal)
+        return { staff, att, calculated, advances: staffAdvances, advTotal, final }
       }),
-    [year, monthIndex, today, deductions],
+    [year, monthIndex, today, advances],
   )
+
+  // New advances land in the selected month (last day for past months).
+  const advanceDate = () => {
+    const isCurrent = year === today.getFullYear() && monthIndex === today.getMonth()
+    return (isCurrent ? today : new Date(year, monthIndex + 1, 0)).toISOString()
+  }
 
   const totalPayroll = rows.reduce((s, r) => s + r.final, 0)
   const avgAttendance = Math.round(
@@ -303,7 +377,7 @@ export default function Payroll() {
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <StatCard icon={IconUsers} label="Staff on Payroll" value={STAFF.length} sub={monthLabel} />
         <StatCard icon={IconCalendar} label="Avg Attendance" value={`${avgAttendance}%`} sub="Present / working days" />
-        <StatCard icon={IconWallet} label="Total Payroll" value={money(totalPayroll)} sub="Net, after deductions" />
+        <StatCard icon={IconWallet} label="Total Payroll" value={money(totalPayroll)} sub="Net, after advances" />
       </div>
 
       {saved && (
@@ -325,7 +399,7 @@ export default function Payroll() {
             staff={r.staff}
             att={r.att}
             calculated={r.calculated}
-            deduction={r.deduction}
+            advTotal={r.advTotal}
             final={r.final}
             onDetails={() => setDetailStaff(r.staff.id)}
             onEdit={() => setEditStaff(r.staff.id)}
@@ -339,7 +413,13 @@ export default function Payroll() {
           <p className="text-xs uppercase tracking-widest text-cream-dim">Total payroll · {monthLabel}</p>
           <p className="mt-1 font-serif text-3xl font-semibold text-gold">{money(totalPayroll)}</p>
         </div>
-        <button onClick={() => setSaved(true)} className="btn-gold px-6 py-3">
+        <button
+          onClick={() => {
+            recoverAdvances(year, monthIndex)
+            setSaved(true)
+          }}
+          className="btn-gold px-6 py-3"
+        >
           <IconCheck size={18} /> Save &amp; Confirm Payroll
         </button>
       </div>
@@ -360,10 +440,11 @@ export default function Payroll() {
           staff={editRow.staff}
           att={editRow.att}
           calculated={editRow.calculated}
-          deduction={editRow.deduction}
-          onSave={(amount) =>
-            setDeductions((prev) => ({ ...prev, [editRow.staff.id]: amount }))
+          advances={editRow.advances}
+          onAddAdvance={({ amount, reason }) =>
+            addAdvance({ staffId: editRow.staff.id, amount, reason, date: advanceDate() })
           }
+          onDeleteAdvance={deleteAdvance}
           onClose={() => setEditStaff(null)}
         />
       )}

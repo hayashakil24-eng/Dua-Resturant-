@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { PageHeader } from '../components/ui.jsx'
 import { money, dateShort } from '../utils/format.js'
+import { safePrint } from '../utils/print.js'
 import { monthFigures } from '../utils/accounting.js'
 import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from '../data/mockData.js'
 import {
@@ -355,7 +356,7 @@ export default function Accounting() {
         <div className="flex flex-col gap-3 border-b border-ink-line p-5 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="font-serif text-xl text-cream">Transactions · {monthLabel}</h3>
           <div className="flex gap-2 no-print">
-            <button onClick={() => window.print()} className="btn-ghost px-4 py-2 text-sm">
+            <button onClick={safePrint} className="btn-ghost px-4 py-2 text-sm">
               <IconPrint size={16} /> Print Report
             </button>
             <button onClick={() => setShowAdd(true)} className="btn-gold px-4 py-2 text-sm">

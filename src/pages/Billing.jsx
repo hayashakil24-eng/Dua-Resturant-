@@ -2,12 +2,22 @@ import { useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { PageHeader, PaymentBadge, EmptyState } from '../components/ui.jsx'
 import { money, time, dateLong } from '../utils/format.js'
+import { safePrint } from '../utils/print.js'
 import { TAX_RATE } from '../data/mockData.js'
 import Logo from '../components/Logo.jsx'
 import { IconReceipt, IconPrint, IconCheck, IconClose } from '../components/Icons.jsx'
 
 export function Receipt({ order, orderTotal, onClose, onMarkPaid, canMarkPaid = true }) {
   const { subtotal, tax, total } = orderTotal(order.items)
+  const [printing, setPrinting] = useState(false)
+
+  // Guarded print — ignores rapid repeat clicks so the bill prints once.
+  const handlePrint = () => {
+    if (safePrint()) {
+      setPrinting(true)
+      setTimeout(() => setPrinting(false), 1500)
+    }
+  }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm no-print" onClick={onClose} />
@@ -111,8 +121,12 @@ export function Receipt({ order, orderTotal, onClose, onMarkPaid, canMarkPaid = 
               </span>
             </button>
           )}
-          <button onClick={() => window.print()} className="btn-gold flex-1 py-3">
-            <IconPrint size={18} /> Print
+          <button
+            onClick={handlePrint}
+            disabled={printing}
+            className="btn-gold flex-1 py-3 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <IconPrint size={18} /> {printing ? 'Printing…' : 'Print'}
           </button>
           <button onClick={onClose} className="btn-ghost px-4">
             <IconClose size={18} />
@@ -130,10 +144,10 @@ export default function Billing() {
   const [active, setActive] = useState(null)
 
   const paidTotal = orders
-    .filter((o) => o.payment === 'Paid')
+    .filter((o) => o.payment === 'Paid' && !o.cancelled)
     .reduce((s, o) => s + orderTotal(o.items).total, 0)
   const unpaidTotal = orders
-    .filter((o) => o.payment === 'Unpaid')
+    .filter((o) => o.payment === 'Unpaid' && !o.cancelled)
     .reduce((s, o) => s + orderTotal(o.items).total, 0)
 
   const handleMarkPaid = (id) => {
@@ -174,7 +188,11 @@ export default function Billing() {
                 <span className="grid h-10 w-10 place-items-center rounded-xl bg-gold/10 text-gold ring-1 ring-gold/20">
                   <IconReceipt size={20} />
                 </span>
-                <PaymentBadge status={o.payment} />
+                {o.cancelled ? (
+                  <span className="badge bg-rose-500/12 text-rose-300 ring-1 ring-rose-500/30">Cancelled</span>
+                ) : (
+                  <PaymentBadge status={o.payment} />
+                )}
               </div>
               <p className="mt-4 font-semibold text-gold">{o.id}</p>
               <p className="text-xs text-cream-dim">
@@ -199,7 +217,7 @@ export default function Billing() {
           orderTotal={orderTotal}
           onClose={() => setActive(null)}
           onMarkPaid={handleMarkPaid}
-          canMarkPaid={user && canModify(user.role, 'billing')}
+          canMarkPaid={user && canModify(user.role, 'billing') && !active.cancelled}
         />
       )}
     </div>

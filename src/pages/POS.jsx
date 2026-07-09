@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext.jsx'
 import { PageHeader } from '../components/ui.jsx'
-import { money } from '../utils/format.js'
+import { money, time } from '../utils/format.js'
 import { Receipt } from './Billing.jsx'
-import { WAITERS, TABLES, TAX_RATE } from '../data/mockData.js'
+import { WAITERS, TAX_RATE } from '../data/mockData.js'
 import {
   IconPlus,
   IconMinus,
@@ -225,12 +226,16 @@ function VariantModal({ item, onPick, onClose }) {
 }
 
 export default function POS() {
-  const { addOrder, orderTotal, menu, menuCategories } = useApp()
+  const { addOrder, orderTotal, orders, menu, menuCategories, tables } = useApp()
+  const location = useLocation()
   const [cat, setCat] = useState('All')
   const [query, setQuery] = useState('')
   const [cart, setCart] = useState({}) // { lineKey: qty }, lineKey = id or `id::variant`
   const [variantPick, setVariantPick] = useState(null) // menu item awaiting a variant
-  const [table, setTable] = useState('')
+  // Pre-selected from the Tables page ("start order on this table").
+  const [table, setTable] = useState(() =>
+    location.state?.presetTable ? String(location.state.presetTable) : '',
+  )
   const [waiter, setWaiter] = useState('')
   const [showPayment, setShowPayment] = useState(false)
   const [activeReceipt, setActiveReceipt] = useState(null)
@@ -270,6 +275,22 @@ export default function POS() {
     .filter((i) => i && i.qty > 0)
 
   const { subtotal, tax, total } = orderTotal(items)
+
+  // Tables currently occupied by an active (unpaid) order — shown as "In Use".
+  const occupiedTables = useMemo(
+    () =>
+      new Set(orders.filter((o) => o.payment === 'Unpaid' && !o.cancelled).map((o) => o.table)),
+    [orders],
+  )
+
+  // Once a table is chosen AND items are on the order, lock the table until
+  // checkout. Locking only after a table is picked avoids stranding an
+  // items-first order (the selector stays usable until a table is set).
+  const tableLocked = items.length > 0 && Boolean(table)
+  const [lockedAt, setLockedAt] = useState(null)
+  useEffect(() => {
+    setLockedAt((prev) => (tableLocked ? prev || new Date() : null))
+  }, [tableLocked])
 
   const add = (key) => setCart((c) => ({ ...c, [key]: (c[key] || 0) + 1 }))
   const dec = (key) =>
@@ -452,41 +473,52 @@ export default function POS() {
             </div>
 
             {/* Assignment */}
-            <div className="grid grid-cols-2 gap-3 border-b border-ink-line p-5">
-              <div>
-                <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
-                  Table
-                </label>
-                <select
-                  className="input py-2"
-                  value={table}
-                  onChange={(e) => setTable(e.target.value)}
-                >
-                  <option value="">Select</option>
-                  {TABLES.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      Table {t.id} · {t.seats} seats
-                    </option>
-                  ))}
-                </select>
+            <div className="border-b border-ink-line p-5">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1.5 flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-cream-dim">
+                    Table
+                    {tableLocked && <span className="normal-case text-gold">🔒 Locked</span>}
+                  </label>
+                  <select
+                    className={`input py-2 ${tableLocked ? 'cursor-not-allowed opacity-50' : ''}`}
+                    value={table}
+                    disabled={tableLocked}
+                    onChange={(e) => setTable(e.target.value)}
+                  >
+                    <option value="">Select</option>
+                    {tables.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        Table {t.id} · {t.seats} seats{occupiedTables.has(t.id) ? ' (In Use)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+                    Waiter
+                  </label>
+                  <select
+                    className="input py-2"
+                    value={waiter}
+                    onChange={(e) => setWaiter(e.target.value)}
+                  >
+                    <option value="">Assign</option>
+                    {WAITERS.map((w) => (
+                      <option key={w.id} value={w.name}>
+                        {w.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
-                  Waiter
-                </label>
-                <select
-                  className="input py-2"
-                  value={waiter}
-                  onChange={(e) => setWaiter(e.target.value)}
-                >
-                  <option value="">Assign</option>
-                  {WAITERS.map((w) => (
-                    <option key={w.id} value={w.name}>
-                      {w.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {tableLocked && (
+                <p className="mt-3 flex items-center gap-2 rounded-lg border border-gold/25 bg-gold/[0.06] px-3 py-2 text-xs text-gold">
+                  🔒 Locked to Table {table} until checkout
+                  {lockedAt ? ` · since ${time(lockedAt.toISOString())}` : ''}. Remove all items or
+                  checkout to change tables.
+                </p>
+              )}
             </div>
 
             {/* Items */}

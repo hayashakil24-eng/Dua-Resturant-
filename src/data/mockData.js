@@ -552,5 +552,15 @@ export const INITIAL_TRANSACTIONS = (() => {
   return list
 })()
 
+// ---------------------------------------------------------------------------
+// Salary advances — multiple dated advances per staff, deducted at payroll.
+// (frontend only) status: 'pending' → 'recovered' once payroll is confirmed.
+// ---------------------------------------------------------------------------
+export const INITIAL_ADVANCES = [
+  { id: 'ADV-1', staffId: 'S01', amount: 5000, reason: 'Personal', date: txnDate(0, 2), status: 'pending' },
+  { id: 'ADV-2', staffId: 'S01', amount: 3000, reason: 'Medical', date: txnDate(0, 6), status: 'pending' },
+  { id: 'ADV-3', staffId: 'S03', amount: 4000, reason: 'Advance', date: txnDate(0, 4), status: 'pending' },
+]
+
 export const TAX_RATE = 0.05 // 5% GST
 export const CURRENCY = 'Rs.'

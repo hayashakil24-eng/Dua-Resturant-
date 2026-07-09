@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext.jsx'
 import { PageHeader } from '../components/ui.jsx'
 import { money } from '../utils/format.js'
 import { monthFigures } from '../utils/accounting.js'
+import { safePrint } from '../utils/print.js'
 import { RECIPE_MAP } from '../data/mockData.js'
 import { IconPrint, IconWhatsApp } from '../components/Icons.jsx'
 
@@ -78,10 +79,11 @@ export default function Reports() {
   // Orders in the selected scope
   const scopeOrders = useMemo(() => {
     if (type === 'daily') {
-      return orders.filter((o) => toDayStr(new Date(o.createdAt)) === dailyDate)
+      return orders.filter((o) => !o.cancelled && toDayStr(new Date(o.createdAt)) === dailyDate)
     }
     const [y, m] = monthKey.split('-').map(Number)
     return orders.filter((o) => {
+      if (o.cancelled) return false
       const d = new Date(o.createdAt)
       return d.getFullYear() === y && d.getMonth() === m - 1
     })
@@ -286,7 +288,7 @@ export default function Reports() {
 
         {/* Actions */}
         <div className="mt-5 flex flex-wrap justify-center gap-3 no-print">
-          <button onClick={() => window.print()} className="btn-gold px-5 py-2.5">
+          <button onClick={safePrint} className="btn-gold px-5 py-2.5">
             <IconPrint size={18} /> Print / Save PDF
           </button>
           <button onClick={shareWhatsApp} className="btn-ghost px-5 py-2.5">

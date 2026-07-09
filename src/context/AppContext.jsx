@@ -6,6 +6,8 @@ import {
   INITIAL_TRANSACTIONS,
   INITIAL_MENU,
   MENU_CATEGORIES,
+  INITIAL_ADVANCES,
+  TABLES,
   STAFF,
   TAX_RATE,
 } from '../data/mockData.js'
@@ -18,7 +20,10 @@ export function AppProvider({ children }) {
   const [attendance, setAttendance] = useState(INITIAL_ATTENDANCE)
   const [inventory, setInventory] = useState(INVENTORY)
   const [menu, setMenu] = useState(INITIAL_MENU)
+  const [tables, setTables] = useState(TABLES)
+  const [advances, setAdvances] = useState(INITIAL_ADVANCES)
   const [transactions, setTransactions] = useState(INITIAL_TRANSACTIONS)
+  const [auditLog, setAuditLog] = useState([])
   const [orderSeq, setOrderSeq] = useState(1046)
   const [txnSeq, setTxnSeq] = useState(500)
 
@@ -52,6 +57,30 @@ export function AppProvider({ children }) {
     setOrders((prev) =>
       prev.map((o) => (o.id === id ? { ...o, payment: 'Paid', method } : o)),
     )
+
+  // Manager/Admin only — cancel an UNPAID order with a reason + audit entry.
+  const cancelOrder = (id, { reason, notes = '' } = {}) => {
+    let recorded = null
+    setOrders((prev) =>
+      prev.map((o) => {
+        if (o.id !== id || o.payment !== 'Unpaid' || o.cancelled) return o
+        recorded = {
+          reason,
+          notes,
+          by: user?.name || 'Unknown',
+          role: user?.role || '—',
+          at: new Date().toISOString(),
+        }
+        return { ...o, cancelled: true, cancellation: recorded }
+      }),
+    )
+    if (recorded) {
+      setAuditLog((prev) => [
+        { id: `AUD-${Date.now()}`, orderId: id, action: 'CANCELLED', ...recorded },
+        ...prev,
+      ])
+    }
+  }
 
   // Kitchen Display: Pending → Ready → Served (Served drops off the board)
   const markReady = (id) =>
@@ -108,6 +137,48 @@ export function AppProvider({ children }) {
   const deleteTransaction = (id) =>
     setTransactions((prev) => prev.filter((tx) => tx.id !== id))
 
+  // Table management (Admin/Manager/Cashier add & edit; delete Admin-only)
+  const addTable = ({ id, seats, section }) => {
+    const num = Number(id)
+    setTables((prev) =>
+      prev.some((t) => t.id === num)
+        ? prev
+        : [...prev, { id: num, seats: Number(seats) || 2, section: section || '' }].sort(
+            (a, b) => a.id - b.id,
+          ),
+    )
+  }
+  const updateTable = (id, updates) =>
+    setTables((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)))
+  const deleteTable = (id) => setTables((prev) => prev.filter((t) => t.id !== id))
+
+  // Salary advances — multiple dated entries per staff, deducted at payroll.
+  const addAdvance = ({ staffId, amount, reason = '', date }) => {
+    const adv = {
+      id: `ADV-${Date.now()}`,
+      staffId,
+      amount: Number(amount),
+      reason,
+      date: date || new Date().toISOString(),
+      status: 'pending',
+    }
+    setAdvances((prev) => [adv, ...prev])
+    return adv
+  }
+  const deleteAdvance = (id) => setAdvances((prev) => prev.filter((a) => a.id !== id))
+  // Mark a month's pending advances as recovered (called on payroll confirm).
+  const recoverAdvances = (year, monthIndex) =>
+    setAdvances((prev) =>
+      prev.map((a) => {
+        const d = new Date(a.date)
+        return a.status === 'pending' &&
+          d.getFullYear() === year &&
+          d.getMonth() === monthIndex
+          ? { ...a, status: 'recovered' }
+          : a
+      }),
+    )
+
   // Menu management — edits here flow straight to the POS.
   const addMenuItem = (item) => {
     const created = { active: true, ...item, id: `MI-${Date.now()}` }
@@ -139,11 +210,11 @@ export function AppProvider({ children }) {
   // Derived stats for dashboard
   const stats = useMemo(() => {
     const revenue = orders
-      .filter((o) => o.payment === 'Paid')
+      .filter((o) => o.payment === 'Paid' && !o.cancelled)
       .reduce((s, o) => s + orderTotal(o.items).total, 0)
-    const pending = orders.filter((o) => o.payment === 'Unpaid').length
+    const pending = orders.filter((o) => o.payment === 'Unpaid' && !o.cancelled).length
     const activeTables = new Set(
-      orders.filter((o) => o.payment === 'Unpaid').map((o) => o.table),
+      orders.filter((o) => o.payment === 'Unpaid' && !o.cancelled).map((o) => o.table),
     ).size
     const present = Object.values(attendance).filter(
       (a) => a.status === 'Present' || a.status === 'Late',
@@ -168,6 +239,8 @@ export function AppProvider({ children }) {
     markPaid,
     markReady,
     clearKitchen,
+    cancelOrder,
+    auditLog,
     orderTotal,
     attendance,
     checkIn,
@@ -186,6 +259,14 @@ export function AppProvider({ children }) {
     deleteMenuItem,
     toggleMenuItem,
     replaceMenu,
+    tables,
+    addTable,
+    updateTable,
+    deleteTable,
+    advances,
+    addAdvance,
+    deleteAdvance,
+    recoverAdvances,
     stats,
   }
 

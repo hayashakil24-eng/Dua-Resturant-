@@ -87,7 +87,7 @@ export default function KitchenDisplay() {
   const active = useMemo(
     () =>
       orders
-        .filter((o) => o.kitchen === 'Pending' || o.kitchen === 'Ready')
+        .filter((o) => (o.kitchen === 'Pending' || o.kitchen === 'Ready') && !o.cancelled)
         .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)),
     [orders],
   )

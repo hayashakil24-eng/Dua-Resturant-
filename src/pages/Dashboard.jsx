@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext.jsx'
 import { PageHeader, StatCard, PaymentBadge } from '../components/ui.jsx'
 import { money, time } from '../utils/format.js'
 import { payrollTotal } from '../utils/payroll.js'
-import { STAFF, TABLES } from '../data/mockData.js'
+import { STAFF } from '../data/mockData.js'
 import { Receipt } from './Billing.jsx'
 import { canModify } from '../config/permissions.js'
 import {
@@ -131,7 +131,7 @@ function LowStockAlert({ items }) {
 function RevenueByHour({ orders, orderTotal }) {
   const buckets = {}
   orders
-    .filter((o) => o.payment === 'Paid')
+    .filter((o) => o.payment === 'Paid' && !o.cancelled)
     .forEach((o) => {
       const h = new Date(o.createdAt).getHours()
       buckets[h] = (buckets[h] || 0) + orderTotal(o.items).total
@@ -199,7 +199,11 @@ function RecentOrders({ orders, orderTotal }) {
             <div className="text-right">
               <p className="text-sm font-semibold text-cream">{money(orderTotal(o.items).total)}</p>
               <div className="mt-1">
-                <PaymentBadge status={o.payment} />
+                {o.cancelled ? (
+                  <span className="badge bg-rose-500/12 text-rose-300 ring-1 ring-rose-500/30">Cancelled</span>
+                ) : (
+                  <PaymentBadge status={o.payment} />
+                )}
               </div>
             </div>
           </div>
@@ -252,7 +256,7 @@ function AdminDashboard({ stats, orders, orderTotal, attendance, lowStock }) {
   let cardTotal = 0
   
   orders
-    .filter((o) => o.payment === 'Paid')
+    .filter((o) => o.payment === 'Paid' && !o.cancelled)
     .forEach((o) => {
       const tot = orderTotal(o.items).total
       if (o.method === 'Cash') {
@@ -386,6 +390,7 @@ function ManagerDashboard({ stats, orders, orderTotal, attendance, unpaidTotal, 
 }
 
 function FloorMap({ orders, orderTotal }) {
+  const { tables } = useApp()
   return (
     <div className="card p-6">
       <div className="flex items-center justify-between mb-5 border-b border-ink-line pb-4">
@@ -404,8 +409,8 @@ function FloorMap({ orders, orderTotal }) {
       </div>
       
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-        {TABLES.map((t) => {
-          const activeOrder = orders.find((o) => o.table === t.id && o.payment === 'Unpaid')
+        {tables.map((t) => {
+          const activeOrder = orders.find((o) => o.table === t.id && o.payment === 'Unpaid' && !o.cancelled)
           const occupied = !!activeOrder
 
           return (
@@ -461,8 +466,8 @@ function FloorMap({ orders, orderTotal }) {
 // ============================================================================
 
 function CashierDashboard({ stats, orders, orderTotal, unpaidTotal, onProcessBill }) {
-  const unpaidOrders = orders.filter((o) => o.payment === 'Unpaid')
-  const paidOrders = orders.filter((o) => o.payment === 'Paid')
+  const unpaidOrders = orders.filter((o) => o.payment === 'Unpaid' && !o.cancelled)
+  const paidOrders = orders.filter((o) => o.payment === 'Paid' && !o.cancelled)
 
   return (
     <div className="space-y-6">
@@ -560,7 +565,7 @@ function CashierDashboard({ stats, orders, orderTotal, unpaidTotal, onProcessBil
 }
 
 function PendingBillsQueue({ orders, orderTotal, onProcessBill }) {
-  const unpaidOrders = orders.filter((o) => o.payment === 'Unpaid')
+  const unpaidOrders = orders.filter((o) => o.payment === 'Unpaid' && !o.cancelled)
 
   return (
     <div className="card overflow-hidden">
@@ -629,7 +634,7 @@ export default function Dashboard() {
   const role = user.role
 
   const unpaidTotal = orders
-    .filter((o) => o.payment === 'Unpaid')
+    .filter((o) => o.payment === 'Unpaid' && !o.cancelled)
     .reduce((s, o) => s + orderTotal(o.items).total, 0)
 
   // Role-specific headers and page headings
