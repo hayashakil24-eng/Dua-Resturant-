@@ -2,17 +2,20 @@
 // Cafe Ali — mock data (frontend only, no backend)
 // ---------------------------------------------------------------------------
 
-export const ROLES = ['Admin', 'Manager', 'Cashier']
+export const ROLES = ['Admin', 'Manager', 'Cashier', 'Kitchen']
 
+// shiftStartTime ("HH:MM", 24h) drives the automatic Late calculation in
+// src/utils/attendanceHelpers.js — check-in after start + grace period = Late.
 export const STAFF = [
-  { id: 'S01', name: 'Ali Raza', role: 'Manager', shift: 'Morning', phone: '0300-1122334', baseSalary: 60000, active: true },
-  { id: 'S02', name: 'Hamza Khan', role: 'Cashier', shift: 'Morning', phone: '0301-2233445', baseSalary: 38000, active: true },
-  { id: 'S03', name: 'Bilal Ahmed', role: 'Waiter', shift: 'Evening', phone: '0302-3344556', baseSalary: 28000, active: true },
-  { id: 'S04', name: 'Usman Tariq', role: 'Waiter', shift: 'Morning', phone: '0303-4455667', baseSalary: 28000, active: true },
-  { id: 'S05', name: 'Zain Malik', role: 'Waiter', shift: 'Evening', phone: '0304-5566778', baseSalary: 27000, active: true },
-  { id: 'S06', name: 'Fahad Iqbal', role: 'Chef', shift: 'Morning', phone: '0305-6677889', baseSalary: 55000, active: true },
-  { id: 'S07', name: 'Saad Nawaz', role: 'Waiter', shift: 'Evening', phone: '0306-7788990', baseSalary: 26000, active: true },
-  { id: 'S08', name: 'Kamran Shah', role: 'Cashier', shift: 'Evening', phone: '0307-8899001', baseSalary: 36000, active: true },
+  { id: 'S01', name: 'Ali Raza', role: 'Manager', shift: 'Morning', shiftStartTime: '09:00', phone: '0300-1122334', baseSalary: 60000, active: true },
+  { id: 'S02', name: 'Hamza Khan', role: 'Cashier', shift: 'Morning', shiftStartTime: '09:00', phone: '0301-2233445', baseSalary: 38000, active: true },
+  { id: 'S03', name: 'Bilal Ahmed', role: 'Waiter', shift: 'Evening', shiftStartTime: '16:00', phone: '0302-3344556', baseSalary: 28000, active: true },
+  { id: 'S04', name: 'Usman Tariq', role: 'Waiter', shift: 'Morning', shiftStartTime: '09:00', phone: '0303-4455667', baseSalary: 28000, active: true },
+  { id: 'S05', name: 'Zain Malik', role: 'Waiter', shift: 'Evening', shiftStartTime: '16:00', phone: '0304-5566778', baseSalary: 27000, active: true },
+  { id: 'S06', name: 'Fahad Iqbal', role: 'Chef', shift: 'Morning', shiftStartTime: '09:00', phone: '0305-6677889', baseSalary: 55000, active: true },
+  { id: 'S07', name: 'Saad Nawaz', role: 'Waiter', shift: 'Evening', shiftStartTime: '16:00', phone: '0306-7788990', baseSalary: 26000, active: true },
+  { id: 'S08', name: 'Kamran Shah', role: 'Cashier', shift: 'Evening', shiftStartTime: '16:00', phone: '0307-8899001', baseSalary: 36000, active: true },
+  { id: 'K01', name: 'Ahmed Chef', role: 'Kitchen', shift: 'Morning', shiftStartTime: '09:00', phone: '0308-9900112', baseSalary: 45000, active: true },
 ]
 
 export const WAITERS = STAFF.filter((s) => s.role === 'Waiter')
@@ -91,13 +94,13 @@ export const INITIAL_MENU = [
   { id: 'sk9', name: 'Dates Milk Shake', category: 'Shakes', price: 550, image: '/Dates Milk Shake.jfif', active: true },
 
   // Mocktails — Rs. 550
-  { id: 'mk1', name: 'Pink Lady', category: 'Mocktails', price: 550, active: true },
-  { id: 'mk2', name: 'Angle Mist', category: 'Mocktails', price: 550, active: true },
-  { id: 'mk3', name: 'Strawberry Burst', category: 'Mocktails', price: 550, active: true },
-  { id: 'mk4', name: 'Apple Mint', category: 'Mocktails', price: 550, active: true },
-  { id: 'mk5', name: 'Blushing Berry', category: 'Mocktails', price: 550, active: true },
-  { id: 'mk6', name: 'Punching Fruit', category: 'Mocktails', price: 550, active: true },
-  { id: 'mk7', name: 'Flavour Lassi', category: 'Mocktails', price: 550, active: true },
+  { id: 'mk1', name: 'Pink Lady', category: 'Mocktails', price: 550, image: '/Pink Lady.jfif', active: true },
+  { id: 'mk2', name: 'Angle Mist', category: 'Mocktails', price: 550, image: '/Angle Mist.jfif', active: true },
+  { id: 'mk3', name: 'Strawberry Burst', category: 'Mocktails', price: 550, image: '/strawberry burst.jfif', active: true },
+  { id: 'mk4', name: 'Apple Mint', category: 'Mocktails', price: 550, image: '/apple mint.jfif', active: true },
+  { id: 'mk5', name: 'Blushing Berry', category: 'Mocktails', price: 550, image: '/Blushing Berry.jfif', active: true },
+  { id: 'mk6', name: 'Punching Fruit', category: 'Mocktails', price: 550, image: '/Punching Fruit.jfif', active: true },
+  { id: 'mk7', name: 'Flavour Lassi', category: 'Mocktails', price: 550, image: '/Flavour Lassi.jfif', active: true },
 
   // Ice Cream
   { id: 'ic1', name: 'Two Scoops', category: 'Ice Cream', price: 350, image: '/ice cream.jfif', active: true },
@@ -517,9 +520,56 @@ export const INITIAL_ATTENDANCE = {
   S04: { checkIn: t(8, 58), checkOut: t(15, 0), status: 'Checked Out' },
   S05: { checkIn: null, checkOut: null, status: 'Absent' },
   S06: { checkIn: t(9, 30), checkOut: null, status: 'Present' },
-  S07: { checkIn: t(16, 10), checkOut: null, status: 'Late' },
+  S07: { checkIn: t(17, 25), checkOut: null, status: 'Late' },
   S08: { checkIn: null, checkOut: null, status: 'Absent' },
 }
+
+// ---------------------------------------------------------------------------
+// Recipes — authored by Kitchen staff, approved by Admin. An APPROVED recipe
+// auto-deducts its ingredients from INVENTORY when an order for its menu item
+// is placed. Seeded with one approved + one pending recipe so the flow is
+// visible on first load. Ingredient quantities are in the inventory item's own
+// unit (e.g. Chicken tracked in kg → quantity 0.25 means 0.25 kg per plate).
+//   status: 'pending' | 'approved' | 'rejected'
+// ---------------------------------------------------------------------------
+export const INITIAL_RECIPES = [
+  {
+    id: 'RCP-seed-1',
+    menuItemId: 'ckh1', // Chicken Shahi Karahi
+    menuItemName: 'Chicken Shahi Karahi',
+    ingredients: [
+      { id: 'ing-s1', inventoryItemId: 'INV03', itemName: 'Chicken', quantity: 0.5, unit: 'kg' },
+      { id: 'ing-s2', inventoryItemId: 'INV02', itemName: 'Cooking Oil', quantity: 0.1, unit: 'L' },
+    ],
+    status: 'approved',
+    createdBy: 'Ahmed Chef',
+    createdByRole: 'Kitchen',
+    createdAt: t(9, 20),
+    approvedBy: 'Admin User',
+    approvedAt: t(9, 45),
+    rejectedBy: null,
+    rejectedAt: null,
+    rejectReason: null,
+  },
+  {
+    id: 'RCP-seed-2',
+    menuItemId: 'ckh2', // Chicken White Karahi
+    menuItemName: 'Chicken White Karahi',
+    ingredients: [
+      { id: 'ing-s3', inventoryItemId: 'INV03', itemName: 'Chicken', quantity: 0.5, unit: 'kg' },
+      { id: 'ing-s4', inventoryItemId: 'INV09', itemName: 'Yogurt', quantity: 0.15, unit: 'L' },
+    ],
+    status: 'pending',
+    createdBy: 'Ahmed Chef',
+    createdByRole: 'Kitchen',
+    createdAt: t(10, 5),
+    approvedBy: null,
+    approvedAt: null,
+    rejectedBy: null,
+    rejectedAt: null,
+    rejectReason: null,
+  },
+]
 
 // ---------------------------------------------------------------------------
 // Accounting ledger — income & expense transactions (frontend only).

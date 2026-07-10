@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { PageHeader, StatCard } from '../components/ui.jsx'
+import { canModify } from '../config/permissions.js'
 import { money } from '../utils/format.js'
 import { MENU_CATEGORIES } from '../data/mockData.js'
 import {
@@ -44,6 +45,33 @@ function ItemModal({ item, categories, onSave, onClose }) {
     item?.variants?.length ? item.variants.map((v) => ({ ...v })) : [{ label: '', price: '' }],
   )
   const [active, setActive] = useState(item ? item.active !== false : true)
+  const [image, setImage] = useState(item?.image || null) // data URL or existing path
+  const [imageError, setImageError] = useState('')
+
+  // Read the chosen file into a data URL so it persists in menu state without a
+  // backend. Image-only, capped at 2MB.
+  const onImageChange = (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // allow re-selecting the same file after a remove
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setImageError('Please choose an image file.')
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setImageError('Image must be under 2MB.')
+      return
+    }
+    setImageError('')
+    const reader = new FileReader()
+    reader.onloadend = () => setImage(reader.result)
+    reader.readAsDataURL(file)
+  }
+
+  const removeImage = () => {
+    setImage(null)
+    setImageError('')
+  }
 
   const resolvedCategory = category === NEW_CAT ? newCat.trim() : category
 
@@ -67,6 +95,7 @@ function ItemModal({ item, categories, onSave, onClose }) {
       name: name.trim(),
       category: resolvedCategory,
       description: description.trim() || undefined,
+      image: image || undefined,
       active,
     }
     if (hasVariants) {
@@ -132,6 +161,46 @@ function ItemModal({ item, categories, onSave, onClose }) {
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Short description…"
               />
+            </div>
+
+            {/* Image (optional) */}
+            <div>
+              <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+                Item image (optional)
+              </label>
+              {image ? (
+                <div className="flex items-center gap-4">
+                  <img
+                    src={image}
+                    alt="preview"
+                    className="h-20 w-20 shrink-0 rounded-xl border border-gold/30 object-cover"
+                  />
+                  <div className="flex flex-col gap-2">
+                    <label className="btn-ghost cursor-pointer px-3 py-1.5 text-sm">
+                      Change image
+                      <input type="file" accept="image/*" onChange={onImageChange} className="hidden" />
+                    </label>
+                    <button
+                      onClick={removeImage}
+                      className="text-xs text-rose-300 hover:text-rose-200"
+                    >
+                      Remove image
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-ink-line p-5 text-sm text-cream-dim transition hover:border-gold/50 hover:text-cream">
+                  📷 Click to upload an image
+                  <input type="file" accept="image/*" onChange={onImageChange} className="hidden" />
+                </label>
+              )}
+              {imageError ? (
+                <p className="mt-1.5 text-xs text-rose-300">{imageError}</p>
+              ) : (
+                <p className="mt-1.5 text-xs text-cream-dim/60">
+                  No image? A themed placeholder is shown on the POS.
+                </p>
+              )}
             </div>
 
             {/* Variants toggle */}
@@ -225,18 +294,62 @@ export default function MenuManagement() {
   const {
     menu,
     menuCategories,
+    addCategory,
+    deleteCategory,
     addMenuItem,
     updateMenuItem,
     deleteMenuItem,
     toggleMenuItem,
     replaceMenu,
+    user,
   } = useApp()
 
   const [query, setQuery] = useState('')
   const [catFilter, setCatFilter] = useState('All')
   const [modalItem, setModalItem] = useState(undefined) // undefined=closed, null=add, obj=edit
   const [notice, setNotice] = useState('')
+  const [newCategory, setNewCategory] = useState('')
+  const [categoryError, setCategoryError] = useState('')
+  const [confirmingDelete, setConfirmingDelete] = useState(null)
   const fileRef = useRef(null)
+
+  const canAddCategory = user && canModify(user.role, 'categoryAdd')
+
+  // Item count per category (case-insensitive), for the chip badges + delete guard.
+  const categoryCounts = useMemo(() => {
+    const counts = {}
+    menu.forEach((m) => {
+      const k = m.category.toLowerCase()
+      counts[k] = (counts[k] || 0) + 1
+    })
+    return counts
+  }, [menu])
+
+  const submitCategory = () => {
+    setCategoryError('')
+    const result = addCategory(newCategory)
+    if (result?.error) return setCategoryError(result.error)
+    flash(`Category “${newCategory.trim()}” added.`)
+    setNewCategory('')
+  }
+
+  // Non-empty → block immediately with the counted error. Empty → confirm first.
+  const requestDeleteCategory = (cat) => {
+    setCategoryError('')
+    if ((categoryCounts[cat.toLowerCase()] || 0) > 0) {
+      const result = deleteCategory(cat)
+      if (result?.error) setCategoryError(result.error)
+      return
+    }
+    setConfirmingDelete(cat)
+  }
+
+  const confirmDeleteCategory = () => {
+    const result = deleteCategory(confirmingDelete)
+    if (result?.error) setCategoryError(result.error)
+    else flash(`Category “${confirmingDelete}” deleted.`)
+    setConfirmingDelete(null)
+  }
 
   const catOrder = (c) => {
     const i = MENU_CATEGORIES.indexOf(c)
@@ -324,6 +437,58 @@ export default function MenuManagement() {
         </div>
       )}
 
+      {/* Add category — free text, Admin/Manager only. No fixed/predefined list. */}
+      {canAddCategory && (
+        <div className="card mb-5 p-4">
+          <p className="mb-2 text-[11px] uppercase tracking-wider text-cream-dim">Add category</p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input
+              className="input flex-1"
+              placeholder="Type any category name… e.g. Weekend Specials"
+              value={newCategory}
+              onChange={(e) => setNewCategory(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && submitCategory()}
+            />
+            <button onClick={submitCategory} className="btn-gold px-4 py-2 text-sm sm:w-auto">
+              <IconPlus size={16} /> Add Category
+            </button>
+          </div>
+          {categoryError && (
+            <p className="mt-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+              ❌ {categoryError}
+            </p>
+          )}
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {menuCategories.map((c) => {
+              const count = categoryCounts[c.toLowerCase()] || 0
+              const empty = count === 0
+              return (
+                <span
+                  key={c}
+                  className="badge bg-gold/10 text-gold ring-1 ring-gold/25"
+                >
+                  {c}
+                  <span className="text-[10px] text-gold/60">({count})</span>
+                  <button
+                    onClick={() => requestDeleteCategory(c)}
+                    title={
+                      empty
+                        ? `Delete “${c}”`
+                        : `Cannot delete — ${count} item${count > 1 ? 's' : ''} in use`
+                    }
+                    className={`ml-0.5 transition ${
+                      empty ? 'hover:text-rose-300' : 'text-gold/40 hover:text-rose-300'
+                    }`}
+                  >
+                    <IconClose size={12} />
+                  </button>
+                </span>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Search + filter */}
       <div className="mb-5 flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">
@@ -368,12 +533,25 @@ export default function MenuManagement() {
               {filtered.map((m) => (
                 <tr key={m.id} className="transition hover:bg-white/[0.02]">
                   <td className="px-5 py-3">
-                    <p className="font-medium text-cream">{m.name}</p>
-                    {m.variants && (
-                      <p className="text-xs text-cream-dim">
-                        {m.variants.map((v) => v.label).join(' · ')}
-                      </p>
-                    )}
+                    <div className="flex items-center gap-3">
+                      {m.image ? (
+                        <img
+                          src={m.image}
+                          alt=""
+                          className="h-9 w-9 shrink-0 rounded-lg border border-ink-line object-cover"
+                        />
+                      ) : (
+                        <span className="h-9 w-9 shrink-0 rounded-lg border border-ink-line bg-ink-soft" />
+                      )}
+                      <div>
+                        <p className="font-medium text-cream">{m.name}</p>
+                        {m.variants && (
+                          <p className="text-xs text-cream-dim">
+                            {m.variants.map((v) => v.label).join(' · ')}
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </td>
                   <td className="px-5 py-3 text-cream-dim">{m.category}</td>
                   <td className="px-5 py-3 text-right font-semibold text-gold">{priceLabel(m)}</td>
@@ -429,6 +607,38 @@ export default function MenuManagement() {
           onSave={onSave}
           onClose={() => setModalItem(undefined)}
         />
+      )}
+
+      {confirmingDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => setConfirmingDelete(null)}
+          />
+          <div className="relative z-10 w-full max-w-sm animate-fade-up">
+            <div className="card p-6">
+              <h3 className="font-serif text-xl text-cream">Delete category?</h3>
+              <p className="mt-2 text-sm text-cream-dim">
+                Delete the empty category “<span className="text-cream">{confirmingDelete}</span>”?
+                This can’t be undone.
+              </p>
+              <div className="mt-6 flex gap-3">
+                <button
+                  onClick={confirmDeleteCategory}
+                  className="flex-1 rounded-xl bg-rose-500/90 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-500"
+                >
+                  Delete
+                </button>
+                <button
+                  onClick={() => setConfirmingDelete(null)}
+                  className="btn-ghost flex-1 py-2.5 text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

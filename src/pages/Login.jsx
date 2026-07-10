@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import Logo from '../components/Logo.jsx'
 import { useApp } from '../context/AppContext.jsx'
 import { ROLES } from '../data/mockData.js'
-import { IconDashboard, IconCash, IconUsers } from '../components/Icons.jsx'
+import { IconDashboard, IconCash, IconUsers, IconKitchen } from '../components/Icons.jsx'
 
 const ROLE_META = {
   Admin: { icon: IconDashboard, desc: 'Full access · all modules & reports' },
   Manager: { icon: IconUsers, desc: 'Operations · orders, staff & attendance' },
   Cashier: { icon: IconCash, desc: 'POS · billing & receipts' },
+  Kitchen: { icon: IconKitchen, desc: 'Recipes · create & submit for approval' },
 }
 
 export default function Login() {
@@ -72,7 +73,7 @@ export default function Login() {
               <label className="mb-2 block text-xs uppercase tracking-widest text-cream-dim">
                 Select your role
               </label>
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 {ROLES.map((r) => {
                   const Meta = ROLE_META[r]
                   const active = role === r

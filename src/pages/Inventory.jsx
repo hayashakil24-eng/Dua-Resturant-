@@ -29,7 +29,12 @@ const LEVEL_LABEL = { critical: 'Critical', low: 'Low', ok: 'In stock' }
 export default function Inventory() {
   const { inventory, lowStock, adjustStock, restock, user } = useApp()
   const [query, setQuery] = useState('')
+  // Page access (also gates whether the Adjust column shows at all).
   const canEdit = user && canModify(user.role, 'inventory')
+  // Separation of duties: only Manager adds new stock; Admin & Manager may
+  // adjust existing quantities for corrections.
+  const canAddStock = user && canModify(user.role, 'inventoryAdd')
+  const canAdjust = user && canModify(user.role, 'inventoryDirectEdit')
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -68,6 +73,13 @@ export default function Inventory() {
         <StatCard icon={IconAlert} label="Low Stock" value={lowStock.length} sub="At or below threshold" />
         <StatCard icon={IconAlert} label="Critical" value={critical} sub="Needs immediate restock" />
       </div>
+
+      {canEdit && !canAddStock && (
+        <p className="mb-4 flex items-center gap-2 rounded-xl border border-ink-line bg-ink-soft px-4 py-2.5 text-xs text-cream-dim">
+          <IconAlert size={14} className="shrink-0 text-gold" />
+          New stock entries are handled by the Manager. You can adjust existing quantities for corrections.
+        </p>
+      )}
 
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
@@ -119,26 +131,33 @@ export default function Inventory() {
                     {canEdit && (
                       <td className="px-5 py-4">
                         <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => adjustStock(item.id, -1)}
-                            className="grid h-8 w-8 place-items-center rounded-lg border border-ink-line bg-ink-soft text-cream-dim transition hover:border-rose-500/40 hover:text-rose-300"
-                            title="Use 1 unit"
-                          >
-                            <IconMinus size={14} />
-                          </button>
-                          <button
-                            onClick={() => adjustStock(item.id, 1)}
-                            className="grid h-8 w-8 place-items-center rounded-lg border border-ink-line bg-ink-soft text-cream-dim transition hover:border-emerald-500/40 hover:text-emerald-300"
-                            title="Add 1 unit"
-                          >
-                            <IconPlus size={14} />
-                          </button>
-                          <button
-                            onClick={() => restock(item.id, 10)}
-                            className="btn-gold px-3 py-1.5 text-xs font-bold"
-                          >
-                            Restock +10
-                          </button>
+                          {canAdjust && (
+                            <>
+                              <button
+                                onClick={() => adjustStock(item.id, -1)}
+                                className="grid h-8 w-8 place-items-center rounded-lg border border-ink-line bg-ink-soft text-cream-dim transition hover:border-rose-500/40 hover:text-rose-300"
+                                title="Use 1 unit (correction)"
+                              >
+                                <IconMinus size={14} />
+                              </button>
+                              <button
+                                onClick={() => adjustStock(item.id, 1)}
+                                className="grid h-8 w-8 place-items-center rounded-lg border border-ink-line bg-ink-soft text-cream-dim transition hover:border-emerald-500/40 hover:text-emerald-300"
+                                title="Add 1 unit (correction)"
+                              >
+                                <IconPlus size={14} />
+                              </button>
+                            </>
+                          )}
+                          {canAddStock && (
+                            <button
+                              onClick={() => restock(item.id, 10)}
+                              className="btn-gold px-3 py-1.5 text-xs font-bold"
+                              title="Add new stock (purchase)"
+                            >
+                              Restock +10
+                            </button>
+                          )}
                         </div>
                       </td>
                     )}

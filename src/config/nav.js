@@ -29,6 +29,7 @@ export const NAV = [
   { to: '/payroll', label: 'Payroll', icon: IconWallet, pageKey: 'payroll' },
   { to: '/accounting', label: 'Accounting', icon: IconChart, pageKey: 'accounting' },
   { to: '/reports', label: 'Reports', icon: IconReport, pageKey: 'reports' },
+  { to: '/kitchen', label: 'Kitchen', icon: IconKitchen, pageKey: 'kitchen' },
   { to: '/kds', label: 'Kitchen (KDS)', icon: IconKitchen, pageKey: 'kds' },
   { to: '/billing', label: 'Billing', icon: IconReceipt, pageKey: 'billing' },
 ]
