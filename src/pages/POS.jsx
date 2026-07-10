@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext.jsx'
 import { PageHeader } from '../components/ui.jsx'
 import { money, time } from '../utils/format.js'
 import { Receipt } from './Billing.jsx'
+import ManageMostOrderedModal from '../components/ManageMostOrderedModal.jsx'
+import { canModify } from '../config/permissions.js'
 import { TAX_RATE } from '../data/mockData.js'
 import {
   IconPlus,
@@ -171,7 +173,7 @@ function MenuImage({ item }) {
 
   if (item.image && !error) {
     return (
-      <div className="relative h-28 w-full overflow-hidden rounded-xl bg-ink-line">
+      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-ink-line">
         <img
           src={item.image}
           alt={item.name}
@@ -187,13 +189,13 @@ function MenuImage({ item }) {
 
   // Plain solid-color placeholder layout (no icons, no emojis, matching gold/black theme)
   return (
-    <div className="relative h-28 w-full rounded-xl bg-ink-soft border border-ink-line shadow-inner" />
+    <div className="relative aspect-[4/3] w-full rounded-xl bg-ink-soft border border-ink-line shadow-inner" />
   )
 }
 
-// "Best sellers" — ranks items by qty ordered across all (non-cancelled)
-// orders, joined to the current menu for image/price. Tap to quick-add.
-function MostOrderedCard({ item, count, onAdd }) {
+// "Best sellers" — a manually-curated, shared list (see AppContext). Tap to
+// quick-add to the current order.
+function MostOrderedCard({ item, onAdd }) {
   const [added, setAdded] = useState(false)
   const hasVariants = item.variants && item.variants.length
   const click = () => {
@@ -203,12 +205,7 @@ function MostOrderedCard({ item, count, onAdd }) {
   }
   return (
     <div className="w-32 shrink-0 overflow-hidden rounded-xl border border-gold/30 bg-ink-card">
-      <div className="relative">
-        <MenuImage item={item} />
-        <span className="absolute right-1.5 top-1.5 rounded-full bg-gold-grad px-2 py-0.5 text-[10px] font-bold text-ink shadow-md">
-          {count}×
-        </span>
-      </div>
+      <MenuImage item={item} />
       <div className="p-2">
         <p className="truncate text-xs font-semibold text-cream">{item.name}</p>
         <p className="font-serif text-xs text-gold">
@@ -230,36 +227,35 @@ function MostOrderedCard({ item, count, onAdd }) {
   )
 }
 
-function MostOrdered({ orders, menu, onAdd }) {
-  const top = useMemo(() => {
-    const counts = {}
-    orders.forEach((o) => {
-      if (o.cancelled) return
-      o.items.forEach((it) => {
-        const baseId = String(it.id).split('::')[0]
-        counts[baseId] = (counts[baseId] || 0) + it.qty
-      })
-    })
-    return Object.entries(counts)
-      .map(([id, count]) => ({ item: menu.find((m) => m.id === id), count }))
-      .filter((x) => x.item && x.item.active !== false)
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 8)
-  }, [orders, menu])
-
-  if (top.length === 0) return null
-
+// Manually-curated shared list. Any authorised POS user can open Manage to
+// add/remove items; the list is global (same for everyone).
+function MostOrdered({ items, onAdd, canManage, onManage }) {
   return (
-    <div className="mb-5">
-      <div className="mb-3 flex items-baseline gap-2">
-        <h2 className="font-serif text-xl text-cream">⭐ Most Ordered</h2>
-        <span className="text-xs text-cream-dim">Quick-add your best sellers</span>
+    <div className="mb-5 mt-6">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="flex items-baseline gap-2">
+          <h2 className="font-serif text-xl text-cream">⭐ Most Ordered</h2>
+          <span className="text-xs text-cream-dim">Quick-add your best sellers</span>
+        </div>
+        {canManage && (
+          <button onClick={onManage} className="btn-ghost px-3 py-1.5 text-xs">
+            ⚙️ Manage
+          </button>
+        )}
       </div>
-      <div className="flex flex-wrap gap-3">
-        {top.map(({ item, count }) => (
-          <MostOrderedCard key={item.id} item={item} count={count} onAdd={onAdd} />
-        ))}
-      </div>
+
+      {items.length === 0 ? (
+        <div className="card p-6 text-center text-sm text-cream-dim">
+          No items added yet.
+          {canManage ? ' Click “⚙️ Manage” to add your best sellers.' : ''}
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-3">
+          {items.map((item) => (
+            <MostOrderedCard key={item.id} item={item} onAdd={onAdd} />
+          ))}
+        </div>
+      )}
       <div className="mt-4 border-t border-ink-line" />
     </div>
   )
@@ -300,17 +296,47 @@ function VariantModal({ item, onPick, onClose }) {
 }
 
 export default function POS() {
-  const { addOrder, orderTotal, orders, menu, menuCategories, tables, waiters } = useApp()
+  const {
+    addOrder,
+    appendOrderItems,
+    orderTotal,
+    orders,
+    menu,
+    menuCategories,
+    tables,
+    waiters,
+    user,
+    getMostOrderedItems,
+  } = useApp()
   const location = useLocation()
+  const navigate = useNavigate()
   const [cat, setCat] = useState('All')
   const [query, setQuery] = useState('')
+  const catScrollRef = useRef(null)
+  const scrollCategories = (dir) =>
+    catScrollRef.current?.scrollBy({ left: dir === 'left' ? -240 : 240, behavior: 'smooth' })
   const [cart, setCart] = useState({}) // { lineKey: qty }, lineKey = id or `id::variant`
   const [variantPick, setVariantPick] = useState(null) // menu item awaiting a variant
-  // Pre-selected from the Tables page ("start order on this table").
-  const [table, setTable] = useState(() =>
-    location.state?.presetTable ? String(location.state.presetTable) : '',
+  const [showManageMostOrdered, setShowManageMostOrdered] = useState(false)
+  const mostOrderedItems = getMostOrderedItems()
+  const canManageMostOrdered = user ? canModify(user.role, 'mostOrderedManage') : false
+
+  // Running bill: when arriving with a continueOrderId, we append to that
+  // existing unpaid order instead of starting a fresh one.
+  const continueId = location.state?.continueOrderId || null
+  const continuingOrder = useMemo(
+    () => (continueId ? orders.find((o) => o.id === continueId && !o.cancelled) : null),
+    [continueId, orders],
   )
-  const [waiter, setWaiter] = useState('')
+  const isContinuing = Boolean(continuingOrder)
+
+  // Pre-selected from the Tables page (start an order on this table, or the
+  // table of the order we're adding to).
+  const [table, setTable] = useState(() => {
+    if (continuingOrder) return String(continuingOrder.table)
+    return location.state?.presetTable ? String(location.state.presetTable) : ''
+  })
+  const [waiter, setWaiter] = useState(() => continuingOrder?.waiter || '')
   const [showPayment, setShowPayment] = useState(false)
   const [activeReceipt, setActiveReceipt] = useState(null)
   const [toast, setToast] = useState(null)
@@ -359,11 +385,27 @@ export default function POS() {
   // Once a table is chosen AND items are on the order, lock the table until
   // checkout. Locking only after a table is picked avoids stranding an
   // items-first order (the selector stays usable until a table is set).
-  const tableLocked = items.length > 0 && Boolean(table)
+  const tableLocked = isContinuing || (items.length > 0 && Boolean(table))
   const [lockedAt, setLockedAt] = useState(null)
   useEffect(() => {
     setLockedAt((prev) => (tableLocked ? prev || new Date() : null))
   }, [tableLocked])
+
+  // Keep vertical mouse-wheel over the category row from scrolling the whole
+  // page: when the row can scroll sideways, translate wheel-Y into horizontal
+  // scroll and swallow the event. A native non-passive listener is required
+  // because React's onWheel is passive (preventDefault would be ignored).
+  useEffect(() => {
+    const el = catScrollRef.current
+    if (!el) return
+    const onWheel = (e) => {
+      if (el.scrollWidth <= el.clientWidth || e.deltaY === 0) return
+      e.preventDefault()
+      el.scrollLeft += e.deltaY
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
 
   const add = (key) => setCart((c) => ({ ...c, [key]: (c[key] || 0) + 1 }))
   const dec = (key) =>
@@ -449,46 +491,127 @@ export default function POS() {
     setTimeout(() => setToast(null), 4000)
   }
 
+  // Running bill: append the cart's new items to the existing order, then return
+  // to the floor. The combined bill is settled later at billing/checkout.
+  const addToOrder = () => {
+    if (items.length === 0) return setError('Add at least one new item to append.')
+    setError('')
+    appendOrderItems(
+      continuingOrder.id,
+      items.map(({ key, name, price, qty }) => ({ id: key, name, price, qty })),
+    )
+    navigate('/tables')
+  }
+
+  const existingTotal = isContinuing ? orderTotal(continuingOrder.items).total : 0
+
   return (
     <div>
-      <PageHeader title="New Order" subtitle="Build the order, assign a table & waiter, then checkout." />
+      <PageHeader
+        title={isContinuing ? `Add to Order · ${continuingOrder.id}` : 'New Order'}
+        subtitle={
+          isContinuing
+            ? `Table ${continuingOrder.table} · new items append to this running bill.`
+            : 'Build the order, assign a table & waiter, then checkout.'
+        }
+      />
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        {/* Menu side */}
-        <div>
-          <MostOrdered orders={orders} menu={menu} onAdd={onItemClick} />
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="relative flex-1">
-              <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-cream-dim">
-                <IconSearch size={18} />
-              </span>
-              <input
-                className="input pl-11"
-                placeholder="Search menu…"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </div>
+      {isContinuing && (
+        <div className="mb-6 rounded-2xl border border-gold/25 bg-gold/[0.06] p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-gold">
+              🧾 Already on this order (Table {continuingOrder.table})
+            </p>
+            <p className="text-sm text-cream-dim">
+              Running total <span className="font-semibold text-cream">{money(existingTotal)}</span>
+            </p>
           </div>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            {['All', ...menuCategories].map((c) => (
-              <button
-                key={c}
-                onClick={() => setCat(c)}
-                className={`rounded-full border px-4 py-1.5 text-sm font-medium transition ${
-                  cat === c
-                    ? 'border-gold/60 bg-gold/12 text-gold'
-                    : 'border-ink-line bg-ink-soft text-cream-dim hover:text-cream'
-                }`}
-              >
-                {c}
-              </button>
+          <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-cream-dim">
+            {continuingOrder.items.map((it) => (
+              <li key={it.id}>
+                {it.name} <span className="text-cream">×{it.qty}</span>
+              </li>
             ))}
+          </ul>
+          <p className="mt-2 text-xs text-cream-dim/70">
+            New items you add below are charged onto the same bill — no second order is created.
+          </p>
+        </div>
+      )}
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+        {/* Menu side — controls (search, categories) first, then content.
+            min-w-0 lets this column shrink to the track instead of expanding to
+            its images' intrinsic width (which was blowing the layout wide). */}
+        <div className="min-w-0">
+          {/* 1. Search — top & prominent, with clear button */}
+          <div className="relative">
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-cream-dim">
+              <IconSearch size={18} />
+            </span>
+            <input
+              className="input w-full rounded-xl py-3 pl-12 pr-11 text-base"
+              placeholder="Search menu…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            {query && (
+              <button
+                onClick={() => setQuery('')}
+                title="Clear search"
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-cream-dim transition hover:text-cream"
+              >
+                <IconClose size={16} />
+              </button>
+            )}
           </div>
 
-          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+          {/* 2. Categories — single-line horizontal scroll (desktop arrows, native swipe on touch) */}
+          <div className="mt-4 flex items-center gap-2">
+            <button
+              onClick={() => scrollCategories('left')}
+              aria-label="Scroll categories left"
+              className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border border-ink-line bg-ink-soft text-lg leading-none text-gold transition hover:border-gold/50 md:flex"
+            >
+              ‹
+            </button>
+            <div
+              ref={catScrollRef}
+              className="scrollbar-hide flex flex-1 touch-pan-x gap-2 overflow-x-auto overscroll-x-contain scroll-smooth"
+            >
+              {['All', ...menuCategories].map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setCat(c)}
+                  className={`shrink-0 whitespace-nowrap rounded-full border px-4 py-1.5 text-sm font-medium transition ${
+                    cat === c
+                      ? 'border-gold/60 bg-gold/12 text-gold'
+                      : 'border-ink-line bg-ink-soft text-cream-dim hover:text-cream'
+                  }`}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => scrollCategories('right')}
+              aria-label="Scroll categories right"
+              className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border border-ink-line bg-ink-soft text-lg leading-none text-gold transition hover:border-gold/50 md:flex"
+            >
+              ›
+            </button>
+          </div>
+
+          {/* 3. Most Ordered — manually-curated shared list (see AppContext) */}
+          <MostOrdered
+            items={mostOrderedItems}
+            onAdd={onItemClick}
+            canManage={canManageMostOrdered}
+            onManage={() => setShowManageMostOrdered(true)}
+          />
+
+          {/* 4. Menu items grid — denser columns so more items fit, less scroll */}
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
             {filtered.map((m) => {
               const count = qtyFor(m)
               const hasVariants = m.variants && m.variants.length
@@ -536,7 +659,9 @@ export default function POS() {
         <div className="lg:sticky lg:top-20 lg:h-fit">
           <div className="card flex max-h-[calc(100vh-7rem)] flex-col">
             <div className="flex items-center justify-between border-b border-ink-line p-5">
-              <h3 className="font-serif text-xl text-cream">Current Order</h3>
+              <h3 className="font-serif text-xl text-cream">
+                {isContinuing ? 'New Items to Add' : 'Current Order'}
+              </h3>
               {items.length > 0 && (
                 <button
                   onClick={clear}
@@ -673,15 +798,23 @@ export default function POS() {
                 </p>
               )}
 
-              <button onClick={openPayment} className="btn-gold mt-4 w-full py-3">
-                <IconCash size={18} /> Pay Now · {money(total)}
-              </button>
-              <button
-                onClick={placeUnpaid}
-                className="btn-ghost mt-2 w-full py-2.5 text-sm"
-              >
-                <IconReceipt size={16} /> Place as Unpaid
-              </button>
+              {isContinuing ? (
+                <button onClick={addToOrder} className="btn-gold mt-4 w-full py-3">
+                  <IconPlus size={18} /> Add to Order · {money(total)}
+                </button>
+              ) : (
+                <>
+                  <button onClick={openPayment} className="btn-gold mt-4 w-full py-3">
+                    <IconCash size={18} /> Pay Now · {money(total)}
+                  </button>
+                  <button
+                    onClick={placeUnpaid}
+                    className="btn-ghost mt-2 w-full py-2.5 text-sm"
+                  >
+                    <IconReceipt size={16} /> Place as Unpaid
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -714,6 +847,10 @@ export default function POS() {
       )}
 
       {toast && <Toast order={toast} onClose={() => setToast(null)} />}
+
+      {showManageMostOrdered && (
+        <ManageMostOrderedModal onClose={() => setShowManageMostOrdered(false)} />
+      )}
     </div>
   )
 }

@@ -66,6 +66,14 @@
   .badge {
     @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold;
   }
+  /* Single-line scrollers (e.g. POS category pills) — scroll, but no visible bar */
+  .scrollbar-hide {
+    -ms-overflow-style: none; /* IE & old Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none; /* Chrome/Safari/Edge */
+  }
 }
 
 /* Print styles for receipts and reports */

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext.jsx'
 import { PageHeader, PaymentBadge } from '../components/ui.jsx'
+import { canModify, hasAccess } from '../config/permissions.js'
 import { money, time } from '../utils/format.js'
 import {
   IconTable,
@@ -65,7 +66,7 @@ function TableCard({ info, now, onClick }) {
   )
 }
 
-function OrderDetailsModal({ order, orderTotal, onClose }) {
+function OrderDetailsModal({ order, orderTotal, onClose, canAddItems, onAddItems }) {
   const { subtotal, tax, discount, total } = orderTotal(order.items, order.discount?.amount)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -122,6 +123,13 @@ function OrderDetailsModal({ order, orderTotal, onClose }) {
               <span className="font-serif text-2xl font-semibold text-gold">{money(total)}</span>
             </div>
           </div>
+
+          {/* Running bill: add more items to this same order (one combined bill) */}
+          {canAddItems && order.payment === 'Unpaid' && (
+            <button onClick={onAddItems} className="btn-gold mt-5 w-full py-2.5 text-sm">
+              <IconPlus size={16} /> Add More Items
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -301,17 +309,27 @@ export default function Tables() {
   const groups = { running, available, all: tableInfo }
   const shown = groups[tab]
 
+  // Add/manage tables is Admin+Manager only; adding items to a running order
+  // needs POS access (Cashier + Admin — Manager has no POS).
+  const canManageTables = user && canModify(user.role, 'tableAdd')
+  const canAddItems = user && hasAccess(user.role, 'pos')
+
   const onCardClick = (info) => {
     if (info.status === 'in-use') setDetail(info.order)
     else navigate('/pos', { state: { presetTable: info.id } })
   }
 
+  const continueOrder = (order) =>
+    navigate('/pos', { state: { continueOrderId: order.id } })
+
   return (
     <div>
       <PageHeader title="Tables" subtitle="Live floor status — running, available and full overview.">
-        <button onClick={() => setManage(true)} className="btn-ghost px-4 py-2 text-sm">
-          <IconTable size={16} /> Manage Tables
-        </button>
+        {canManageTables && (
+          <button onClick={() => setManage(true)} className="btn-ghost px-4 py-2 text-sm">
+            <IconTable size={16} /> Manage Tables
+          </button>
+        )}
       </PageHeader>
 
       {/* Tabs */}
@@ -370,7 +388,13 @@ export default function Tables() {
       </div>
 
       {detail && (
-        <OrderDetailsModal order={detail} orderTotal={orderTotal} onClose={() => setDetail(null)} />
+        <OrderDetailsModal
+          order={detail}
+          orderTotal={orderTotal}
+          canAddItems={canAddItems}
+          onAddItems={() => continueOrder(detail)}
+          onClose={() => setDetail(null)}
+        />
       )}
 
       {manage && (

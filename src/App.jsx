@@ -15,6 +15,7 @@ import Payroll from './pages/Payroll.jsx'
 import Accounting from './pages/Accounting.jsx'
 import Reports from './pages/Reports.jsx'
 import KitchenDisplay from './pages/KitchenDisplay.jsx'
+import Kitchen from './pages/Kitchen.jsx'
 import Billing from './pages/Billing.jsx'
 
 // Guards a route: must be logged in and role must allow the path.
@@ -55,6 +56,7 @@ export default function App() {
       <Route path="/payroll" element={<Protected path="/payroll"><Payroll /></Protected>} />
       <Route path="/accounting" element={<Protected path="/accounting"><Accounting /></Protected>} />
       <Route path="/reports" element={<Protected path="/reports"><Reports /></Protected>} />
+      <Route path="/kitchen" element={<Protected path="/kitchen"><Kitchen /></Protected>} />
       <Route path="/kds" element={<Protected path="/kds" fullscreen><KitchenDisplay /></Protected>} />
       <Route path="/billing" element={<Protected path="/billing"><Billing /></Protected>} />
       <Route path="*" element={<Navigate to={user ? '/' : '/login'} replace />} />

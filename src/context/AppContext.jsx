@@ -7,10 +7,12 @@ import {
   INITIAL_MENU,
   MENU_CATEGORIES,
   INITIAL_ADVANCES,
+  INITIAL_RECIPES,
   TABLES,
   STAFF,
   TAX_RATE,
 } from '../data/mockData.js'
+import { canModify } from '../config/permissions.js'
 
 const AppContext = createContext(null)
 
@@ -20,11 +22,17 @@ export function AppProvider({ children }) {
   const [attendance, setAttendance] = useState(INITIAL_ATTENDANCE)
   const [inventory, setInventory] = useState(INVENTORY)
   const [menu, setMenu] = useState(INITIAL_MENU)
+  const [customCategories, setCustomCategories] = useState([]) // free-text categories with no items yet
   const [tables, setTables] = useState(TABLES)
   const [staff, setStaff] = useState(STAFF)
   const [advances, setAdvances] = useState(INITIAL_ADVANCES)
   const [transactions, setTransactions] = useState(INITIAL_TRANSACTIONS)
+  const [recipes, setRecipes] = useState(INITIAL_RECIPES)
   const [auditLog, setAuditLog] = useState([])
+  // Most Ordered is a manually-curated, shared list of menu item ids (NOT
+  // auto-calculated from order history). Any POS role (Cashier/Admin/Manager)
+  // can add/remove items and the change is global — everyone sees the same list.
+  const [mostOrderedItemIds, setMostOrderedItemIds] = useState(['cd1', 'sl3', 'sk1', 'jc1'])
   const [orderSeq, setOrderSeq] = useState(1046)
   const [txnSeq, setTxnSeq] = useState(500)
   // Cash drawer reconciliation: the cashier's open shift plus the closed
@@ -60,13 +68,183 @@ export function AppProvider({ children }) {
     }
     setOrders((prev) => [newOrder, ...prev])
     setOrderSeq((n) => n + 1)
+    // Auto-deduct ingredients for any items that have an APPROVED recipe. Done
+    // at placement (the single creation point for both paid & unpaid orders) so
+    // it runs exactly once per order — no double-deduction on later payment.
+    deductInventoryForOrder(items)
     return newOrder
+  }
+
+  // ---- Recipes ----------------------------------------------------------
+  // Kitchen authors recipes (pending), Admin approves/rejects, and an approved
+  // recipe drives auto-deduction above. Ingredient quantities are in the
+  // inventory item's own unit and subtracted straight from its `stock`.
+
+  const getActiveRecipe = (menuItemId) =>
+    recipes.find((r) => r.menuItemId === menuItemId && r.status === 'approved')
+
+  // Kitchen creates a recipe — always starts 'pending' (no inventory effect
+  // until an Admin approves it). Only the Kitchen role may create; this guards
+  // the function itself in case a UI check is ever bypassed.
+  const createRecipe = ({ menuItemId, menuItemName, ingredients }) => {
+    if (!user || !canModify(user.role, 'recipeCreate')) {
+      return { error: 'Only Kitchen staff can create recipes.' }
+    }
+    const recipe = {
+      id: `RCP-${Date.now()}`,
+      menuItemId,
+      menuItemName,
+      ingredients,
+      status: 'pending',
+      createdBy: user?.name || 'Unknown',
+      createdByRole: user?.role || '—',
+      createdAt: new Date().toISOString(),
+      approvedBy: null,
+      approvedAt: null,
+      rejectedBy: null,
+      rejectedAt: null,
+      rejectReason: null,
+    }
+    setRecipes((prev) => [...prev, recipe])
+    setAuditLog((prev) => [
+      {
+        id: `AUD-${Date.now()}`,
+        action: 'RECIPE_SUBMITTED',
+        recipeId: recipe.id,
+        recipeName: menuItemName,
+        by: recipe.createdBy,
+        role: recipe.createdByRole,
+        at: recipe.createdAt,
+      },
+      ...prev,
+    ])
+    return recipe
+  }
+
+  // Admin-only — gated in the UI and re-checked here for safety.
+  const approveRecipe = (recipeId) => {
+    if (!user || !canModify(user.role, 'recipeApproval')) return
+    const at = new Date().toISOString()
+    setRecipes((prev) =>
+      prev.map((r) =>
+        r.id === recipeId
+          ? { ...r, status: 'approved', approvedBy: user.name, approvedAt: at }
+          : r,
+      ),
+    )
+    setAuditLog((prev) => [
+      { id: `AUD-${Date.now()}`, action: 'RECIPE_APPROVED', recipeId, by: user.name, role: user.role, at },
+      ...prev,
+    ])
+  }
+
+  const rejectRecipe = (recipeId, reason = '') => {
+    if (!user || !canModify(user.role, 'recipeApproval')) return
+    const at = new Date().toISOString()
+    setRecipes((prev) =>
+      prev.map((r) =>
+        r.id === recipeId
+          ? { ...r, status: 'rejected', rejectedBy: user.name, rejectedAt: at, rejectReason: reason }
+          : r,
+      ),
+    )
+    setAuditLog((prev) => [
+      { id: `AUD-${Date.now()}`, action: 'RECIPE_REJECTED', recipeId, reason, by: user.name, role: user.role, at },
+      ...prev,
+    ])
+  }
+
+  // Core feature: deduct approved-recipe ingredients from inventory for a set of
+  // order line items. Items without an approved recipe are silently skipped so
+  // existing orders keep working before recipes are set up.
+  const deductInventoryForOrder = (orderItems = []) => {
+    const deductions = {} // inventoryItemId -> { amount, itemName, unit }
+    orderItems.forEach((oi) => {
+      // Order lines for variant items carry an "id::variant" key; recipes are
+      // keyed by the base menu id, so match on the part before "::".
+      const baseId = String(oi.id).split('::')[0]
+      const recipe = getActiveRecipe(baseId)
+      if (!recipe) return
+      recipe.ingredients.forEach((ing) => {
+        const amount = (Number(ing.quantity) || 0) * (Number(oi.qty) || 0)
+        if (amount <= 0) return
+        const cur = deductions[ing.inventoryItemId] || { amount: 0, itemName: ing.itemName, unit: ing.unit }
+        cur.amount += amount
+        deductions[ing.inventoryItemId] = cur
+      })
+    })
+
+    const entries = Object.entries(deductions)
+    if (entries.length === 0) return
+
+    setInventory((prev) =>
+      prev.map((inv) => {
+        const d = deductions[inv.id]
+        if (!d) return inv
+        // Round to 3 dp to avoid float drift (e.g. 0.1 + 0.2); never below 0.
+        const next = Math.max(0, Math.round((inv.stock - d.amount) * 1000) / 1000)
+        return { ...inv, stock: next }
+      }),
+    )
+    setAuditLog((prev) => [
+      {
+        id: `AUD-${Date.now()}`,
+        action: 'INVENTORY_AUTO_DEDUCTED',
+        details: entries.map(([id, d]) => ({ inventoryItemId: id, itemName: d.itemName, deducted: d.amount, unit: d.unit })),
+        by: user?.name || 'System',
+        role: user?.role || '—',
+        at: new Date().toISOString(),
+      },
+      ...prev,
+    ])
   }
 
   const markPaid = (id, method = 'Cash') =>
     setOrders((prev) =>
       prev.map((o) => (o.id === id ? { ...o, payment: 'Paid', method } : o)),
     )
+
+  // Running bill: append newly-ordered items to an existing UNPAID order (same
+  // id → one combined bill at checkout) instead of opening a second order for
+  // the table. Matching lines merge by qty; genuinely new lines are stamped
+  // with addedAt (so a partial kitchen ticket could show just the additions).
+  // Only the added items deduct inventory — the original items already did when
+  // the order was first placed.
+  const appendOrderItems = (orderId, newItems = []) => {
+    if (!newItems.length) return null
+    let updated = null
+    const stamp = new Date().toISOString()
+    setOrders((prev) =>
+      prev.map((o) => {
+        if (o.id !== orderId || o.cancelled || o.payment === 'Paid') return o
+        const items = [...o.items]
+        newItems.forEach((ni) => {
+          const idx = items.findIndex((it) => it.id === ni.id)
+          if (idx >= 0) items[idx] = { ...items[idx], qty: items[idx].qty + ni.qty }
+          else items.push({ ...ni, addedAt: stamp })
+        })
+        updated = { ...o, items }
+        return updated
+      }),
+    )
+    if (updated) {
+      deductInventoryForOrder(newItems)
+      setAuditLog((prev) => [
+        {
+          id: `AUD-${Date.now()}`,
+          action: 'ORDER_ITEMS_ADDED',
+          orderId,
+          table: updated.table,
+          items: newItems.map((i) => `${i.name} ×${i.qty}`),
+          by: user?.name || 'Unknown',
+          role: user?.role || '—',
+          at: stamp,
+        },
+        ...prev,
+      ])
+    }
+    return updated
+  }
 
   // Manager/Admin only — cancel an UNPAID order with a reason + audit entry.
   const cancelOrder = (id, { reason, notes = '' } = {}) => {
@@ -242,21 +420,48 @@ export function AppProvider({ children }) {
       prev.map((o) => (o.id === id ? { ...o, kitchen: 'Served' } : o)),
     )
 
-  const checkIn = (staffId) =>
-    setAttendance((prev) => ({
-      ...prev,
-      [staffId]: { checkIn: new Date().toISOString(), checkOut: null, status: 'Present' },
-    }))
+  // Normal attendance is fed by the biometric machine (seed data / machine
+  // sync). These records are read-only in the UI — no manual buttons.
 
-  const checkOut = (staffId) =>
+  // Admin-only emergency override. Sets check-in/out for a staff member when
+  // the machine failed, tags the record as a manual entry, and writes an audit
+  // trail (who, when, why) — same pattern as cancelOrder/applyDiscount.
+  const overrideAttendance = (staffId, { checkIn, checkOut, reason, notes = '' } = {}) => {
+    if (!reason) return
+    const staffMember = staff.find((s) => s.id === staffId)
+    const status = checkOut ? 'Checked Out' : checkIn ? 'Present' : 'Absent'
+    const manualEntry = {
+      enteredBy: user?.name || 'Unknown',
+      role: user?.role || '—',
+      reason,
+      notes,
+      enteredAt: new Date().toISOString(),
+    }
     setAttendance((prev) => ({
       ...prev,
       [staffId]: {
-        ...prev[staffId],
-        checkOut: new Date().toISOString(),
-        status: 'Checked Out',
+        checkIn: checkIn ?? prev[staffId]?.checkIn ?? null,
+        checkOut: checkOut ?? prev[staffId]?.checkOut ?? null,
+        status,
+        source: 'manual',
+        manualEntry,
       },
     }))
+    setAuditLog((prev) => [
+      {
+        id: `AUD-${Date.now()}`,
+        action: 'ATTENDANCE_OVERRIDE',
+        staffId,
+        staffName: staffMember?.name || staffId,
+        by: manualEntry.enteredBy,
+        role: manualEntry.role,
+        reason,
+        notes,
+        at: manualEntry.enteredAt,
+      },
+      ...prev,
+    ])
+  }
 
   // Adjust a stock line by a delta (restock or consume); never drops below 0
   const adjustStock = (id, delta) =>
@@ -288,7 +493,22 @@ export function AppProvider({ children }) {
 
   // Table management (Admin/Manager/Cashier add & edit; delete Admin-only)
   const addTable = ({ id, seats, section }) => {
+    // Admin/Manager only — the UI hides the control, this is the safety net.
+    if (!user || !canModify(user.role, 'tableAdd')) return
     const num = Number(id)
+    if (tables.some((t) => t.id === num)) return // duplicate — ignore
+    setAuditLog((prev) => [
+      {
+        id: `AUD-${Date.now()}`,
+        action: 'TABLE_ADDED',
+        table: num,
+        seats: Number(seats) || 2,
+        by: user.name,
+        role: user.role,
+        at: new Date().toISOString(),
+      },
+      ...prev,
+    ])
     setTables((prev) =>
       prev.some((t) => t.id === num)
         ? prev
@@ -367,13 +587,95 @@ export function AppProvider({ children }) {
     setMenu((prev) => prev.map((m) => (m.id === id ? { ...m, active: !m.active } : m)))
   const replaceMenu = (items) => setMenu(items)
 
-  // Categories present in the menu, in canonical order (extras appended).
+  // --- Most Ordered (manual, shared) --------------------------------------
+  // Add or remove a menu item from the shared Most Ordered list, with an audit
+  // entry recording who changed it. Any POS role may call this.
+  const toggleMostOrdered = (menuItemId) => {
+    let wasIn = false
+    setMostOrderedItemIds((prev) => {
+      wasIn = prev.includes(menuItemId)
+      return wasIn ? prev.filter((id) => id !== menuItemId) : [...prev, menuItemId]
+    })
+    setAuditLog((prev) => [
+      {
+        id: `AUD-${Date.now()}`,
+        action: wasIn ? 'MOST_ORDERED_REMOVED' : 'MOST_ORDERED_ADDED',
+        menuItemId,
+        by: user?.name || 'Unknown',
+        role: user?.role || '—',
+        at: new Date().toISOString(),
+      },
+      ...prev,
+    ])
+  }
+
+  // Resolve the curated ids to live menu objects, dropping any that were since
+  // deleted or deactivated so the POS never renders a stale/broken card.
+  const getMostOrderedItems = () =>
+    mostOrderedItemIds
+      .map((id) => menu.find((m) => m.id === id))
+      .filter((m) => m && m.active !== false)
+
+  // Categories present in the menu plus any free-text categories an
+  // Admin/Manager added (which may not have items yet), in canonical order
+  // (canonical first, custom/extras appended).
   const menuCategories = useMemo(() => {
-    const present = [...new Set(menu.map((m) => m.category))]
-    const ordered = MENU_CATEGORIES.filter((c) => present.includes(c))
-    const extras = present.filter((c) => !MENU_CATEGORIES.includes(c))
+    const all = [...new Set([...menu.map((m) => m.category), ...customCategories])]
+    const ordered = MENU_CATEGORIES.filter((c) => all.includes(c))
+    const extras = all.filter((c) => !MENU_CATEGORIES.includes(c))
     return [...ordered, ...extras]
-  }, [menu])
+  }, [menu, customCategories])
+
+  // Add a free-text category (Admin/Manager). No fixed/predefined list — any
+  // name is allowed; only blanks and case-insensitive duplicates are rejected.
+  const addCategory = (name) => {
+    if (!user || !canModify(user.role, 'categoryAdd')) return { error: 'Not allowed.' }
+    const trimmed = (name || '').trim()
+    if (!trimmed) return { error: 'Category name cannot be empty.' }
+    const dup = [...menu.map((m) => m.category), ...customCategories].some(
+      (c) => c.toLowerCase() === trimmed.toLowerCase(),
+    )
+    if (dup) return { error: 'This category already exists.' }
+    setCustomCategories((prev) => [...prev, trimmed])
+    setAuditLog((prev) => [
+      {
+        id: `AUD-${Date.now()}`,
+        action: 'CATEGORY_ADDED',
+        category: trimmed,
+        by: user.name,
+        role: user.role,
+        at: new Date().toISOString(),
+      },
+      ...prev,
+    ])
+    return { success: true }
+  }
+
+  // Delete a category — Admin/Manager, and ONLY when empty (no menu item uses
+  // it). A non-empty category can't actually be removed anyway (menuCategories
+  // derives it back from the items), so we block with a clear, counted message.
+  const deleteCategory = (name) => {
+    if (!user || !canModify(user.role, 'categoryAdd')) return { error: 'Not authorized.' }
+    const inUse = menu.filter((m) => m.category.toLowerCase() === name.toLowerCase()).length
+    if (inUse > 0) {
+      return {
+        error: `Cannot delete — ${inUse} item${inUse > 1 ? 's' : ''} still use “${name}”. Move or delete ${inUse > 1 ? 'them' : 'it'} first.`,
+      }
+    }
+    setCustomCategories((prev) => prev.filter((c) => c.toLowerCase() !== name.toLowerCase()))
+    setAuditLog((prev) => [
+      {
+        id: `AUD-${Date.now()}`,
+        action: 'CATEGORY_DELETED',
+        category: name,
+        by: user.name,
+        role: user.role,
+        at: new Date().toISOString(),
+      },
+      ...prev,
+    ])
+    return { success: true }
+  }
 
   // Items at or below their threshold — drives low-stock alerts
   const lowStock = useMemo(
@@ -410,6 +712,7 @@ export function AppProvider({ children }) {
     logout,
     orders,
     addOrder,
+    appendOrderItems,
     markPaid,
     markReady,
     clearKitchen,
@@ -419,8 +722,7 @@ export function AppProvider({ children }) {
     auditLog,
     orderTotal,
     attendance,
-    checkIn,
-    checkOut,
+    overrideAttendance,
     inventory,
     lowStock,
     adjustStock,
@@ -428,13 +730,23 @@ export function AppProvider({ children }) {
     transactions,
     addTransaction,
     deleteTransaction,
+    recipes,
+    createRecipe,
+    approveRecipe,
+    rejectRecipe,
+    getActiveRecipe,
     menu,
     menuCategories,
+    addCategory,
+    deleteCategory,
     addMenuItem,
     updateMenuItem,
     deleteMenuItem,
     toggleMenuItem,
     replaceMenu,
+    mostOrderedItemIds,
+    toggleMostOrdered,
+    getMostOrderedItems,
     tables,
     addTable,
     updateTable,
