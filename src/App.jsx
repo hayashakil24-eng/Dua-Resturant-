@@ -10,6 +10,7 @@ import Tables from './pages/Tables.jsx'
 import MenuManagement from './pages/MenuManagement.jsx'
 import Inventory from './pages/Inventory.jsx'
 import Attendance from './pages/Attendance.jsx'
+import Employees from './pages/Employees.jsx'
 import Payroll from './pages/Payroll.jsx'
 import Accounting from './pages/Accounting.jsx'
 import Reports from './pages/Reports.jsx'
@@ -50,6 +51,7 @@ export default function App() {
         path="/attendance"
         element={<Protected path="/attendance"><Attendance /></Protected>}
       />
+      <Route path="/employees" element={<Protected path="/employees"><Employees /></Protected>} />
       <Route path="/payroll" element={<Protected path="/payroll"><Payroll /></Protected>} />
       <Route path="/accounting" element={<Protected path="/accounting"><Accounting /></Protected>} />
       <Route path="/reports" element={<Protected path="/reports"><Reports /></Protected>} />

@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext.jsx'
 import { PageHeader } from '../components/ui.jsx'
 import { money, time } from '../utils/format.js'
 import { Receipt } from './Billing.jsx'
-import { WAITERS, TAX_RATE } from '../data/mockData.js'
+import { TAX_RATE } from '../data/mockData.js'
 import {
   IconPlus,
   IconMinus,
@@ -191,6 +191,80 @@ function MenuImage({ item }) {
   )
 }
 
+// "Best sellers" — ranks items by qty ordered across all (non-cancelled)
+// orders, joined to the current menu for image/price. Tap to quick-add.
+function MostOrderedCard({ item, count, onAdd }) {
+  const [added, setAdded] = useState(false)
+  const hasVariants = item.variants && item.variants.length
+  const click = () => {
+    onAdd(item)
+    setAdded(true)
+    setTimeout(() => setAdded(false), 700)
+  }
+  return (
+    <div className="w-32 shrink-0 overflow-hidden rounded-xl border border-gold/30 bg-ink-card">
+      <div className="relative">
+        <MenuImage item={item} />
+        <span className="absolute right-1.5 top-1.5 rounded-full bg-gold-grad px-2 py-0.5 text-[10px] font-bold text-ink shadow-md">
+          {count}×
+        </span>
+      </div>
+      <div className="p-2">
+        <p className="truncate text-xs font-semibold text-cream">{item.name}</p>
+        <p className="font-serif text-xs text-gold">
+          {hasVariants && 'from '}
+          {money(item.price)}
+        </p>
+        <button
+          onClick={click}
+          className={`mt-2 w-full rounded-lg py-1 text-xs font-bold transition ${
+            added
+              ? 'bg-emerald-500/20 text-emerald-300'
+              : 'bg-gold-grad text-ink hover:brightness-110'
+          }`}
+        >
+          {added ? '✓ Added' : '+ Add'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function MostOrdered({ orders, menu, onAdd }) {
+  const top = useMemo(() => {
+    const counts = {}
+    orders.forEach((o) => {
+      if (o.cancelled) return
+      o.items.forEach((it) => {
+        const baseId = String(it.id).split('::')[0]
+        counts[baseId] = (counts[baseId] || 0) + it.qty
+      })
+    })
+    return Object.entries(counts)
+      .map(([id, count]) => ({ item: menu.find((m) => m.id === id), count }))
+      .filter((x) => x.item && x.item.active !== false)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8)
+  }, [orders, menu])
+
+  if (top.length === 0) return null
+
+  return (
+    <div className="mb-5">
+      <div className="mb-3 flex items-baseline gap-2">
+        <h2 className="font-serif text-xl text-cream">⭐ Most Ordered</h2>
+        <span className="text-xs text-cream-dim">Quick-add your best sellers</span>
+      </div>
+      <div className="flex flex-wrap gap-3">
+        {top.map(({ item, count }) => (
+          <MostOrderedCard key={item.id} item={item} count={count} onAdd={onAdd} />
+        ))}
+      </div>
+      <div className="mt-4 border-t border-ink-line" />
+    </div>
+  )
+}
+
 // Quick size/type chooser for items that have variants (Pizza, Steaks).
 function VariantModal({ item, onPick, onClose }) {
   return (
@@ -226,7 +300,7 @@ function VariantModal({ item, onPick, onClose }) {
 }
 
 export default function POS() {
-  const { addOrder, orderTotal, orders, menu, menuCategories, tables } = useApp()
+  const { addOrder, orderTotal, orders, menu, menuCategories, tables, waiters } = useApp()
   const location = useLocation()
   const [cat, setCat] = useState('All')
   const [query, setQuery] = useState('')
@@ -244,15 +318,14 @@ export default function POS() {
 
   const activeMenu = useMemo(() => menu.filter((m) => m.active !== false), [menu])
 
-  const filtered = useMemo(
-    () =>
-      activeMenu.filter(
-        (m) =>
-          (cat === 'All' || m.category === cat) &&
-          m.name.toLowerCase().includes(query.toLowerCase()),
-      ),
-    [activeMenu, cat, query],
-  )
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return activeMenu.filter(
+      (m) =>
+        (cat === 'All' || m.category === cat) &&
+        (!q || m.name.toLowerCase().includes(q) || m.category.toLowerCase().includes(q)),
+    )
+  }, [activeMenu, cat, query])
 
   // Resolve a cart line key ("id" or "id::variant") to a priced line item.
   const resolveLine = (key, qty) => {
@@ -380,9 +453,11 @@ export default function POS() {
     <div>
       <PageHeader title="New Order" subtitle="Build the order, assign a table & waiter, then checkout." />
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         {/* Menu side */}
         <div>
+          <MostOrdered orders={orders} menu={menu} onAdd={onItemClick} />
+
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="relative flex-1">
               <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-cream-dim">
@@ -504,7 +579,7 @@ export default function POS() {
                     onChange={(e) => setWaiter(e.target.value)}
                   >
                     <option value="">Assign</option>
-                    {WAITERS.map((w) => (
+                    {waiters.map((w) => (
                       <option key={w.id} value={w.name}>
                         {w.name}
                       </option>

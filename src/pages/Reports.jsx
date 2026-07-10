@@ -57,7 +57,7 @@ function Row({ label, value, tone = 'text-neutral-900', strong }) {
 }
 
 export default function Reports() {
-  const { orders, orderTotal, transactions } = useApp()
+  const { orders, orderTotal, transactions, staff } = useApp()
   const today = useMemo(() => new Date(), [])
 
   const monthOptions = useMemo(() => {
@@ -91,16 +91,33 @@ export default function Reports() {
 
   const report = useMemo(() => {
     const totalOrders = scopeOrders.length
-    const grossSales = scopeOrders.reduce((s, o) => s + orderTotal(o.items).total, 0)
+    const grossSales = scopeOrders.reduce(
+      (s, o) => s + orderTotal(o.items, o.discount?.amount).total,
+      0,
+    )
     const collected = scopeOrders
       .filter((o) => o.payment === 'Paid')
-      .reduce((s, o) => s + orderTotal(o.items).total, 0)
+      .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount).total, 0)
     const top = topSelling(scopeOrders)
     const stock = estimateStockUsed(scopeOrders)
 
+    // Discount summary — count, total given, and breakdown by reason.
+    const discountOrders = scopeOrders.filter((o) => o.discount)
+    const discounts = {
+      count: discountOrders.length,
+      total: discountOrders.reduce((s, o) => s + o.discount.amount, 0),
+      byReason: Object.entries(
+        discountOrders.reduce((acc, o) => {
+          const r = o.discount.reason || 'Other'
+          acc[r] = (acc[r] || 0) + o.discount.amount
+          return acc
+        }, {}),
+      ).sort((a, b) => b[1] - a[1]),
+    }
+
     if (type === 'monthly') {
       const [y, m] = monthKey.split('-').map(Number)
-      const fig = monthFigures(transactions, y, m - 1, today)
+      const fig = monthFigures(transactions, y, m - 1, today, staff)
       return {
         title: 'Monthly Report',
         rangeLabel: monthOptions.find((o) => o.key === monthKey)?.label,
@@ -113,6 +130,7 @@ export default function Reports() {
         collected,
         top,
         stock,
+        discounts,
       }
     }
 
@@ -137,12 +155,13 @@ export default function Reports() {
       collected,
       top,
       stock,
+      discounts,
     }
-  }, [scopeOrders, type, monthKey, dailyDate, transactions, today, orderTotal, monthOptions])
+  }, [scopeOrders, type, monthKey, dailyDate, transactions, today, orderTotal, monthOptions, staff])
 
   const shareWhatsApp = () => {
     const lines = [
-      `*Dua Restaurant — ${report.title}*`,
+      `*Cafe Ali — ${report.title}*`,
       report.rangeLabel,
       '',
       `Orders: ${report.totalOrders}`,
@@ -150,6 +169,11 @@ export default function Reports() {
       `Expenses: ${money(report.expenses)}`,
       `Net Profit: ${money(report.netProfit)}`,
     ]
+    if (report.discounts.total > 0) {
+      lines.push(
+        `Discounts: ${money(report.discounts.total)} (${report.discounts.count} orders)`,
+      )
+    }
     if (report.top.length) {
       lines.push('', 'Top items:')
       report.top.forEach(([name, qty], i) => lines.push(`${i + 1}. ${name} ×${qty}`))
@@ -203,12 +227,9 @@ export default function Reports() {
           {/* Brand header */}
           <div className="text-center">
             <div className="font-serif text-3xl font-bold" style={{ color: '#8C6F1A' }}>
-              Dua Restaurant
+              Cafe Ali
             </div>
-            <p className="text-[11px] uppercase tracking-[0.3em]" style={{ color: '#8C6F1A' }}>
-              Café Ali
-            </p>
-            <p className="mt-1 text-[11px] text-neutral-600">Hawksbay Road, Karachi · 021-111-DUA</p>
+            <p className="mt-1 text-[11px] text-neutral-600">Hawksbay Road, Karachi · 021-111-ALI</p>
           </div>
 
           <div className="my-5 border-t-2 border-dashed border-neutral-400" />
@@ -259,6 +280,35 @@ export default function Reports() {
             )}
           </div>
 
+          {/* Discounts given */}
+          <div className="mt-6">
+            <h3 className="text-sm font-bold uppercase tracking-wide text-neutral-500">
+              Discounts Given
+            </h3>
+            {report.discounts.count === 0 ? (
+              <p className="mt-2 text-sm text-neutral-500">No discounts in this period.</p>
+            ) : (
+              <>
+                <div className="mt-2 grid grid-cols-2 gap-x-6">
+                  <Row label="Orders discounted" value={report.discounts.count} />
+                  <Row
+                    label="Total discount"
+                    value={money(report.discounts.total)}
+                    tone="text-rose-600"
+                  />
+                </div>
+                <ul className="mt-1 space-y-1">
+                  {report.discounts.byReason.map(([reason, amount]) => (
+                    <li key={reason} className="flex justify-between text-sm text-neutral-800">
+                      <span>{reason}</span>
+                      <span className="font-semibold">{money(amount)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+
           {/* Stock used */}
           <div className="mt-6">
             <h3 className="text-sm font-bold uppercase tracking-wide text-neutral-500">
@@ -282,7 +332,7 @@ export default function Reports() {
 
           <div className="my-5 border-t-2 border-dashed border-neutral-400" />
           <p className="text-center text-[11px] text-neutral-500">
-            Dua Restaurant POS · Café Ali — figures in Pakistani Rupees (Rs.)
+            Cafe Ali POS — figures in Pakistani Rupees (Rs.)
           </p>
         </div>
 

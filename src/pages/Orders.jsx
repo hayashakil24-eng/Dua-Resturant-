@@ -21,7 +21,7 @@ function CancelledBadge() {
 function CancelModal({ order, orderTotal, onConfirm, onClose }) {
   const [reason, setReason] = useState('')
   const [notes, setNotes] = useState('')
-  const { total } = orderTotal(order.items)
+  const { total } = orderTotal(order.items, order.discount?.amount)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -227,7 +227,7 @@ export default function Orders() {
                         </span>
                       </td>
                       <td className="px-5 py-4 text-right font-semibold text-cream">
-                        {money(orderTotal(o.items).total)}
+                        {money(orderTotal(o.items, o.discount?.amount).total)}
                       </td>
                       <td className="px-5 py-4">
                         {o.cancelled ? <CancelledBadge /> : <PaymentBadge status={o.payment} />}
@@ -263,7 +263,7 @@ export default function Orders() {
                 </p>
                 <div className="mt-3 flex items-center justify-between border-t border-ink-line pt-3">
                   <span className="font-serif text-lg font-semibold text-cream">
-                    {money(orderTotal(o.items).total)}
+                    {money(orderTotal(o.items, o.discount?.amount).total)}
                   </span>
                   <OrderActions o={o} />
                 </div>

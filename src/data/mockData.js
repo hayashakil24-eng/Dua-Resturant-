@@ -1,18 +1,18 @@
 // ---------------------------------------------------------------------------
-// Dua Restaurant — mock data (frontend only, no backend)
+// Cafe Ali — mock data (frontend only, no backend)
 // ---------------------------------------------------------------------------
 
 export const ROLES = ['Admin', 'Manager', 'Cashier']
 
 export const STAFF = [
-  { id: 'S01', name: 'Ali Raza', role: 'Manager', shift: 'Morning', phone: '0300-1122334', baseSalary: 60000 },
-  { id: 'S02', name: 'Hamza Khan', role: 'Cashier', shift: 'Morning', phone: '0301-2233445', baseSalary: 38000 },
-  { id: 'S03', name: 'Bilal Ahmed', role: 'Waiter', shift: 'Evening', phone: '0302-3344556', baseSalary: 28000 },
-  { id: 'S04', name: 'Usman Tariq', role: 'Waiter', shift: 'Morning', phone: '0303-4455667', baseSalary: 28000 },
-  { id: 'S05', name: 'Zain Malik', role: 'Waiter', shift: 'Evening', phone: '0304-5566778', baseSalary: 27000 },
-  { id: 'S06', name: 'Fahad Iqbal', role: 'Chef', shift: 'Morning', phone: '0305-6677889', baseSalary: 55000 },
-  { id: 'S07', name: 'Saad Nawaz', role: 'Waiter', shift: 'Evening', phone: '0306-7788990', baseSalary: 26000 },
-  { id: 'S08', name: 'Kamran Shah', role: 'Cashier', shift: 'Evening', phone: '0307-8899001', baseSalary: 36000 },
+  { id: 'S01', name: 'Ali Raza', role: 'Manager', shift: 'Morning', phone: '0300-1122334', baseSalary: 60000, active: true },
+  { id: 'S02', name: 'Hamza Khan', role: 'Cashier', shift: 'Morning', phone: '0301-2233445', baseSalary: 38000, active: true },
+  { id: 'S03', name: 'Bilal Ahmed', role: 'Waiter', shift: 'Evening', phone: '0302-3344556', baseSalary: 28000, active: true },
+  { id: 'S04', name: 'Usman Tariq', role: 'Waiter', shift: 'Morning', phone: '0303-4455667', baseSalary: 28000, active: true },
+  { id: 'S05', name: 'Zain Malik', role: 'Waiter', shift: 'Evening', phone: '0304-5566778', baseSalary: 27000, active: true },
+  { id: 'S06', name: 'Fahad Iqbal', role: 'Chef', shift: 'Morning', phone: '0305-6677889', baseSalary: 55000, active: true },
+  { id: 'S07', name: 'Saad Nawaz', role: 'Waiter', shift: 'Evening', phone: '0306-7788990', baseSalary: 26000, active: true },
+  { id: 'S08', name: 'Kamran Shah', role: 'Cashier', shift: 'Evening', phone: '0307-8899001', baseSalary: 36000, active: true },
 ]
 
 export const WAITERS = STAFF.filter((s) => s.role === 'Waiter')
@@ -22,7 +22,7 @@ export const TABLES = Array.from({ length: 12 }, (_, i) => ({
   seats: [2, 4, 6][i % 3],
 }))
 
-// Ordered category list for the Café Ali menu (POS prepends "All").
+// Ordered category list for the Cafe Ali menu (POS prepends "All").
 export const MENU_CATEGORIES = [
   'Coladas',
   'Slush',
@@ -56,7 +56,7 @@ export const MENU_CATEGORIES = [
 ]
 
 // ---------------------------------------------------------------------------
-// Café Ali full menu. Items with size/type options carry a `variants` array;
+// Cafe Ali full menu. Items with size/type options carry a `variants` array;
 // `price` is the default (from) price. Managed live via Menu Management and
 // consumed by the POS. A few dishes reuse existing local images.
 // ---------------------------------------------------------------------------
@@ -177,8 +177,8 @@ export const INITIAL_MENU = [
   { id: 'cs2', name: 'Dum Pukht', category: 'Chef Special', price: 4999, image: '/Dum Pukht.jpg', active: true },
   { id: 'cs3', name: 'Lamb Namkeen Boneless Boti', category: 'Chef Special', price: 7499, active: true },
   { id: 'cs4', name: 'Mutton Namkeen Boneless Boti', category: 'Chef Special', price: 7499, active: true },
-  { id: 'cs5', name: 'Café Ali Special Platter Full', category: 'Chef Special', price: 11999, active: true },
-  { id: 'cs6', name: 'Café Ali Special Platter Half', category: 'Chef Special', price: 6200, active: true },
+  { id: 'cs5', name: 'Cafe Ali Special Platter Full', category: 'Chef Special', price: 11999, active: true },
+  { id: 'cs6', name: 'Cafe Ali Special Platter Half', category: 'Chef Special', price: 6200, active: true },
   { id: 'cs7', name: 'Chicken Platter Full', category: 'Chef Special', price: 7500, active: true },
   { id: 'cs8', name: 'Chicken Platter Half', category: 'Chef Special', price: 3800, active: true },
 
@@ -462,6 +462,50 @@ export const INITIAL_ORDERS = [
     method: '—',
     kitchen: 'Pending',
     createdAt: t(14, 55),
+  },
+  // Earlier completed orders — give the POS "Most Ordered" row real data.
+  {
+    id: 'ORD-1035',
+    table: 4,
+    waiter: 'Usman Tariq',
+    items: [
+      { id: 'pk5', name: 'Special Chicken Biryani Double', price: 700, qty: 3 },
+      { id: 'br2', name: 'Garlic Naan', price: 150, qty: 5 },
+      { id: 'sk1', name: 'Icecream Shake', price: 550, qty: 2 },
+    ],
+    payment: 'Paid',
+    method: 'Cash',
+    kitchen: 'Served',
+    createdAt: t(10, 30),
+  },
+  {
+    id: 'ORD-1036',
+    table: 6,
+    waiter: 'Bilal Ahmed',
+    items: [
+      { id: 'ckh1', name: 'Chicken Shahi Karahi', price: 2699, qty: 2 },
+      { id: 'br2', name: 'Garlic Naan', price: 150, qty: 3 },
+      { id: 'kd2', name: 'French Fries', price: 345, qty: 2 },
+    ],
+    payment: 'Paid',
+    method: 'Card',
+    kitchen: 'Served',
+    createdAt: t(11, 10),
+  },
+  {
+    id: 'ORD-1037',
+    table: 9,
+    waiter: 'Saad Nawaz',
+    items: [
+      { id: 'bg1', name: 'Zinger Burger with Cheese', price: 1050, qty: 2 },
+      { id: 'kd2', name: 'French Fries', price: 345, qty: 3 },
+      { id: 'sp1', name: 'Chicken Corn Soup', price: 499, qty: 1 },
+      { id: 'pk5', name: 'Special Chicken Biryani Double', price: 700, qty: 1 },
+    ],
+    payment: 'Paid',
+    method: 'Cash',
+    kitchen: 'Served',
+    createdAt: t(11, 45),
   },
 ]
 

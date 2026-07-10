@@ -3,17 +3,29 @@ import { useApp } from '../context/AppContext.jsx'
 import { PageHeader, PaymentBadge, EmptyState } from '../components/ui.jsx'
 import { money, time, dateLong } from '../utils/format.js'
 import { safePrint } from '../utils/print.js'
+import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import { TAX_RATE } from '../data/mockData.js'
+import DiscountModal from '../components/DiscountModal.jsx'
 import Logo from '../components/Logo.jsx'
-import { IconReceipt, IconPrint, IconCheck, IconClose } from '../components/Icons.jsx'
+import { IconReceipt, IconPrint, IconCheck, IconClose, IconWallet } from '../components/Icons.jsx'
 
-export function Receipt({ order, orderTotal, onClose, onMarkPaid, canMarkPaid = true }) {
-  const { subtotal, tax, total } = orderTotal(order.items)
+export function Receipt({
+  order,
+  orderTotal,
+  onClose,
+  onMarkPaid,
+  canMarkPaid = true,
+  canDiscount = false,
+  onApplyDiscount = () => {},
+  onRemoveDiscount = () => {},
+}) {
+  const { subtotal, tax, discount, total } = orderTotal(order.items, order.discount?.amount)
   const [printing, setPrinting] = useState(false)
+  useEscapeKey(onClose)
 
   // Guarded print — ignores rapid repeat clicks so the bill prints once.
   const handlePrint = () => {
-    if (safePrint()) {
+    if (safePrint('print-receipt')) {
       setPrinting(true)
       setTimeout(() => setPrinting(false), 1500)
     }
@@ -21,116 +33,164 @@ export function Receipt({ order, orderTotal, onClose, onMarkPaid, canMarkPaid = 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm no-print" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-sm">
-        {/* Printable slip */}
-        <div
-          id="printable-receipt"
-          className="rounded-2xl bg-cream p-6 text-ink shadow-lift"
-          style={{ fontFamily: 'ui-monospace, monospace' }}
-        >
-          <div className="text-center">
-            <div className="flex justify-center">
-              <div className="font-serif text-2xl font-bold tracking-wide" style={{ color: '#8C6F1A' }}>
-                Dua Restaurant
+      {/* Flex column capped at the viewport so the sticky footer buttons stay
+          in view on short screens; the slip scrolls instead of pushing them off. */}
+      <div className="relative z-10 flex max-h-[90vh] w-full max-w-sm flex-col">
+        {/* Scrollable content — min-h-0 lets it shrink below the slip height so
+            overflow-y-auto actually kicks in inside the flex column. */}
+        <div className="min-h-0 overflow-y-auto">
+          {/* Printable slip */}
+          <div
+            id="printable-receipt"
+            className="rounded-2xl bg-cream p-6 text-ink shadow-lift"
+            style={{ fontFamily: 'ui-monospace, monospace' }}
+          >
+            <div className="text-center">
+              <div className="flex justify-center">
+                <div className="font-serif text-2xl font-bold tracking-wide" style={{ color: '#8C6F1A' }}>
+                  Cafe Ali
+                </div>
+              </div>
+              <p className="mt-2 text-[11px] text-neutral-600">
+                Hawksbay Road, Karachi · 021-111-ALI
+              </p>
+            </div>
+
+            <div className="my-4 border-t border-dashed border-neutral-400" />
+
+            <div className="grid grid-cols-2 gap-1 text-xs text-neutral-700">
+              <span>Receipt</span>
+              <span className="text-right font-semibold text-ink">{order.id}</span>
+              <span>Date</span>
+              <span className="text-right">{new Date(order.createdAt).toLocaleDateString('en-PK')}</span>
+              <span>Time</span>
+              <span className="text-right">{time(order.createdAt)}</span>
+              <span>Table</span>
+              <span className="text-right">#{order.table}</span>
+              <span>Waiter</span>
+              <span className="text-right">{order.waiter}</span>
+            </div>
+
+            <div className="my-4 border-t border-dashed border-neutral-400" />
+
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-left text-neutral-500">
+                  <th className="pb-1 font-medium">Item</th>
+                  <th className="pb-1 text-center font-medium">Qty</th>
+                  <th className="pb-1 text-right font-medium">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {order.items.map((it) => (
+                  <tr key={it.id} className="align-top">
+                    <td className="py-0.5 pr-2 text-ink">{it.name}</td>
+                    <td className="py-0.5 text-center text-neutral-700">{it.qty}</td>
+                    <td className="py-0.5 text-right text-ink">{money(it.price * it.qty)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div className="my-4 border-t border-dashed border-neutral-400" />
+
+            <div className="space-y-1 text-xs">
+              <div className="flex justify-between text-neutral-700">
+                <span>Subtotal</span>
+                <span>{money(subtotal)}</span>
+              </div>
+              <div className="flex justify-between text-neutral-700">
+                <span>GST ({Math.round(TAX_RATE * 100)}%)</span>
+                <span>{money(tax)}</span>
+              </div>
+              {discount > 0 && (
+                <div className="flex justify-between text-neutral-700">
+                  <span>Discount{order.discount?.reason ? ` (${order.discount.reason})` : ''}</span>
+                  <span>- {money(discount)}</span>
+                </div>
+              )}
+              <div className="mt-1 flex justify-between border-t border-neutral-400 pt-1 text-sm font-bold text-ink">
+                <span>TOTAL</span>
+                <span>{money(total)}</span>
+              </div>
+              <div className="flex justify-between pt-1 text-neutral-700">
+                <span>Payment</span>
+                <span className="font-semibold">
+                  {order.payment}{order.payment === 'Paid' ? ` · ${order.method}` : ''}
+                </span>
               </div>
             </div>
-            <p className="text-[11px] uppercase tracking-[0.3em]" style={{ color: '#8C6F1A' }}>
-              Café Ali
+
+            <div className="my-4 border-t border-dashed border-neutral-400" />
+            <p className="text-center text-[11px] text-neutral-600">
+              Thank you for dining with us!
+              <br />
+              Please come again — Cafe Ali
             </p>
-            <p className="mt-2 text-[11px] text-neutral-600">
-              Hawksbay Road, Karachi · 021-111-DUA
-            </p>
-          </div>
 
-          <div className="my-4 border-t border-dashed border-neutral-400" />
-
-          <div className="grid grid-cols-2 gap-1 text-xs text-neutral-700">
-            <span>Receipt</span>
-            <span className="text-right font-semibold text-ink">{order.id}</span>
-            <span>Date</span>
-            <span className="text-right">{new Date(order.createdAt).toLocaleDateString('en-PK')}</span>
-            <span>Time</span>
-            <span className="text-right">{time(order.createdAt)}</span>
-            <span>Table</span>
-            <span className="text-right">#{order.table}</span>
-            <span>Waiter</span>
-            <span className="text-right">{order.waiter}</span>
-          </div>
-
-          <div className="my-4 border-t border-dashed border-neutral-400" />
-
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-left text-neutral-500">
-                <th className="pb-1 font-medium">Item</th>
-                <th className="pb-1 text-center font-medium">Qty</th>
-                <th className="pb-1 text-right font-medium">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {order.items.map((it) => (
-                <tr key={it.id} className="align-top">
-                  <td className="py-0.5 pr-2 text-ink">{it.name}</td>
-                  <td className="py-0.5 text-center text-neutral-700">{it.qty}</td>
-                  <td className="py-0.5 text-right text-ink">{money(it.price * it.qty)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <div className="my-4 border-t border-dashed border-neutral-400" />
-
-          <div className="space-y-1 text-xs">
-            <div className="flex justify-between text-neutral-700">
-              <span>Subtotal</span>
-              <span>{money(subtotal)}</span>
-            </div>
-            <div className="flex justify-between text-neutral-700">
-              <span>GST ({Math.round(TAX_RATE * 100)}%)</span>
-              <span>{money(tax)}</span>
-            </div>
-            <div className="mt-1 flex justify-between border-t border-neutral-400 pt-1 text-sm font-bold text-ink">
-              <span>TOTAL</span>
-              <span>{money(total)}</span>
-            </div>
-            <div className="flex justify-between pt-1 text-neutral-700">
-              <span>Payment</span>
-              <span className="font-semibold">
-                {order.payment}{order.payment === 'Paid' ? ` · ${order.method}` : ''}
-              </span>
+            {/* Software credit — subtle, kept small so it never competes with the bill. */}
+            <div className="mt-3 border-t border-dashed border-neutral-300 pt-2 text-center">
+              <p className="text-[12px] text-neutral-400">
+                Software by SoftDap | Support: +92 334 3207049
+              </p>
             </div>
           </div>
-
-          <div className="my-4 border-t border-dashed border-neutral-400" />
-          <p className="text-center text-[11px] text-neutral-600">
-            Thank you for dining with us!
-            <br />
-            Please come again — Café Ali
-          </p>
         </div>
 
-        {/* Controls */}
-        <div className="mt-4 flex gap-3 no-print">
-          {order.payment === 'Unpaid' && canMarkPaid && (
-            <button
-              onClick={() => onMarkPaid(order.id)}
-              className="flex-1 rounded-xl border border-emerald-500/40 bg-emerald-500/10 py-3 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/20"
-            >
-              <span className="inline-flex items-center gap-2">
-                <IconCheck size={16} /> Mark Paid
-              </span>
-            </button>
+        {/* Sticky footer — flex-shrink-0 keeps these controls in view even when
+            the slip above scrolls, so they never get clipped on short screens. */}
+        <div className="flex-shrink-0">
+          {/* Discount controls (Admin/Manager, unpaid orders only) */}
+          {canDiscount && order.payment === 'Unpaid' && !order.cancelled && (
+            <div className="mt-4 no-print">
+              {order.discount ? (
+                <div className="flex items-center justify-between rounded-xl border border-ink-line bg-ink-soft px-4 py-2.5">
+                  <span className="text-xs text-cream-dim">
+                    Discount {money(order.discount.amount)} · by {order.discount.by}
+                  </span>
+                  <button
+                    onClick={() => onRemoveDiscount(order.id)}
+                    className="text-xs font-semibold text-rose-300 hover:underline"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={onApplyDiscount}
+                  className="w-full rounded-xl border border-gold/40 bg-gold/10 py-2.5 text-sm font-semibold text-gold transition hover:bg-gold/20"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <IconWallet size={16} /> Apply Discount
+                  </span>
+                </button>
+              )}
+            </div>
           )}
-          <button
-            onClick={handlePrint}
-            disabled={printing}
-            className="btn-gold flex-1 py-3 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <IconPrint size={18} /> {printing ? 'Printing…' : 'Print'}
-          </button>
-          <button onClick={onClose} className="btn-ghost px-4">
-            <IconClose size={18} />
-          </button>
+
+          {/* Controls */}
+          <div className="mt-4 flex gap-3 no-print">
+            {order.payment === 'Unpaid' && canMarkPaid && (
+              <button
+                onClick={() => onMarkPaid(order.id)}
+                className="flex-1 rounded-xl border border-emerald-500/40 bg-emerald-500/10 py-3 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/20"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <IconCheck size={16} /> Mark Paid
+                </span>
+              </button>
+            )}
+            <button
+              onClick={handlePrint}
+              disabled={printing}
+              className="btn-gold flex-1 py-3 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <IconPrint size={18} /> {printing ? 'Printing…' : 'Print'}
+            </button>
+            <button onClick={onClose} className="btn-ghost px-4">
+              <IconClose size={18} />
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -140,19 +200,24 @@ export function Receipt({ order, orderTotal, onClose, onMarkPaid, canMarkPaid = 
 import { canModify } from '../config/permissions.js'
 
 export default function Billing() {
-  const { orders, orderTotal, markPaid, user } = useApp()
-  const [active, setActive] = useState(null)
+  const { orders, orderTotal, markPaid, applyDiscount, removeDiscount, user } = useApp()
+  // Track by id so the open receipt reflects live discount / paid changes.
+  const [activeId, setActiveId] = useState(null)
+  const [showDiscount, setShowDiscount] = useState(false)
+  const active = activeId ? orders.find((o) => o.id === activeId) : null
+
+  const canDiscount = Boolean(user && canModify(user.role, 'discount'))
 
   const paidTotal = orders
     .filter((o) => o.payment === 'Paid' && !o.cancelled)
-    .reduce((s, o) => s + orderTotal(o.items).total, 0)
+    .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount).total, 0)
   const unpaidTotal = orders
     .filter((o) => o.payment === 'Unpaid' && !o.cancelled)
-    .reduce((s, o) => s + orderTotal(o.items).total, 0)
+    .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount).total, 0)
 
-  const handleMarkPaid = (id) => {
-    markPaid(id)
-    setActive((cur) => (cur && cur.id === id ? { ...cur, payment: 'Paid', method: 'Cash' } : cur))
+  const handleApplyDiscount = (data) => {
+    if (activeId) applyDiscount(activeId, data)
+    setShowDiscount(false)
   }
 
   return (
@@ -181,7 +246,7 @@ export default function Billing() {
           {orders.map((o) => (
             <button
               key={o.id}
-              onClick={() => setActive(o)}
+              onClick={() => setActiveId(o.id)}
               className="card group p-5 text-left transition hover:border-gold/40 hover:shadow-gold"
             >
               <div className="flex items-center justify-between">
@@ -200,7 +265,12 @@ export default function Billing() {
               </p>
               <div className="mt-4 flex items-center justify-between border-t border-ink-line pt-3">
                 <span className="font-serif text-xl font-semibold text-cream">
-                  {money(orderTotal(o.items).total)}
+                  {money(orderTotal(o.items, o.discount?.amount).total)}
+                  {o.discount && (
+                    <span className="ml-2 align-middle text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
+                      −{money(o.discount.amount)}
+                    </span>
+                  )}
                 </span>
                 <span className="inline-flex items-center gap-1 text-xs font-semibold text-gold opacity-0 transition group-hover:opacity-100">
                   <IconPrint size={14} /> View receipt
@@ -215,9 +285,21 @@ export default function Billing() {
         <Receipt
           order={active}
           orderTotal={orderTotal}
-          onClose={() => setActive(null)}
-          onMarkPaid={handleMarkPaid}
+          onClose={() => setActiveId(null)}
+          onMarkPaid={(id) => markPaid(id)}
           canMarkPaid={user && canModify(user.role, 'billing') && !active.cancelled}
+          canDiscount={canDiscount}
+          onApplyDiscount={() => setShowDiscount(true)}
+          onRemoveDiscount={(id) => removeDiscount(id)}
+        />
+      )}
+
+      {showDiscount && active && (
+        <DiscountModal
+          order={active}
+          gross={orderTotal(active.items).total}
+          onApply={handleApplyDiscount}
+          onClose={() => setShowDiscount(false)}
         />
       )}
     </div>

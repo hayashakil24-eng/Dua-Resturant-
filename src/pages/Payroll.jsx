@@ -3,7 +3,6 @@ import { useApp } from '../context/AppContext.jsx'
 import { PageHeader, StatCard } from '../components/ui.jsx'
 import { money, dateShort } from '../utils/format.js'
 import { monthAttendance, calcSalary } from '../utils/payroll.js'
-import { STAFF } from '../data/mockData.js'
 import {
   IconWallet,
   IconUsers,
@@ -309,7 +308,7 @@ export default function Payroll() {
     return opts
   }, [today])
 
-  const { advances, addAdvance, deleteAdvance, recoverAdvances } = useApp()
+  const { advances, addAdvance, deleteAdvance, recoverAdvances, staff } = useApp()
   const [monthKey, setMonthKey] = useState(monthOptions[0].key)
   const [detailStaff, setDetailStaff] = useState(null)
   const [editStaff, setEditStaff] = useState(null)
@@ -322,19 +321,21 @@ export default function Payroll() {
   // Compute every staff member's payroll (incl. this month's advances).
   const rows = useMemo(
     () =>
-      STAFF.map((staff) => {
-        const att = monthAttendance(staff.id, year, monthIndex, today)
-        const calculated = calcSalary(staff.baseSalary, att.workingDays, att.present)
-        const staffAdvances = advances.filter((a) => {
-          if (a.staffId !== staff.id) return false
-          const d = new Date(a.date)
-          return d.getFullYear() === year && d.getMonth() === monthIndex
-        })
-        const advTotal = staffAdvances.reduce((s, a) => s + a.amount, 0)
-        const final = Math.max(0, calculated - advTotal)
-        return { staff, att, calculated, advances: staffAdvances, advTotal, final }
-      }),
-    [year, monthIndex, today, advances],
+      staff
+        .filter((s) => s.active !== false)
+        .map((emp) => {
+          const att = monthAttendance(emp.id, year, monthIndex, today)
+          const calculated = calcSalary(emp.baseSalary, att.workingDays, att.present)
+          const staffAdvances = advances.filter((a) => {
+            if (a.staffId !== emp.id) return false
+            const d = new Date(a.date)
+            return d.getFullYear() === year && d.getMonth() === monthIndex
+          })
+          const advTotal = staffAdvances.reduce((s, a) => s + a.amount, 0)
+          const final = Math.max(0, calculated - advTotal)
+          return { staff: emp, att, calculated, advances: staffAdvances, advTotal, final }
+        }),
+    [staff, year, monthIndex, today, advances],
   )
 
   // New advances land in the selected month (last day for past months).
@@ -375,7 +376,7 @@ export default function Payroll() {
       </PageHeader>
 
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
-        <StatCard icon={IconUsers} label="Staff on Payroll" value={STAFF.length} sub={monthLabel} />
+        <StatCard icon={IconUsers} label="Staff on Payroll" value={rows.length} sub={monthLabel} />
         <StatCard icon={IconCalendar} label="Avg Attendance" value={`${avgAttendance}%`} sub="Present / working days" />
         <StatCard icon={IconWallet} label="Total Payroll" value={money(totalPayroll)} sub="Net, after advances" />
       </div>

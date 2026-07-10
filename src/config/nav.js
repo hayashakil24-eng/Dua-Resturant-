@@ -6,6 +6,7 @@ import {
   IconMenuBook,
   IconInventory,
   IconAttendance,
+  IconUsers,
   IconWallet,
   IconChart,
   IconReport,
@@ -24,11 +25,12 @@ export const NAV = [
   { to: '/menu', label: 'Menu', icon: IconMenuBook, pageKey: 'menu' },
   { to: '/inventory', label: 'Inventory', icon: IconInventory, pageKey: 'inventory' },
   { to: '/attendance', label: 'Attendance', icon: IconAttendance, pageKey: 'attendance' },
+  { to: '/employees', label: 'Employees', icon: IconUsers, pageKey: 'employees' },
   { to: '/payroll', label: 'Payroll', icon: IconWallet, pageKey: 'payroll' },
   { to: '/accounting', label: 'Accounting', icon: IconChart, pageKey: 'accounting' },
   { to: '/reports', label: 'Reports', icon: IconReport, pageKey: 'reports' },
   { to: '/kds', label: 'Kitchen (KDS)', icon: IconKitchen, pageKey: 'kds' },
-  { to: '/billing', label: 'Billing & Receipts', icon: IconReceipt, pageKey: 'billing' },
+  { to: '/billing', label: 'Billing', icon: IconReceipt, pageKey: 'billing' },
 ]
 
 export const navForRole = (role) => NAV.filter((n) => hasAccess(role, n.pageKey))

@@ -70,6 +70,18 @@
 
 /* Print styles for receipts and reports */
 @media print {
+  /* Drop the browser's default page margins so short slips don't spill onto
+     a second page, and keep the sheet white. */
+  @page {
+    margin: 0;
+  }
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
   body * {
     visibility: hidden;
   }
@@ -79,7 +91,32 @@
   #printable-report * {
     visibility: visible;
   }
-  #printable-receipt,
+
+  /* Receipt prints from a fixed modal, but the app page behind it stays in
+     flow and is tall enough to push a blank second sheet out of the printer.
+     Collapsing #root to zero height removes that in-flow height; the fixed
+     receipt escapes it and prints on a single page. Scoped to receipts so it
+     never clips the in-flow report sheets. */
+  body.print-receipt #root {
+    height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  /* Pin the receipt to the physical top-left of the page. `fixed` positions it
+     relative to the page box, escaping the centered modal ancestor that would
+     otherwise push its footer onto page 2. Kept as one unbreakable block. */
+  #printable-receipt {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 384px; /* matches the on-screen max-w-sm slip */
+    background: #fff !important;
+    color: #000 !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Reports fill the sheet width and may legitimately run multiple pages. */
   #printable-report {
     position: absolute;
     left: 0;
@@ -88,6 +125,7 @@
     background: #fff !important;
     color: #000 !important;
   }
+
   .no-print {
     display: none !important;
   }

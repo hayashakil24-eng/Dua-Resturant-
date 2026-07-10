@@ -3,7 +3,7 @@ import { payrollTotal } from './payroll.js'
 // Income & expense totals for one month. Staff payroll is pulled live from the
 // shared payroll util so Accounting and Reports always agree.
 // Shared by the Accounting page and the Reports page.
-export function monthFigures(transactions, year, monthIndex, today) {
+export function monthFigures(transactions, year, monthIndex, today, staffList) {
   const inMonth = transactions.filter((tx) => {
     const d = new Date(tx.date)
     return d.getFullYear() === year && d.getMonth() === monthIndex
@@ -14,7 +14,7 @@ export function monthFigures(transactions, year, monthIndex, today) {
   const manualExpense = inMonth
     .filter((t) => t.type === 'expense')
     .reduce((s, t) => s + t.amount, 0)
-  const payroll = payrollTotal(year, monthIndex, today)
+  const payroll = payrollTotal(year, monthIndex, today, staffList)
 
   const income = manualIncome
   const expense = manualExpense + payroll
