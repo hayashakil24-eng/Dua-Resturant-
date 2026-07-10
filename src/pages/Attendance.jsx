@@ -1,13 +1,13 @@
 import { useApp } from '../context/AppContext.jsx'
 import { PageHeader, StatusBadge, StatCard } from '../components/ui.jsx'
 import { time, dateLong } from '../utils/format.js'
-import { STAFF } from '../data/mockData.js'
 import { IconUsers, IconCheck, IconClock } from '../components/Icons.jsx'
 
 export default function Attendance() {
-  const { attendance, checkIn, checkOut } = useApp()
+  const { attendance, checkIn, checkOut, staff } = useApp()
+  const roster = staff.filter((s) => s.active !== false)
 
-  const counts = STAFF.reduce(
+  const counts = roster.reduce(
     (acc, s) => {
       const st = attendance[s.id]?.status || 'Absent'
       if (st === 'Present' || st === 'Late') acc.present += 1
@@ -43,7 +43,7 @@ export default function Attendance() {
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-line">
-              {STAFF.map((s) => {
+              {roster.map((s) => {
                 const a = attendance[s.id] || { status: 'Absent' }
                 const isIn = a.status === 'Present' || a.status === 'Late'
                 const isOut = a.status === 'Checked Out'

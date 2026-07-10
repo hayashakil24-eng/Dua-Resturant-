@@ -21,19 +21,29 @@ export function AppProvider({ children }) {
   const [inventory, setInventory] = useState(INVENTORY)
   const [menu, setMenu] = useState(INITIAL_MENU)
   const [tables, setTables] = useState(TABLES)
+  const [staff, setStaff] = useState(STAFF)
   const [advances, setAdvances] = useState(INITIAL_ADVANCES)
   const [transactions, setTransactions] = useState(INITIAL_TRANSACTIONS)
   const [auditLog, setAuditLog] = useState([])
   const [orderSeq, setOrderSeq] = useState(1046)
   const [txnSeq, setTxnSeq] = useState(500)
+  // Cash drawer reconciliation: the cashier's open shift plus the closed
+  // shifts (kept for the Admin/Manager dashboard).
+  const [shiftReconciliations, setShiftReconciliations] = useState([])
+  const [activeShift, setActiveShift] = useState(null)
 
   const login = ({ role, name }) => setUser({ role, name: name || `${role} User` })
   const logout = () => setUser(null)
 
-  const orderTotal = (items) => {
+  // Bill breakdown for a set of line items. `discount` is a flat Rs. amount
+  // taken off the gross total (subtotal + tax); clamped so the bill never
+  // goes negative. Existing callers that omit it are unaffected.
+  const orderTotal = (items, discount = 0) => {
     const subtotal = items.reduce((s, it) => s + it.price * it.qty, 0)
     const tax = Math.round(subtotal * TAX_RATE)
-    return { subtotal, tax, total: subtotal + tax }
+    const gross = subtotal + tax
+    const discountAmt = Math.min(Math.max(0, Number(discount) || 0), gross)
+    return { subtotal, tax, discount: discountAmt, total: gross - discountAmt }
   }
 
   const addOrder = ({ table, waiter, items, payment, method }) => {
@@ -80,6 +90,145 @@ export function AppProvider({ children }) {
         ...prev,
       ])
     }
+  }
+
+  // Admin/Manager only — apply a flat discount to an order with a reason +
+  // audit entry. Clamped to the bill total so it can never go negative.
+  const applyDiscount = (id, { amount, reason = '', notes = '' } = {}) => {
+    let recorded = null
+    setOrders((prev) =>
+      prev.map((o) => {
+        if (o.id !== id || o.cancelled) return o
+        const { total } = orderTotal(o.items) // gross bill, before any discount
+        const amt = Math.min(Math.max(0, Number(amount) || 0), total)
+        if (amt <= 0) return o
+        recorded = {
+          amount: amt,
+          reason: reason || 'Manual Discount',
+          notes,
+          by: user?.name || 'Unknown',
+          role: user?.role || '—',
+          at: new Date().toISOString(),
+        }
+        return { ...o, discount: recorded }
+      }),
+    )
+    if (recorded) {
+      setAuditLog((prev) => [
+        { id: `AUD-${Date.now()}`, orderId: id, action: 'DISCOUNT', ...recorded },
+        ...prev,
+      ])
+    }
+  }
+
+  const removeDiscount = (id) =>
+    setOrders((prev) =>
+      prev.map((o) => {
+        if (o.id !== id || !o.discount) return o
+        const { discount, ...rest } = o
+        return rest
+      }),
+    )
+
+  // --- Cash drawer reconciliation -----------------------------------------
+  // Cash & card taken in since a shift opened. Orders don't record which
+  // cashier rang them up, so (single-drawer mock) sales are attributed by the
+  // shift's time window + payment method, using the same bill math as the POS.
+  const shiftSalesSince = (startISO) => {
+    const start = new Date(startISO)
+    let totalCashSales = 0
+    let totalCardSales = 0
+    orders.forEach((o) => {
+      if (o.payment !== 'Paid' || o.cancelled) return
+      if (new Date(o.createdAt) < start) return
+      const total = orderTotal(o.items, o.discount?.amount).total
+      if (o.method === 'Cash') totalCashSales += total
+      else if (o.method === 'Card') totalCardSales += total
+    })
+    return { totalCashSales, totalCardSales }
+  }
+
+  const calculateShiftSales = (shiftId) => {
+    const shift =
+      activeShift?.id === shiftId
+        ? activeShift
+        : shiftReconciliations.find((s) => s.id === shiftId)
+    if (!shift) return null
+    const { totalCashSales, totalCardSales } = shiftSalesSince(shift.shiftStartTime)
+    return {
+      totalCashSales,
+      totalCardSales,
+      expectedCash: shift.openingCash + totalCashSales,
+    }
+  }
+
+  const startShift = (openingCash) => {
+    const opening = Math.max(0, Number(openingCash) || 0)
+    const shift = {
+      id: `SHIFT-${Date.now()}`,
+      cashierName: user?.name || 'Cashier',
+      role: user?.role || 'Cashier',
+      shiftStartTime: new Date().toISOString(),
+      shiftEndTime: null,
+      openingCash: opening,
+      totalCashSales: 0,
+      totalCardSales: 0,
+      expectedCash: opening,
+      actualCash: null,
+      difference: 0,
+      status: 'active',
+    }
+    setActiveShift(shift)
+    setShiftReconciliations((prev) => [shift, ...prev])
+    return shift
+  }
+
+  // Close a shift against a physical cash count. difference = expected − actual
+  // (positive → shortage, negative → excess). Within Rs. 10 counts as matched.
+  const endShift = (shiftId, actualCash) => {
+    const sales = calculateShiftSales(shiftId)
+    if (!sales) return null
+    const actual = Math.max(0, Number(actualCash) || 0)
+    const difference = sales.expectedCash - actual
+    const status =
+      Math.abs(difference) < 10 ? 'matched' : difference > 0 ? 'shortage' : 'excess'
+
+    let closed = null
+    setShiftReconciliations((prev) =>
+      prev.map((s) => {
+        if (s.id !== shiftId) return s
+        closed = {
+          ...s,
+          shiftEndTime: new Date().toISOString(),
+          totalCashSales: sales.totalCashSales,
+          totalCardSales: sales.totalCardSales,
+          expectedCash: sales.expectedCash,
+          actualCash: actual,
+          difference,
+          status,
+        }
+        return closed
+      }),
+    )
+    setActiveShift(null)
+
+    if (closed) {
+      setAuditLog((prev) => [
+        {
+          id: `AUD-${Date.now()}`,
+          action: 'SHIFT_RECONCILIATION',
+          by: closed.cashierName,
+          role: closed.role,
+          expectedCash: closed.expectedCash,
+          actualCash: actual,
+          difference,
+          status,
+          at: closed.shiftEndTime,
+        },
+        ...prev,
+      ])
+    }
+    return closed
   }
 
   // Kitchen Display: Pending → Ready → Served (Served drops off the board)
@@ -152,6 +301,31 @@ export function AppProvider({ children }) {
     setTables((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)))
   const deleteTable = (id) => setTables((prev) => prev.filter((t) => t.id !== id))
 
+  // Employee management (Admin/Manager). Drives Payroll, Attendance, waiters.
+  const waiters = useMemo(
+    () => staff.filter((s) => s.active !== false && s.role === 'Waiter'),
+    [staff],
+  )
+  const addStaff = (emp) => {
+    const created = {
+      role: 'Waiter',
+      shift: 'Morning',
+      baseSalary: 0,
+      active: true,
+      ...emp,
+      id: `S-${Date.now()}`,
+    }
+    setStaff((prev) => [...prev, created])
+    return created
+  }
+  const updateStaff = (id, updates) =>
+    setStaff((prev) => prev.map((s) => (s.id === id ? { ...s, ...updates } : s)))
+  const deleteStaff = (id) => setStaff((prev) => prev.filter((s) => s.id !== id))
+  const toggleStaff = (id) =>
+    setStaff((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, active: s.active === false } : s)),
+    )
+
   // Salary advances — multiple dated entries per staff, deducted at payroll.
   const addAdvance = ({ staffId, amount, reason = '', date }) => {
     const adv = {
@@ -211,7 +385,7 @@ export function AppProvider({ children }) {
   const stats = useMemo(() => {
     const revenue = orders
       .filter((o) => o.payment === 'Paid' && !o.cancelled)
-      .reduce((s, o) => s + orderTotal(o.items).total, 0)
+      .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount).total, 0)
     const pending = orders.filter((o) => o.payment === 'Unpaid' && !o.cancelled).length
     const activeTables = new Set(
       orders.filter((o) => o.payment === 'Unpaid' && !o.cancelled).map((o) => o.table),
@@ -225,10 +399,10 @@ export function AppProvider({ children }) {
       pending,
       activeTables,
       present,
-      totalStaff: STAFF.length,
+      totalStaff: staff.filter((s) => s.active !== false).length,
       lowStockCount: lowStock.length,
     }
-  }, [orders, attendance, lowStock])
+  }, [orders, attendance, lowStock, staff])
 
   const value = {
     user,
@@ -240,6 +414,8 @@ export function AppProvider({ children }) {
     markReady,
     clearKitchen,
     cancelOrder,
+    applyDiscount,
+    removeDiscount,
     auditLog,
     orderTotal,
     attendance,
@@ -263,10 +439,21 @@ export function AppProvider({ children }) {
     addTable,
     updateTable,
     deleteTable,
+    staff,
+    waiters,
+    addStaff,
+    updateStaff,
+    deleteStaff,
+    toggleStaff,
     advances,
     addAdvance,
     deleteAdvance,
     recoverAdvances,
+    shiftReconciliations,
+    activeShift,
+    startShift,
+    endShift,
+    calculateShiftSales,
     stats,
   }
 

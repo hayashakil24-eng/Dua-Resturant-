@@ -4,7 +4,6 @@ import { useApp } from '../context/AppContext.jsx'
 import { PageHeader, StatCard, PaymentBadge } from '../components/ui.jsx'
 import { money, time } from '../utils/format.js'
 import { payrollTotal } from '../utils/payroll.js'
-import { STAFF } from '../data/mockData.js'
 import { Receipt } from './Billing.jsx'
 import { canModify } from '../config/permissions.js'
 import {
@@ -125,6 +124,109 @@ function LowStockAlert({ items }) {
 }
 
 // ============================================================================
+// CASH DRAWER RECONCILIATION  (Admin / Manager)
+// ============================================================================
+
+const SHIFT_META = {
+  matched: { label: '✓ Matched', chip: 'bg-emerald-600 text-white', border: 'border-emerald-500/40 bg-emerald-500/[0.06]', diff: 'text-emerald-300' },
+  shortage: { label: 'Shortage', chip: 'bg-rose-600 text-white', border: 'border-rose-500/40 bg-rose-500/[0.06]', diff: 'text-rose-300' },
+  excess: { label: 'Excess', chip: 'bg-sky-600 text-white', border: 'border-sky-500/40 bg-sky-500/[0.06]', diff: 'text-sky-300' },
+  active: { label: '⏳ Active', chip: 'bg-gold/20 text-gold', border: 'border-ink-line bg-ink-soft/50', diff: 'text-cream-dim' },
+}
+
+function CashReconciliation() {
+  const { shiftReconciliations, calculateShiftSales } = useApp()
+
+  const todayShifts = shiftReconciliations.filter(
+    (s) => new Date(s.shiftStartTime).toDateString() === new Date().toDateString(),
+  )
+  const shortages = todayShifts.filter((s) => s.status === 'shortage')
+
+  return (
+    <div className="card p-6">
+      <div className="flex items-center justify-between border-b border-ink-line pb-4">
+        <div className="flex items-center gap-3">
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-gold/10 text-gold ring-1 ring-gold/25">
+            <IconCash size={20} />
+          </span>
+          <div>
+            <h3 className="font-serif text-xl text-cream">Cash Reconciliation</h3>
+            <p className="text-xs text-cream-dim">Shift drawer counts · today</p>
+          </div>
+        </div>
+        {shortages.length > 0 && (
+          <span className="badge bg-rose-500/12 text-rose-300 ring-1 ring-rose-500/30">
+            {shortages.length} shortage{shortages.length > 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
+
+      {shortages.length > 0 && (
+        <div className="mt-4 rounded-xl border-l-4 border-rose-500 bg-rose-500/[0.08] px-4 py-3 text-sm font-semibold text-rose-300">
+          ⚠️ {shortages.length} shift{shortages.length > 1 ? 's' : ''} closed with a cash shortage — review below.
+        </div>
+      )}
+
+      {todayShifts.length === 0 ? (
+        <p className="mt-6 text-sm text-cream-dim">No shifts recorded today.</p>
+      ) : (
+        <div className="mt-4 space-y-3">
+          {todayShifts.map((s) => {
+            const meta = SHIFT_META[s.status] || SHIFT_META.active
+            const live = s.status === 'active' ? calculateShiftSales(s.id) : null
+            return (
+              <div key={s.id} className={`rounded-xl border p-4 ${meta.border}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-cream">{s.cashierName}</p>
+                    <p className="text-xs text-cream-dim">
+                      {time(s.shiftStartTime)} – {s.shiftEndTime ? time(s.shiftEndTime) : 'now'}
+                    </p>
+                  </div>
+                  <span className={`shrink-0 rounded-md px-2.5 py-1 text-[11px] font-bold ${meta.chip}`}>
+                    {meta.label}
+                  </span>
+                </div>
+
+                {s.status === 'active' ? (
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <p className="text-[11px] text-cream-dim">Opening</p>
+                      <p className="font-semibold text-cream">{money(s.openingCash)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-cream-dim">Expected so far</p>
+                      <p className="font-semibold text-gold">{money(live?.expectedCash ?? s.openingCash)}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
+                    <div>
+                      <p className="text-[11px] text-cream-dim">Expected</p>
+                      <p className="font-semibold text-cream">{money(s.expectedCash)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-cream-dim">Actual</p>
+                      <p className="font-semibold text-cream">{money(s.actualCash)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-cream-dim">Difference</p>
+                      <p className={`font-semibold ${meta.diff}`}>
+                        {s.status === 'matched' ? money(0) : money(Math.abs(s.difference))}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============================================================================
 // SHARED DASHBOARD COMPONENT PARTS
 // ============================================================================
 
@@ -134,7 +236,7 @@ function RevenueByHour({ orders, orderTotal }) {
     .filter((o) => o.payment === 'Paid' && !o.cancelled)
     .forEach((o) => {
       const h = new Date(o.createdAt).getHours()
-      buckets[h] = (buckets[h] || 0) + orderTotal(o.items).total
+      buckets[h] = (buckets[h] || 0) + orderTotal(o.items, o.discount?.amount).total
     })
   const hours = Object.keys(buckets).map(Number).sort((a, b) => a - b)
   const max = Math.max(1, ...Object.values(buckets))
@@ -197,7 +299,7 @@ function RecentOrders({ orders, orderTotal }) {
               </p>
             </div>
             <div className="text-right">
-              <p className="text-sm font-semibold text-cream">{money(orderTotal(o.items).total)}</p>
+              <p className="text-sm font-semibold text-cream">{money(orderTotal(o.items, o.discount?.amount).total)}</p>
               <div className="mt-1">
                 {o.cancelled ? (
                   <span className="badge bg-rose-500/12 text-rose-300 ring-1 ring-rose-500/30">Cancelled</span>
@@ -214,7 +316,9 @@ function RecentOrders({ orders, orderTotal }) {
 }
 
 function OnDutyStaff({ attendance }) {
-  const present = STAFF.filter((s) => {
+  const { staff } = useApp()
+  const present = staff.filter((s) => {
+    if (s.active === false) return false
     const a = attendance[s.id]
     return a && (a.status === 'Present' || a.status === 'Late')
   })
@@ -252,13 +356,14 @@ function OnDutyStaff({ attendance }) {
 // ============================================================================
 
 function AdminDashboard({ stats, orders, orderTotal, attendance, lowStock }) {
+  const { staff } = useApp()
   let cashTotal = 0
   let cardTotal = 0
   
   orders
     .filter((o) => o.payment === 'Paid' && !o.cancelled)
     .forEach((o) => {
-      const tot = orderTotal(o.items).total
+      const tot = orderTotal(o.items, o.discount?.amount).total
       if (o.method === 'Cash') {
         cashTotal += tot
       } else if (o.method === 'Card') {
@@ -272,7 +377,8 @@ function AdminDashboard({ stats, orders, orderTotal, attendance, lowStock }) {
 
   // Estimated payroll for the current month (before ad-hoc deductions).
   const now = new Date()
-  const monthlyPayroll = payrollTotal(now.getFullYear(), now.getMonth(), now)
+  const monthlyPayroll = payrollTotal(now.getFullYear(), now.getMonth(), now, staff)
+  const activeStaffCount = staff.filter((s) => s.active !== false).length
   const monthName = now.toLocaleDateString('en-PK', { month: 'long' })
 
   return (
@@ -291,6 +397,7 @@ function AdminDashboard({ stats, orders, orderTotal, attendance, lowStock }) {
         {/* Main Column */}
         <div className="space-y-6 lg:col-span-2">
           <RevenueByHour orders={orders} orderTotal={orderTotal} />
+          <CashReconciliation />
           <RecentOrders orders={orders} orderTotal={orderTotal} />
         </div>
 
@@ -339,7 +446,7 @@ function AdminDashboard({ stats, orders, orderTotal, attendance, lowStock }) {
             </div>
             <p className="mt-4 font-serif text-3xl font-semibold text-gold">{money(monthlyPayroll)}</p>
             <p className="mt-1 text-xs text-cream-dim">
-              Across {STAFF.length} staff · before deductions
+              Across {activeStaffCount} staff · before deductions
             </p>
             <Link
               to="/payroll"
@@ -377,6 +484,7 @@ function ManagerDashboard({ stats, orders, orderTotal, attendance, unpaidTotal, 
         {/* Main Column */}
         <div className="space-y-6 lg:col-span-2">
           <FloorMap orders={orders} orderTotal={orderTotal} />
+          <CashReconciliation />
           <RecentOrders orders={orders} orderTotal={orderTotal} />
         </div>
 
@@ -439,7 +547,7 @@ function FloorMap({ orders, orderTotal }) {
                     <div>
                       <p className="text-[9px] uppercase tracking-wider text-cream-dim">Total Bill</p>
                       <p className="text-xs font-bold text-gold">
-                        {money(orderTotal(activeOrder.items).total)}
+                        {money(orderTotal(activeOrder.items, activeOrder.discount?.amount).total)}
                       </p>
                     </div>
                     <span className="absolute top-2.5 right-2.5 flex h-2 w-2">
@@ -510,7 +618,7 @@ function CashierDashboard({ stats, orders, orderTotal, unpaidTotal, onProcessBil
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-semibold text-emerald-300">{money(orderTotal(o.items).total)}</p>
+                      <p className="text-sm font-semibold text-emerald-300">{money(orderTotal(o.items, o.discount?.amount).total)}</p>
                       <span className="inline-flex items-center gap-1 rounded bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-cream-dim">
                         {o.method}
                       </span>
@@ -596,7 +704,7 @@ function PendingBillsQueue({ orders, orderTotal, onProcessBill }) {
               </div>
               <div className="flex items-center justify-between gap-4 border-t border-ink-line/30 pt-2 sm:border-t-0 sm:pt-0">
                 <div className="text-right">
-                  <p className="text-sm font-semibold text-cream">{money(orderTotal(o.items).total)}</p>
+                  <p className="text-sm font-semibold text-cream">{money(orderTotal(o.items, o.discount?.amount).total)}</p>
                   <p className="text-[10px] text-cream-dim">{time(o.createdAt)}</p>
                 </div>
                 <button
@@ -635,7 +743,7 @@ export default function Dashboard() {
 
   const unpaidTotal = orders
     .filter((o) => o.payment === 'Unpaid' && !o.cancelled)
-    .reduce((s, o) => s + orderTotal(o.items).total, 0)
+    .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount).total, 0)
 
   // Role-specific headers and page headings
   const heading = {

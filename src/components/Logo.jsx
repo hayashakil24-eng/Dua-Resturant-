@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-// Café Ali brand mark.
+// Cafe Ali brand mark.
 // Uses the real logo image at /logo.png (place your file in the `public/` folder).
 // If that image is missing, it falls back to an SVG "CA" monogram so the app never breaks.
 function FallbackMark({ size }) {
@@ -33,7 +33,7 @@ export default function Logo({ size = 44, showText = true }) {
         {imgOk ? (
           <img
             src="/logo.png"
-            alt="Café Ali"
+            alt="Cafe Ali"
             className="h-full w-full object-cover"
             onError={() => setImgOk(false)}
           />
@@ -44,9 +44,8 @@ export default function Logo({ size = 44, showText = true }) {
       {showText && (
         <div className="leading-tight">
           <div className="font-serif text-lg font-semibold tracking-wide text-gold-gradient">
-            Dua Restaurant
+            Cafe Ali
           </div>
-          <div className="text-[10px] uppercase tracking-[0.3em] text-cream-dim">Café Ali</div>
         </div>
       )}
     </div>

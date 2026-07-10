@@ -41,7 +41,7 @@ export default function Login() {
               tells a <span className="text-gold-gradient">golden</span> story.
             </h2>
             <p className="mt-4 max-w-sm text-sm text-cream-dim">
-              The complete management suite for Dua Restaurant — orders, tables,
+              The complete management suite for Cafe Ali — orders, tables,
               billing and staff, refined into one elegant workspace.
             </p>
           </div>

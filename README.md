@@ -1,6 +1,6 @@
-# Dua Restaurant — Management System (Frontend)
+# Cafe Ali — Management System (Frontend)
 
-A premium, luxury-themed restaurant management frontend for **Dua Restaurant / Café Ali**.
+A premium, luxury-themed restaurant management frontend for **Cafe Ali**.
 Built with **React + Vite + Tailwind CSS**. Frontend-only (mock data, no backend).
 
 ## Palette & Design

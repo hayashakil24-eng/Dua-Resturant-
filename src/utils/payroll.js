@@ -57,9 +57,12 @@ export const calcSalary = (base, workingDays, present) =>
   workingDays > 0 ? Math.round((base / workingDays) * present) : 0
 
 // Total *calculated* payroll (before ad-hoc deductions) for the given month.
-export function payrollTotal(year, month, today) {
-  return STAFF.reduce((sum, s) => {
-    const att = monthAttendance(s.id, year, month, today)
-    return sum + calcSalary(s.baseSalary, att.workingDays, att.present)
-  }, 0)
+// Pass the live staff list so added/removed/deactivated employees are counted.
+export function payrollTotal(year, month, today, staffList = STAFF) {
+  return staffList
+    .filter((s) => s.active !== false)
+    .reduce((sum, s) => {
+      const att = monthAttendance(s.id, year, month, today)
+      return sum + calcSalary(s.baseSalary, att.workingDays, att.present)
+    }, 0)
 }

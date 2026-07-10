@@ -66,7 +66,7 @@ function TableCard({ info, now, onClick }) {
 }
 
 function OrderDetailsModal({ order, orderTotal, onClose }) {
-  const { subtotal, tax, total } = orderTotal(order.items)
+  const { subtotal, tax, discount, total } = orderTotal(order.items, order.discount?.amount)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
@@ -111,6 +111,12 @@ function OrderDetailsModal({ order, orderTotal, onClose }) {
               <span>GST</span>
               <span className="text-cream">{money(tax)}</span>
             </div>
+            {discount > 0 && (
+              <div className="flex justify-between text-emerald-300">
+                <span>Discount{order.discount?.reason ? ` (${order.discount.reason})` : ''}</span>
+                <span>- {money(discount)}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between pt-1">
               <span className="font-serif text-lg text-cream">Total</span>
               <span className="font-serif text-2xl font-semibold text-gold">{money(total)}</span>

@@ -251,7 +251,7 @@ function AddTransactionModal({ onClose, onSave }) {
 
 // ---------------------------------------------------------------------------
 export default function Accounting() {
-  const { transactions, addTransaction, deleteTransaction } = useApp()
+  const { transactions, addTransaction, deleteTransaction, staff } = useApp()
   const today = useMemo(() => new Date(), [])
 
   const monthOptions = useMemo(() => {
@@ -274,7 +274,7 @@ export default function Accounting() {
   const monthLabel = monthOptions.find((m) => m.key === monthKey)?.label
 
   const fig = useMemo(
-    () => monthFigures(transactions, year, monthIndex, today),
+    () => monthFigures(transactions, year, monthIndex, today, staff),
     [transactions, year, monthIndex, today],
   )
 
@@ -285,10 +285,10 @@ export default function Accounting() {
         .reverse()
         .map((opt) => {
           const [y, m] = opt.key.split('-').map(Number)
-          const f = monthFigures(transactions, y, m - 1, today)
+          const f = monthFigures(transactions, y, m - 1, today, staff)
           return { label: opt.label.slice(0, 3), income: f.income, expense: f.expense }
         }),
-    [transactions, monthOptions, today],
+    [transactions, monthOptions, today, staff],
   )
 
   // Ledger rows = manual transactions + a read-only auto payroll expense line.
