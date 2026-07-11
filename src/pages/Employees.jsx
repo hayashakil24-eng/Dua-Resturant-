@@ -23,6 +23,19 @@ const ROLE_STYLE = {
   Chef: 'bg-purple-500/12 text-purple-300 ring-purple-500/30',
 }
 
+// Defined at module scope (NOT inside EmployeeModal). If this lived inside the
+// modal, every keystroke re-rendered the modal and produced a *new* Field
+// function identity, so React unmounted/remounted each input and focus was lost
+// after a single character.
+function Field({ label, children }) {
+  return (
+    <div>
+      <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">{label}</label>
+      {children}
+    </div>
+  )
+}
+
 function EmployeeModal({ employee, onSave, onClose }) {
   const [form, setForm] = useState(
     employee || {
@@ -38,13 +51,6 @@ function EmployeeModal({ employee, onSave, onClose }) {
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
   const valid = form.name.trim() && form.role
   useEscapeKey(onClose)
-
-  const Field = ({ label, children }) => (
-    <div>
-      <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">{label}</label>
-      {children}
-    </div>
-  )
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
