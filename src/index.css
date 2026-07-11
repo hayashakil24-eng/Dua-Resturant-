@@ -57,6 +57,16 @@
     font-family: 'Inter', sans-serif;
     font-variant-numeric: lining-nums;
   }
+  /* Urdu (RTL): use a Naskh-style stack that stays compact in a dense admin UI
+     (Nastaliq's tall baseline breaks tight rows). Falls back to system Urdu
+     fonts on Windows. Digits stay latin for consistency with money()/counts. */
+  html[dir='rtl'] {
+    font-family: 'Noto Naskh Arabic', 'Segoe UI', Tahoma, 'Jameel Noori Nastaleeq',
+      'Inter', sans-serif;
+  }
+  html[dir='rtl'] body {
+    line-height: 1.9;
+  }
   html,
   body,
   #root {

@@ -3,16 +3,41 @@ import { NavLink, useLocation } from 'react-router-dom'
 import Logo from './Logo.jsx'
 import { navForRole } from '../config/nav.js'
 import { useApp } from '../context/AppContext.jsx'
+import { useLang } from '../i18n/LanguageContext.jsx'
 import { dateLong } from '../utils/format.js'
 import { IconLogout, IconMenu, IconClose, IconCash } from './Icons.jsx'
 import ShiftStartModal from './ShiftStartModal.jsx'
 import ShiftEndModal from './ShiftEndModal.jsx'
 
+// EN ⇄ اردو toggle. Flips the whole app to RTL + Urdu font via <html dir>.
+function LanguageSwitcher() {
+  const { lang, setLang } = useLang()
+  return (
+    <div className="flex overflow-hidden rounded-full border border-ink-line text-xs font-semibold">
+      {[
+        ['en', 'EN'],
+        ['ur', 'اردو'],
+      ].map(([code, label]) => (
+        <button
+          key={code}
+          onClick={() => setLang(code)}
+          className={`px-2.5 py-1.5 transition ${
+            lang === code ? 'bg-gold/15 text-gold' : 'text-cream-dim hover:text-cream'
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function SidebarLinks({ role, onNavigate }) {
+  const { t } = useLang()
   const items = navForRole(role)
   return (
     <nav className="flex flex-col gap-1">
-      {items.map(({ to, label, icon: Icon }) => (
+      {items.map(({ to, label, labelKey, icon: Icon }) => (
         <NavLink
           key={to}
           to={to}
@@ -33,7 +58,7 @@ function SidebarLinks({ role, onNavigate }) {
               >
                 <Icon size={20} />
               </span>
-              <span className="min-w-0 flex-1 truncate">{label}</span>
+              <span className="min-w-0 flex-1 truncate">{t(labelKey, label)}</span>
               {isActive && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-gold" />}
             </>
           )}
@@ -74,6 +99,7 @@ function UserCard({ user, onExit, exitTitle = 'Log out' }) {
 
 export default function Layout({ children }) {
   const { user, logout, activeShift, startShift, endShift } = useApp()
+  const { t } = useLang()
   const [open, setOpen] = useState(false)
   const [endOpen, setEndOpen] = useState(false)
   const location = useLocation()
@@ -97,18 +123,18 @@ export default function Layout({ children }) {
     if (hasOpenDrawer) setEndOpen(true)
     else logout()
   }
-  const exitTitle = hasOpenDrawer ? 'End Shift & Log out' : 'Log out'
+  const exitTitle = hasOpenDrawer ? t('app.endShiftLogout') : t('app.logout')
 
   return (
     <div className="flex min-h-screen">
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-52 flex-col border-r border-ink-line bg-ink-soft/70 p-4 backdrop-blur lg:flex">
+      <aside className="fixed inset-y-0 start-0 z-30 hidden w-52 flex-col border-e border-ink-line bg-ink-soft/70 p-4 backdrop-blur lg:flex">
         <div className="px-1">
           <Logo />
         </div>
         <div className="mt-6 min-h-0 flex-1 overflow-y-auto">
           <p className="mb-2 px-3 text-[10px] uppercase tracking-[0.25em] text-cream-dim/70">
-            Menu
+            {t('app.menuHeading')}
           </p>
           <SidebarLinks role={user.role} />
         </div>
@@ -124,7 +150,7 @@ export default function Layout({ children }) {
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setOpen(false)}
           />
-          <aside className="absolute inset-y-0 left-0 flex w-72 flex-col border-r border-ink-line bg-ink-soft p-5">
+          <aside className="absolute inset-y-0 start-0 flex w-72 flex-col border-e border-ink-line bg-ink-soft p-5">
             <div className="flex items-center justify-between">
               <Logo />
               <button
@@ -145,7 +171,7 @@ export default function Layout({ children }) {
       )}
 
       {/* Main column */}
-      <div className="flex min-w-0 flex-1 flex-col lg:pl-52">
+      <div className="flex min-w-0 flex-1 flex-col lg:ps-52">
         <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-ink-line bg-ink/80 px-4 py-3 backdrop-blur sm:px-6">
           <button
             onClick={() => setOpen(true)}
@@ -156,17 +182,18 @@ export default function Layout({ children }) {
           <div className="hidden sm:block">
             <p className="text-xs text-cream-dim">{dateLong()}</p>
           </div>
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ms-auto flex items-center gap-3">
+            <LanguageSwitcher />
             {isCashier && activeShift && (
               <button
                 onClick={() => setEndOpen(true)}
                 className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20"
               >
-                <IconCash size={14} /> End Shift &amp; Log out
+                <IconCash size={14} /> {t('app.endShiftLogout')}
               </button>
             )}
             <span className="hidden rounded-full border border-ink-line bg-ink-soft px-3 py-1.5 text-xs text-cream-dim sm:inline">
-              Signed in as <span className="text-gold">{user.role}</span>
+              {t('app.signedInAs')} <span className="text-gold">{user.role}</span>
             </span>
             <div className="grid h-9 w-9 place-items-center rounded-full bg-gold-grad text-sm font-semibold text-ink lg:hidden">
               {user.name.split(' ').map((w) => w[0]).slice(0, 2).join('')}
