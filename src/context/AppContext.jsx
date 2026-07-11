@@ -685,6 +685,53 @@ export function AppProvider({ children }) {
 
   const restock = (id, amount = 10) => adjustStock(id, Math.abs(amount))
 
+  // Create a brand-new inventory item directly (Admin only). This is a separate,
+  // proactive path from the Chef's ingredient-request → approveIngredientRequest
+  // flow; both coexist. Rejects blank/duplicate names (case-insensitive) and
+  // mints the next sequential INV## id following the seed data pattern.
+  const addInventoryItem = ({ name, category, unit, stock = 0, threshold = 0 } = {}) => {
+    if (!user || !canModify(user.role, 'inventoryCreate')) {
+      return { error: 'Only Admin can add new inventory items.' }
+    }
+    const trimmed = (name || '').trim()
+    if (!trimmed) return { error: 'Item name is required.' }
+    if (inventory.some((i) => i.name.toLowerCase() === trimmed.toLowerCase())) {
+      return { error: `“${trimmed}” already exists in inventory.` }
+    }
+
+    // Next id = max INV## suffix + 1, zero-padded to 2 (e.g. INV16). Ignores the
+    // timestamp-style ids the ingredient-request flow uses so both can coexist.
+    const maxNum = inventory.reduce((max, i) => {
+      const m = /^INV0*(\d+)$/.exec(i.id)
+      return m ? Math.max(max, Number(m[1])) : max
+    }, 0)
+    const id = `INV${String(maxNum + 1).padStart(2, '0')}`
+
+    const item = {
+      id,
+      name: trimmed,
+      category: (category || 'Other').trim() || 'Other',
+      stock: Math.max(0, Number(stock) || 0),
+      unit: unit || 'kg',
+      threshold: Math.max(0, Number(threshold) || 0),
+      active: true,
+    }
+    setInventory((prev) => [...prev, item])
+    setAuditLog((prev) => [
+      {
+        id: `AUD-${Date.now()}`,
+        action: 'INVENTORY_ITEM_CREATED',
+        inventoryItemId: id,
+        name: item.name,
+        by: user.name,
+        role: user.role,
+        at: new Date().toISOString(),
+      },
+      ...prev,
+    ])
+    return { success: true, item }
+  }
+
   // Accounting ledger
   const addTransaction = ({ type, category, description, amount, date }) => {
     const txn = {
@@ -940,6 +987,7 @@ export function AppProvider({ children }) {
     lowStock,
     adjustStock,
     restock,
+    addInventoryItem,
     transactions,
     addTransaction,
     deleteTransaction,

@@ -92,6 +92,17 @@ const ADV_STATUS = {
   recovered: 'bg-emerald-500/12 text-emerald-300 ring-emerald-500/30',
 }
 
+// Module-scope so its identity is stable across the modal's re-renders (a
+// nested definition would remount on every keystroke).
+function Row({ label, value }) {
+  return (
+    <div className="flex items-center justify-between py-2">
+      <span className="text-sm text-cream-dim">{label}</span>
+      <span className="text-sm font-semibold text-cream">{value}</span>
+    </div>
+  )
+}
+
 function EditModal({ staff, att, calculated, advances, onAddAdvance, onDeleteAdvance, onClose }) {
   const [amount, setAmount] = useState('')
   const [reason, setReason] = useState('')
@@ -99,13 +110,6 @@ function EditModal({ staff, att, calculated, advances, onAddAdvance, onDeleteAdv
   const advTotal = advances.reduce((s, a) => s + a.amount, 0)
   const final = Math.max(0, calculated - advTotal)
   const canAdd = Number(amount) > 0
-
-  const Row = ({ label, value }) => (
-    <div className="flex items-center justify-between py-2">
-      <span className="text-sm text-cream-dim">{label}</span>
-      <span className="text-sm font-semibold text-cream">{value}</span>
-    </div>
-  )
 
   const submit = () => {
     if (!canAdd) return

@@ -9,7 +9,12 @@ import {
   IconPlus,
   IconMinus,
   IconSearch,
+  IconClose,
+  IconCheck,
 } from '../components/Icons.jsx'
+
+// Base units an inventory item can be tracked in.
+const UNITS = ['kg', 'g', 'L', 'ml', 'pcs', 'packs']
 
 // Stock status helper — critical (<=50% of threshold), low (<=threshold), ok.
 function stockLevel(item) {
@@ -26,15 +31,167 @@ const LEVEL_STYLES = {
 
 const LEVEL_LABEL = { critical: 'Critical', low: 'Low', ok: 'In stock' }
 
+// Admin-only form to create a brand-new inventory item directly (separate from
+// the Chef's ingredient-request flow). `categories` seeds the dropdown from the
+// existing inventory; `onSave` runs the context action and returns {error?}.
+function AddItemModal({ categories, onClose, onSave }) {
+  const [name, setName] = useState('')
+  const [category, setCategory] = useState(categories[0] || 'Other')
+  const [unit, setUnit] = useState(UNITS[0])
+  const [stock, setStock] = useState('0')
+  const [threshold, setThreshold] = useState('0')
+  const [error, setError] = useState('')
+
+  const valid = name.trim().length > 0
+
+  const submit = () => {
+    const res = onSave({
+      name: name.trim(),
+      category,
+      unit,
+      stock: Number(stock) || 0,
+      threshold: Number(threshold) || 0,
+    })
+    if (res?.error) {
+      setError(res.error)
+      return
+    }
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-md animate-fade-up">
+        <div className="card p-6">
+          <div className="flex items-start justify-between">
+            <div>
+              <h3 className="font-serif text-2xl text-cream">Add New Item</h3>
+              <p className="mt-0.5 text-xs text-cream-dim">Create a new inventory item directly.</p>
+            </div>
+            <button onClick={onClose} className="text-cream-dim hover:text-cream">
+              <IconClose size={20} />
+            </button>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            <div>
+              <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+                Item Name
+              </label>
+              <input
+                className="input"
+                placeholder="e.g. Green Chillies"
+                value={name}
+                autoFocus
+                onChange={(e) => {
+                  setName(e.target.value)
+                  if (error) setError('')
+                }}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+                  Category
+                </label>
+                <select
+                  className="input py-2"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                >
+                  {categories.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+                  Base Unit
+                </label>
+                <select className="input py-2" value={unit} onChange={(e) => setUnit(e.target.value)}>
+                  {UNITS.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+                  Initial Stock
+                </label>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  className="input"
+                  value={stock}
+                  onChange={(e) => setStock(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+                  Threshold (low-stock alert)
+                </label>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  className="input"
+                  value={threshold}
+                  onChange={(e) => setThreshold(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
+          {error && (
+            <p className="mt-4 rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{error}</p>
+          )}
+
+          <div className="mt-6 flex gap-3">
+            <button onClick={onClose} className="btn-ghost flex-1 py-3">
+              Cancel
+            </button>
+            <button
+              onClick={submit}
+              disabled={!valid}
+              className="btn-gold flex-1 py-3 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <IconCheck size={18} /> Add Item
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Inventory() {
-  const { inventory, lowStock, adjustStock, restock, user } = useApp()
+  const { inventory, lowStock, adjustStock, restock, addInventoryItem, user } = useApp()
   const [query, setQuery] = useState('')
+  const [showAdd, setShowAdd] = useState(false)
   // Page access (also gates whether the Adjust column shows at all).
   const canEdit = user && canModify(user.role, 'inventory')
   // Separation of duties: only Manager adds new stock; Admin & Manager may
   // adjust existing quantities for corrections.
   const canAddStock = user && canModify(user.role, 'inventoryAdd')
   const canAdjust = user && canModify(user.role, 'inventoryDirectEdit')
+  // Only Admin may create a brand-new inventory item (Manager cannot).
+  const canCreate = user && canModify(user.role, 'inventoryCreate')
+
+  // Existing categories seed the "Add Item" dropdown (canonical order preserved).
+  const categories = useMemo(
+    () => [...new Set(inventory.map((i) => i.category))].sort(),
+    [inventory],
+  )
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -55,16 +212,23 @@ export default function Inventory() {
   return (
     <div>
       <PageHeader title="Inventory" subtitle={dateLong()}>
-        <div className="relative">
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-cream-dim">
-            <IconSearch size={16} />
-          </span>
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search items…"
-            className="w-56 rounded-xl border border-ink-line bg-ink-soft py-2 pl-9 pr-3 text-sm text-cream placeholder:text-cream-dim/60 focus:border-gold/40 focus:outline-none"
-          />
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-cream-dim">
+              <IconSearch size={16} />
+            </span>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search items…"
+              className="w-56 rounded-xl border border-ink-line bg-ink-soft py-2 pl-9 pr-3 text-sm text-cream placeholder:text-cream-dim/60 focus:border-gold/40 focus:outline-none"
+            />
+          </div>
+          {canCreate && (
+            <button onClick={() => setShowAdd(true)} className="btn-gold shrink-0 px-4 py-2 text-sm">
+              <IconPlus size={16} /> Add New Item
+            </button>
+          )}
         </div>
       </PageHeader>
 
@@ -173,6 +337,14 @@ export default function Inventory() {
           </div>
         )}
       </div>
+
+      {showAdd && (
+        <AddItemModal
+          categories={categories}
+          onClose={() => setShowAdd(false)}
+          onSave={addInventoryItem}
+        />
+      )}
     </div>
   )
 }

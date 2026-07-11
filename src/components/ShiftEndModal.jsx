@@ -4,6 +4,17 @@ import { useApp } from '../context/AppContext.jsx'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import { IconClose, IconCash } from './Icons.jsx'
 
+// Module-scope so its identity is stable across the modal's re-renders (a
+// nested definition would remount on every keystroke).
+function Row({ label, value, strong }) {
+  return (
+    <div className="flex justify-between text-sm">
+      <span className="text-cream-dim">{label}</span>
+      <span className={strong ? 'font-semibold text-cream' : 'text-cream'}>{value}</span>
+    </div>
+  )
+}
+
 // End-of-shift cash count. Shows the system's expected drawer total (opening +
 // cash sales) and asks the cashier for the physical count; the live preview
 // flags any shortage/excess before they commit. `onComplete(shiftId, actual)`.
@@ -27,13 +38,6 @@ export default function ShiftEndModal({ shift, onClose, onComplete }) {
     setError('')
     onComplete(shift.id, counted)
   }
-
-  const Row = ({ label, value, strong }) => (
-    <div className="flex justify-between text-sm">
-      <span className="text-cream-dim">{label}</span>
-      <span className={strong ? 'font-semibold text-cream' : 'text-cream'}>{value}</span>
-    </div>
-  )
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
