@@ -6,13 +6,16 @@ const STYLES = {
   rejected: 'bg-rose-500/12 text-rose-300 ring-rose-500/30',
 }
 
-const LABEL = {
-  approved: '✓ Approved',
-  pending: '⏳ Pending Approval',
-  rejected: '✕ Rejected',
+import { useT } from '../i18n/LanguageContext.jsx'
+
+const LABEL_KEY = {
+  approved: 'kitchen.statusApproved',
+  pending: 'kitchen.statusPending',
+  rejected: 'kitchen.statusRejected',
 }
 
 export default function RecipeStatusBadge({ status }) {
-  if (!LABEL[status]) return null
-  return <span className={`badge ring-1 ${STYLES[status]}`}>{LABEL[status]}</span>
+  const t = useT()
+  if (!LABEL_KEY[status]) return null
+  return <span className={`badge ring-1 ${STYLES[status]}`}>{t(LABEL_KEY[status])}</span>
 }

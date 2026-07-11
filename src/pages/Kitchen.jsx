@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
+import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader, StatCard, EmptyState } from '../components/ui.jsx'
 import RecipeStatusBadge from '../components/RecipeStatusBadge.jsx'
 import RecipeFormModal from '../components/RecipeFormModal.jsx'
@@ -11,6 +12,7 @@ import { IconKitchen, IconClock, IconCheck, IconMenuBook, IconPlus } from '../co
 // still pending, it shows inline Approve/Reject actions — so approvals happen
 // right here, no separate Dashboard section needed. Reject requires a reason.
 function RecipeCard({ recipe: r, canApprove, onApprove, onReject }) {
+  const t = useT()
   const [rejecting, setRejecting] = useState(false)
   const [reason, setReason] = useState('')
   const isPending = r.status === 'pending'
@@ -28,14 +30,14 @@ function RecipeCard({ recipe: r, canApprove, onApprove, onReject }) {
         <div>
           <p className="font-medium text-cream">{r.menuItemName}</p>
           <p className="mt-0.5 text-xs text-cream-dim">
-            By {r.createdBy} · {time(r.createdAt)}
+            {t('kitchen.by')} {r.createdBy} · {time(r.createdAt)}
           </p>
         </div>
         <RecipeStatusBadge status={r.status} />
       </div>
 
       <div className="mt-3 rounded-xl border border-ink-line bg-ink-soft p-3">
-        <p className="mb-1.5 text-xs uppercase tracking-widest text-cream-dim">Ingredients</p>
+        <p className="mb-1.5 text-xs uppercase tracking-widest text-cream-dim">{t('kitchen.ingredients')}</p>
         <ul className="space-y-1 text-sm text-cream">
           {r.ingredients.map((ing) => (
             <li key={ing.id} className="flex justify-between">
@@ -49,7 +51,7 @@ function RecipeCard({ recipe: r, canApprove, onApprove, onReject }) {
       </div>
 
       {r.status === 'rejected' && r.rejectReason && (
-        <p className="mt-3 text-xs text-rose-300">Rejected: {r.rejectReason}</p>
+        <p className="mt-3 text-xs text-rose-300">{t('kitchen.rejectedLabel')}: {r.rejectReason}</p>
       )}
 
       {/* Approve/Reject — Admin only, pending recipes only. */}
@@ -59,7 +61,7 @@ function RecipeCard({ recipe: r, canApprove, onApprove, onReject }) {
             <input
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="Reason for rejection…"
+              placeholder={t('kitchen.reasonPh')}
               className="input flex-1"
               autoFocus
             />
@@ -69,7 +71,7 @@ function RecipeCard({ recipe: r, canApprove, onApprove, onReject }) {
                 disabled={!reason.trim()}
                 className="rounded-xl bg-rose-500/90 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-500 disabled:opacity-40"
               >
-                Confirm Reject
+                {t('kitchen.confirmReject')}
               </button>
               <button
                 onClick={() => {
@@ -78,20 +80,20 @@ function RecipeCard({ recipe: r, canApprove, onApprove, onReject }) {
                 }}
                 className="btn-ghost px-4 py-2.5 text-sm"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           </div>
         ) : (
           <div className="mt-3 flex gap-2">
             <button onClick={() => onApprove(r.id)} className="btn-gold flex-1 px-4 py-2 text-sm">
-              ✓ Approve
+              ✓ {t('kitchen.approve')}
             </button>
             <button
               onClick={() => setRejecting(true)}
               className="btn-ghost flex-1 px-4 py-2 text-sm"
             >
-              ✕ Reject
+              ✕ {t('kitchen.reject')}
             </button>
           </div>
         )
@@ -102,6 +104,7 @@ function RecipeCard({ recipe: r, canApprove, onApprove, onReject }) {
 
 export default function Kitchen() {
   const { recipes, createRecipe, approveRecipe, rejectRecipe, menu, inventory, user } = useApp()
+  const t = useT()
   const [showModal, setShowModal] = useState(false)
 
   // Only Kitchen staff create recipes. Admin/Manager have 'view' access to this
@@ -124,30 +127,30 @@ export default function Kitchen() {
 
   return (
     <div>
-      <PageHeader title="Kitchen Dashboard" subtitle={dateLong()}>
+      <PageHeader title={t('kitchen.title')} subtitle={dateLong()}>
         {canCreate && (
           <button onClick={() => setShowModal(true)} className="btn-gold">
-            <IconPlus size={18} /> Create Recipe
+            <IconPlus size={18} /> {t('kitchen.createRecipe')}
           </button>
         )}
       </PageHeader>
 
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
-        <StatCard icon={IconClock} label="Pending Approval" value={counts.pending} sub="Awaiting Admin" />
-        <StatCard icon={IconCheck} label="Approved" value={counts.approved} sub="Live for deduction" />
-        <StatCard icon={IconMenuBook} label="Total Recipes" value={recipes.length} sub="All statuses" />
+        <StatCard icon={IconClock} label={t('kitchen.pendingApproval')} value={counts.pending} sub={t('kitchen.awaitingAdmin')} />
+        <StatCard icon={IconCheck} label={t('kitchen.approved')} value={counts.approved} sub={t('kitchen.liveForDeduction')} />
+        <StatCard icon={IconMenuBook} label={t('kitchen.totalRecipes')} value={recipes.length} sub={t('kitchen.allStatuses')} />
       </div>
 
       {sorted.length === 0 ? (
         <EmptyState
           icon={IconKitchen}
-          title="No recipes yet"
+          title={t('kitchen.noRecipes')}
           hint={
             canCreate
-              ? 'Create your first recipe to define which inventory ingredients a menu item uses. Once an Admin approves it, orders auto-deduct stock.'
+              ? t('kitchen.hintCreate')
               : canApprove
-                ? 'Waiting for Kitchen staff to submit a recipe. Once submitted, it will appear here for your review and approval.'
-                : 'Waiting for Kitchen staff to submit a recipe. Recipes are created by Kitchen and approved by Admin.'
+                ? t('kitchen.hintApprove')
+                : t('kitchen.hintView')
           }
         />
       ) : (

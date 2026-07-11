@@ -28,9 +28,10 @@ const ATT_STYLES = {
 }
 
 export function StatusBadge({ status }) {
+  const t = useT()
   return (
     <span className={`badge ring-1 ${ATT_STYLES[status] || 'bg-white/5 text-cream-dim ring-white/10'}`}>
-      {status}
+      {t(`attStatus.${status}`, status)}
     </span>
   )
 }
