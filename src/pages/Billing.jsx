@@ -42,25 +42,25 @@ export function Receipt({
           {/* Printable slip */}
           <div
             id="printable-receipt"
-            className="rounded-2xl bg-cream p-6 text-ink shadow-lift"
+            className="rounded-2xl bg-white p-6 text-[#3E2723] shadow-lift border border-[#E8DCC4]"
             style={{ fontFamily: 'ui-monospace, monospace' }}
           >
             <div className="text-center">
               <div className="flex justify-center">
-                <div className="font-serif text-2xl font-bold tracking-wide" style={{ color: '#8C6F1A' }}>
+                <div className="font-serif text-2xl font-bold tracking-wide" style={{ color: '#C9A961' }}>
                   Cafe Ali
                 </div>
               </div>
-              <p className="mt-2 text-[11px] text-neutral-600">
+              <p className="mt-2 text-[11px] text-[#5D4037]">
                 Hawksbay Road, Karachi · 021-111-ALI
               </p>
             </div>
 
-            <div className="my-4 border-t border-dashed border-neutral-400" />
+            <div className="my-4 border-t border-dashed border-[#E8DCC4]" />
 
-            <div className="grid grid-cols-2 gap-1 text-xs text-neutral-700">
+            <div className="grid grid-cols-2 gap-1 text-xs text-[#3E2723]">
               <span>Receipt</span>
-              <span className="text-right font-semibold text-ink">{order.id}</span>
+              <span className="text-right font-bold">{order.id}</span>
               <span>Date</span>
               <span className="text-right">{new Date(order.createdAt).toLocaleDateString('en-PK')}</span>
               <span>Time</span>
@@ -71,11 +71,11 @@ export function Receipt({
               <span className="text-right">{order.waiter}</span>
             </div>
 
-            <div className="my-4 border-t border-dashed border-neutral-400" />
+            <div className="my-4 border-t border-dashed border-[#E8DCC4]" />
 
-            <table className="w-full text-xs">
+            <table className="w-full text-xs text-[#3E2723]">
               <thead>
-                <tr className="text-left text-neutral-500">
+                <tr className="text-left text-[#3E2723]/80">
                   <th className="pb-1 font-medium">Item</th>
                   <th className="pb-1 text-center font-medium">Qty</th>
                   <th className="pb-1 text-right font-medium">Amount</th>
@@ -84,53 +84,53 @@ export function Receipt({
               <tbody>
                 {order.items.map((it) => (
                   <tr key={it.id} className="align-top">
-                    <td className="py-0.5 pr-2 text-ink">{it.name}</td>
-                    <td className="py-0.5 text-center text-neutral-700">{it.qty}</td>
-                    <td className="py-0.5 text-right text-ink">{money(it.price * it.qty)}</td>
+                    <td className="py-0.5 pr-2">{it.name}</td>
+                    <td className="py-0.5 text-center">{it.qty}</td>
+                    <td className="py-0.5 text-right font-bold">{money(it.price * it.qty)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
 
-            <div className="my-4 border-t border-dashed border-neutral-400" />
+            <div className="my-4 border-t border-dashed border-[#E8DCC4]" />
 
-            <div className="space-y-1 text-xs">
-              <div className="flex justify-between text-neutral-700">
+            <div className="space-y-1 text-xs text-[#3E2723]">
+              <div className="flex justify-between">
                 <span>Subtotal</span>
-                <span>{money(subtotal)}</span>
+                <span className="font-bold">{money(subtotal)}</span>
               </div>
-              <div className="flex justify-between text-neutral-700">
+              <div className="flex justify-between">
                 <span>GST ({Math.round(TAX_RATE * 100)}%)</span>
-                <span>{money(tax)}</span>
+                <span className="font-bold">{money(tax)}</span>
               </div>
               {discount > 0 && (
-                <div className="flex justify-between text-neutral-700">
+                <div className="flex justify-between">
                   <span>Discount{order.discount?.reason ? ` (${order.discount.reason})` : ''}</span>
-                  <span>- {money(discount)}</span>
+                  <span className="font-bold">- {money(discount)}</span>
                 </div>
               )}
-              <div className="mt-1 flex justify-between border-t border-neutral-400 pt-1 text-sm font-bold text-ink">
+              <div className="mt-1 flex justify-between border-t border-[#E8DCC4] pt-1 text-sm font-bold">
                 <span>TOTAL</span>
                 <span>{money(total)}</span>
               </div>
-              <div className="flex justify-between pt-1 text-neutral-700">
+              <div className="flex justify-between pt-1">
                 <span>Payment</span>
-                <span className="font-semibold">
+                <span className="font-bold">
                   {order.payment}{order.payment === 'Paid' ? ` · ${order.method}` : ''}
                 </span>
               </div>
             </div>
 
-            <div className="my-4 border-t border-dashed border-neutral-400" />
-            <p className="text-center text-[11px] text-neutral-600">
+            <div className="my-4 border-t border-dashed border-[#E8DCC4]" />
+            <p className="text-center text-[11px] text-[#5D4037]">
               Thank you for dining with us!
               <br />
               Please come again — Cafe Ali
             </p>
 
             {/* Software credit — subtle, kept small so it never competes with the bill. */}
-            <div className="mt-3 border-t border-dashed border-neutral-300 pt-2 text-center">
-              <p className="text-[12px] text-neutral-400">
+            <div className="mt-3 border-t border-dashed border-[#E8DCC4] pt-2 text-center">
+              <p className="text-[12px] text-[#8D6E63]">
                 Software by SoftDap | Support: +92 334 3207049
               </p>
             </div>

@@ -8,9 +8,9 @@ function FallbackMark({ size }) {
     <svg viewBox="0 0 64 64" width={size * 0.66} height={size * 0.66}>
       <defs>
         <linearGradient id="ca-gold" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#E0C463" />
-          <stop offset="55%" stopColor="#C9A227" />
-          <stop offset="100%" stopColor="#8C6F1A" />
+          <stop offset="0%" stopColor="#E2CFA2" />
+          <stop offset="55%" stopColor="#C9A961" />
+          <stop offset="100%" stopColor="#8A6E32" />
         </linearGradient>
       </defs>
       <path d="M30 8c3 3-3 5 0 8M37 8c3 3-3 5 0 8" stroke="url(#ca-gold)" strokeWidth="2.4" fill="none" strokeLinecap="round" />
@@ -27,12 +27,12 @@ export default function Logo({ size = 44, showText = true }) {
   return (
     <div className="flex items-center gap-3">
       <div
-        className="grid place-items-center overflow-hidden rounded-xl bg-ink ring-1 ring-gold/40 shadow-gold"
+        className="grid place-items-center overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-ink-line"
         style={{ width: size, height: size }}
       >
         {imgOk ? (
           <img
-            src="/logo.png"
+            src="/Cafe Ali Logo -final.png"
             alt="Cafe Ali"
             className="h-full w-full object-cover"
             onError={() => setImgOk(false)}

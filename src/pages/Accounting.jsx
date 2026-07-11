@@ -17,6 +17,9 @@ import {
   IconCheck,
 } from '../components/Icons.jsx'
 
+const toDayStr = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
 // ---------------------------------------------------------------------------
 function StatTile({ icon: Icon, label, value, sub, tone }) {
   const tones = {
@@ -266,8 +269,16 @@ export default function Accounting() {
     return opts
   }, [today])
 
+  const [accView, setAccView] = useState('monthly') // 'daily' | 'monthly'
   const [monthKey, setMonthKey] = useState(monthOptions[0].key)
+  const [dayDate, setDayDate] = useState(() => toDayStr(today))
   const [showAdd, setShowAdd] = useState(false)
+
+  const minDay = useMemo(() => {
+    const d = new Date(today.getFullYear(), today.getMonth() - 6, today.getDate())
+    return toDayStr(d)
+  }, [today])
+  const maxDay = useMemo(() => toDayStr(today), [today])
 
   const [year, mon] = monthKey.split('-').map(Number)
   const monthIndex = mon - 1
@@ -276,6 +287,28 @@ export default function Accounting() {
   const fig = useMemo(
     () => monthFigures(transactions, year, monthIndex, today, staff),
     [transactions, year, monthIndex, today],
+  )
+
+  // Daily figures — a single day's ledger. Payroll is a monthly cost, so it
+  // isn't apportioned to any one day; daily P&L is manual income vs expense.
+  const dayFig = useMemo(() => {
+    const inDay = transactions.filter((tx) => toDayStr(new Date(tx.date)) === dayDate)
+    const income = inDay.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
+    const expense = inDay.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+    const profit = income - expense
+    const margin = income > 0 ? (profit / income) * 100 : 0
+    return { inDay, income, expense, profit, margin }
+  }, [transactions, dayDate])
+
+  const dayLabel = useMemo(
+    () =>
+      new Date(`${dayDate}T00:00:00`).toLocaleDateString('en-PK', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      }),
+    [dayDate],
   )
 
   const chartData = useMemo(
@@ -308,53 +341,99 @@ export default function Accounting() {
     return list.sort((a, b) => new Date(b.date) - new Date(a.date))
   }, [fig, year, monthIndex])
 
+  const dayRows = useMemo(
+    () => [...dayFig.inDay].sort((a, b) => new Date(b.date) - new Date(a.date)),
+    [dayFig],
+  )
+
+  const daily = accView === 'daily'
+  const figures = daily ? dayFig : fig
+  const scopeLabel = daily ? dayLabel : monthLabel
+  const ledgerRows = daily ? dayRows : rows
+
   return (
     <div>
       <PageHeader title="Accounting" subtitle="Income, expenses and profit & loss.">
-        <select
-          className="input w-48 py-2 no-print"
-          value={monthKey}
-          onChange={(e) => setMonthKey(e.target.value)}
-        >
-          {monthOptions.map((m) => (
-            <option key={m.key} value={m.key}>
-              {m.label}
-            </option>
-          ))}
-        </select>
+        <div className="flex flex-wrap items-center gap-2 no-print">
+          <div className="flex overflow-hidden rounded-xl border border-ink-line">
+            {['daily', 'monthly'].map((v) => (
+              <button
+                key={v}
+                onClick={() => setAccView(v)}
+                className={`px-4 py-2 text-sm font-semibold capitalize transition ${
+                  accView === v
+                    ? 'bg-gold/15 text-gold'
+                    : 'bg-ink-soft text-cream-dim hover:text-cream'
+                }`}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+          {daily ? (
+            <input
+              type="date"
+              className="input w-44 py-2"
+              value={dayDate}
+              min={minDay}
+              max={maxDay}
+              onChange={(e) => setDayDate(e.target.value)}
+            />
+          ) : (
+            <select
+              className="input w-48 py-2"
+              value={monthKey}
+              onChange={(e) => setMonthKey(e.target.value)}
+            >
+              {monthOptions.map((m) => (
+                <option key={m.key} value={m.key}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
       </PageHeader>
 
       {/* Quick stats */}
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile icon={IconTrend} label="Income" value={money(fig.income)} sub={monthLabel} tone="green" />
-        <StatTile icon={IconTrendDown} label="Expenses" value={money(fig.expense)} sub="Incl. payroll" tone="red" />
+        <StatTile icon={IconTrend} label="Income" value={money(figures.income)} sub={scopeLabel} tone="green" />
+        <StatTile
+          icon={IconTrendDown}
+          label="Expenses"
+          value={money(figures.expense)}
+          sub={daily ? scopeLabel : 'Incl. payroll'}
+          tone="red"
+        />
         <StatTile
           icon={IconWallet}
           label="Net Profit"
-          value={money(fig.profit)}
-          sub={fig.profit >= 0 ? 'Profit' : 'Loss'}
-          tone={fig.profit >= 0 ? 'gold' : 'red'}
+          value={money(figures.profit)}
+          sub={figures.profit >= 0 ? 'Profit' : 'Loss'}
+          tone={figures.profit >= 0 ? 'gold' : 'red'}
         />
         <StatTile
           icon={IconChart}
           label="Profit Margin"
-          value={`${Math.round(fig.margin)}%`}
+          value={`${Math.round(figures.margin)}%`}
           sub="Profit / income"
-          tone={fig.margin >= 0 ? 'blue' : 'red'}
+          tone={figures.margin >= 0 ? 'blue' : 'red'}
         />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <PLChart data={chartData} />
+      {!daily && (
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <PLChart data={chartData} />
+          </div>
+          <ExpenseBreakdown inMonth={fig.inMonth} payroll={fig.payroll} />
         </div>
-        <ExpenseBreakdown inMonth={fig.inMonth} payroll={fig.payroll} />
-      </div>
+      )}
 
       {/* Ledger */}
       <div className="mt-6 card overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-ink-line p-5 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="font-serif text-xl text-cream">Transactions · {monthLabel}</h3>
+          <h3 className="font-serif text-xl text-cream">Transactions · {scopeLabel}</h3>
           <div className="flex gap-2 no-print">
             <button onClick={safePrint} className="btn-ghost px-4 py-2 text-sm">
               <IconPrint size={16} /> Print Report
@@ -365,9 +444,9 @@ export default function Accounting() {
           </div>
         </div>
 
-        {rows.length === 0 ? (
+        {ledgerRows.length === 0 ? (
           <div className="p-10 text-center text-sm text-cream-dim">
-            No transactions recorded for {monthLabel}.
+            No transactions recorded for {scopeLabel}.
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -382,7 +461,7 @@ export default function Accounting() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-ink-line">
-                {rows.map((tx) => {
+                {ledgerRows.map((tx) => {
                   const income = tx.type === 'income'
                   return (
                     <tr key={tx.id} className="transition hover:bg-white/[0.02]">
