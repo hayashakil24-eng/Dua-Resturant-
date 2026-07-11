@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useApp } from '../context/AppContext.jsx'
 import { IconClose, IconPlus, IconTrash, IconAlert } from './Icons.jsx'
 
 // Kitchen recipe builder: pick a menu item, then add ingredient rows drawn from
@@ -6,9 +7,17 @@ import { IconClose, IconPlus, IconTrash, IconAlert } from './Icons.jsx'
 // (deduction subtracts from that item's `stock` in its own unit), so we show the
 // unit as a fixed label rather than letting it be mis-picked.
 export default function RecipeFormModal({ menu, inventory, existingRecipes = [], onSave, onClose }) {
+  const { ingredientRequests, createIngredientRequest } = useApp()
   const [menuItemId, setMenuItemId] = useState('')
   const [ingredients, setIngredients] = useState([])
   const [error, setError] = useState('')
+
+  // New Ingredient Request inline form states
+  const [requestingIngIdx, setRequestingIngIdx] = useState(null)
+  const [newIngName, setNewIngName] = useState('')
+  const [newIngCategory, setNewIngCategory] = useState('')
+  const [newIngUnit, setNewIngUnit] = useState('kg')
+  const [reqError, setReqError] = useState('')
 
   const menuItems = menu.filter((m) => m.active !== false)
 
@@ -25,13 +34,33 @@ export default function RecipeFormModal({ menu, inventory, existingRecipes = [],
 
   const removeRow = (idx) => setIngredients((prev) => prev.filter((_, i) => i !== idx))
 
+  const updateRowRequest = (idx, reqId, reqName, reqUnit) => {
+    setIngredients((prev) =>
+      prev.map((row, i) => {
+        if (i !== idx) return row
+        return { ...row, inventoryItemId: reqId, itemName: reqName, unit: reqUnit }
+      }),
+    )
+  }
+
   const updateRow = (idx, field, val) =>
     setIngredients((prev) =>
       prev.map((row, i) => {
         if (i !== idx) return row
         if (field === 'inventoryItemId') {
+          if (val === 'REQUEST_NEW_INGREDIENT') {
+            setRequestingIngIdx(idx)
+            return row
+          }
           const inv = inventory.find((x) => x.id === val)
-          return { ...row, inventoryItemId: val, itemName: inv?.name || '', unit: inv?.unit || '' }
+          if (inv) {
+            return { ...row, inventoryItemId: val, itemName: inv.name, unit: inv.unit }
+          }
+          const req = ingredientRequests.find((x) => x.id === val)
+          if (req) {
+            return { ...row, inventoryItemId: val, itemName: req.name, unit: req.unit || 'kg' }
+          }
+          return { ...row, inventoryItemId: val, itemName: '', unit: '' }
         }
         return { ...row, [field]: val }
       }),
@@ -121,9 +150,15 @@ export default function RecipeFormModal({ menu, inventory, existingRecipes = [],
                     className="input flex-1"
                   >
                     <option value="">Inventory item…</option>
+                    <option value="REQUEST_NEW_INGREDIENT" className="font-semibold text-gold">+ Request New Ingredient</option>
                     {inventory.map((inv) => (
                       <option key={inv.id} value={inv.id}>
                         {inv.name}
+                      </option>
+                    ))}
+                    {ingredientRequests.filter((r) => r.status === 'pending').map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name} (Pending Request)
                       </option>
                     ))}
                   </select>
@@ -172,6 +207,101 @@ export default function RecipeFormModal({ menu, inventory, existingRecipes = [],
           </div>
         </div>
       </div>
+
+      {requestingIngIdx !== null && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setRequestingIngIdx(null)} />
+          <div className="relative z-10 w-full max-w-sm animate-fade-up">
+            <div className="card p-6 border border-ink-line">
+              <h4 className="font-serif text-xl text-cream font-semibold">Request New Ingredient</h4>
+              <p className="text-xs text-cream-dim mt-0.5">This will go to the Admin for approval.</p>
+
+              <div className="mt-4 space-y-3">
+                <div>
+                  <label className="mb-1 block text-[11px] uppercase tracking-wider text-cream-dim">Ingredient Name *</label>
+                  <input
+                    type="text"
+                    className="input py-2"
+                    placeholder="e.g. Fresh Cream"
+                    value={newIngName}
+                    onChange={(e) => setNewIngName(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] uppercase tracking-wider text-cream-dim">Category (optional)</label>
+                  <input
+                    type="text"
+                    className="input py-2"
+                    placeholder="e.g. Dairy"
+                    value={newIngCategory}
+                    onChange={(e) => setNewIngCategory(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] uppercase tracking-wider text-cream-dim">Temporary Unit for Recipe *</label>
+                  <select
+                    className="input py-2"
+                    value={newIngUnit}
+                    onChange={(e) => setNewIngUnit(e.target.value)}
+                  >
+                    <option value="kg">kg</option>
+                    <option value="g">g</option>
+                    <option value="L">L</option>
+                    <option value="ml">ml</option>
+                    <option value="tbsp">tbsp</option>
+                    <option value="tsp">tsp</option>
+                    <option value="pcs">pcs</option>
+                    <option value="packs">packs</option>
+                  </select>
+                </div>
+              </div>
+
+              {reqError && (
+                <p className="mt-3 text-xs text-rose-300 font-semibold">{reqError}</p>
+              )}
+
+              <div className="mt-5 flex gap-3">
+                <button
+                  onClick={() => {
+                    if (!newIngName.trim()) {
+                      return setReqError('Name is required.')
+                    }
+                    const res = createIngredientRequest({
+                      name: newIngName.trim(),
+                      category: newIngCategory.trim() || 'Other',
+                    })
+                    if (res && res.error) {
+                      return setReqError(res.error)
+                    }
+
+                    // Update the row with the pending request details
+                    updateRowRequest(requestingIngIdx, res.id, res.name, newIngUnit)
+
+                    // Reset
+                    setNewIngName('')
+                    setNewIngCategory('')
+                    setNewIngUnit('kg')
+                    setReqError('')
+                    setRequestingIngIdx(null)
+                  }}
+                  className="btn-gold flex-1 py-2 text-sm"
+                >
+                  Submit Request
+                </button>
+                <button
+                  onClick={() => {
+                    setRequestingIngIdx(null)
+                    setReqError('')
+                  }}
+                  className="btn-ghost flex-1 py-2 text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -13,6 +13,7 @@ import {
   TAX_RATE,
 } from '../data/mockData.js'
 import { canModify } from '../config/permissions.js'
+import { convertUnit, calculateDeductions, calculateRestocks } from '../utils/inventoryFlow.js'
 
 const AppContext = createContext(null)
 
@@ -28,6 +29,7 @@ export function AppProvider({ children }) {
   const [advances, setAdvances] = useState(INITIAL_ADVANCES)
   const [transactions, setTransactions] = useState(INITIAL_TRANSACTIONS)
   const [recipes, setRecipes] = useState(INITIAL_RECIPES)
+  const [ingredientRequests, setIngredientRequests] = useState([])
   const [auditLog, setAuditLog] = useState([])
   // Most Ordered is a manually-curated, shared list of menu item ids (NOT
   // auto-calculated from order history). Any POS role (Cashier/Admin/Manager)
@@ -154,26 +156,155 @@ export function AppProvider({ children }) {
     ])
   }
 
+  // ---- Ingredient Requests (Task 4) ---------------------------------------
+  const createIngredientRequest = ({ name, category }) => {
+    // Check if ingredient name already exists in active requests to prevent duplicate ingredient requests
+    if (ingredientRequests.some((r) => r.name.toLowerCase() === name.toLowerCase() && r.status === 'pending')) {
+      return { error: 'A pending request for this ingredient already exists.' }
+    }
+    const newReq = {
+      id: `REQ-${Date.now()}`,
+      name,
+      category: category || 'Other',
+      status: 'pending',
+      requestedBy: user?.name || 'Chef',
+      requestedAt: new Date().toISOString(),
+    }
+    setIngredientRequests((prev) => [...prev, newReq])
+    
+    setAuditLog((prev) => [
+      {
+        id: `AUD-${Date.now()}`,
+        action: 'INGREDIENT_REQUESTED',
+        requestId: newReq.id,
+        name: newReq.name,
+        by: newReq.requestedBy,
+        role: user?.role || '—',
+        at: newReq.requestedAt,
+      },
+      ...prev,
+    ])
+    return newReq
+  }
+
+  const approveIngredientRequest = (requestId, { baseUnit, initialStock = 0, threshold = 10 } = {}) => {
+    // Gated to Admin only (separation of duties).
+    if (!user || user.role !== 'Admin') {
+      return { error: 'Only Admin can approve ingredient requests.' }
+    }
+
+    let approvedReq = null
+    const nowStr = new Date().toISOString()
+
+    setIngredientRequests((prev) =>
+      prev.map((r) => {
+        if (r.id === requestId) {
+          approvedReq = {
+            ...r,
+            status: 'approved',
+            approvedBy: user.name,
+            approvedAt: nowStr,
+            baseUnit,
+            initialStock,
+            threshold,
+          }
+          return approvedReq
+        }
+        return r
+      }),
+    )
+
+    if (approvedReq) {
+      // Create new inventory item
+      const newInvId = `INV-${Date.now()}`
+      const newInvItem = {
+        id: newInvId,
+        name: approvedReq.name,
+        category: approvedReq.category,
+        stock: Number(initialStock) || 0,
+        unit: baseUnit || 'kg',
+        threshold: Number(threshold) || 10,
+        active: true,
+      }
+      setInventory((prev) => [...prev, newInvItem])
+
+      // Auto-update pending recipes referencing this request ID (REQ-...) to the new inventory item (INV-...)
+      setRecipes((prev) =>
+        prev.map((recipe) => {
+          if (recipe.status === 'pending') {
+            const updatedIngredients = recipe.ingredients.map((ing) => {
+              if (ing.inventoryItemId === requestId) {
+                return {
+                  ...ing,
+                  inventoryItemId: newInvId,
+                  itemName: newInvItem.name,
+                  unit: newInvItem.unit, // Match the approved base unit
+                }
+              }
+              return ing
+            })
+            return { ...recipe, ingredients: updatedIngredients }
+          }
+          return recipe
+        }),
+      )
+
+      setAuditLog((prev) => [
+        {
+          id: `AUD-${Date.now()}`,
+          action: 'INGREDIENT_REQUEST_APPROVED',
+          requestId,
+          inventoryItemId: newInvId,
+          name: approvedReq.name,
+          by: user.name,
+          role: user.role,
+          at: nowStr,
+        },
+        ...prev,
+      ])
+      return { success: true }
+    }
+    return { error: 'Request not found.' }
+  }
+
+  const rejectIngredientRequest = (requestId, reason = '') => {
+    if (!user || user.role !== 'Admin') {
+      return { error: 'Only Admin can reject ingredient requests.' }
+    }
+    const nowStr = new Date().toISOString()
+    setIngredientRequests((prev) =>
+      prev.map((r) =>
+        r.id === requestId
+          ? {
+              ...r,
+              status: 'rejected',
+              rejectReason: reason,
+              rejectedBy: user.name,
+              rejectedAt: nowStr,
+            }
+          : r,
+      ),
+    )
+    setAuditLog((prev) => [
+      {
+        id: `AUD-${Date.now()}`,
+        action: 'INGREDIENT_REQUEST_REJECTED',
+        requestId,
+        reason,
+        by: user.name,
+        role: user.role,
+        at: nowStr,
+      },
+      ...prev,
+    ])
+    return { success: true }
+  }
+
   // Core feature: deduct approved-recipe ingredients from inventory for a set of
   // order line items. Items without an approved recipe are silently skipped so
   // existing orders keep working before recipes are set up.
   const deductInventoryForOrder = (orderItems = []) => {
-    const deductions = {} // inventoryItemId -> { amount, itemName, unit }
-    orderItems.forEach((oi) => {
-      // Order lines for variant items carry an "id::variant" key; recipes are
-      // keyed by the base menu id, so match on the part before "::".
-      const baseId = String(oi.id).split('::')[0]
-      const recipe = getActiveRecipe(baseId)
-      if (!recipe) return
-      recipe.ingredients.forEach((ing) => {
-        const amount = (Number(ing.quantity) || 0) * (Number(oi.qty) || 0)
-        if (amount <= 0) return
-        const cur = deductions[ing.inventoryItemId] || { amount: 0, itemName: ing.itemName, unit: ing.unit }
-        cur.amount += amount
-        deductions[ing.inventoryItemId] = cur
-      })
-    })
-
+    const deductions = calculateDeductions(orderItems, inventory, recipes)
     const entries = Object.entries(deductions)
     if (entries.length === 0) return
 
@@ -191,6 +322,33 @@ export function AppProvider({ children }) {
         id: `AUD-${Date.now()}`,
         action: 'INVENTORY_AUTO_DEDUCTED',
         details: entries.map(([id, d]) => ({ inventoryItemId: id, itemName: d.itemName, deducted: d.amount, unit: d.unit })),
+        by: user?.name || 'System',
+        role: user?.role || '—',
+        at: new Date().toISOString(),
+      },
+      ...prev,
+    ])
+  }
+
+  const restockInventoryForOrder = (orderItems = []) => {
+    const restocks = calculateRestocks(orderItems, inventory, recipes)
+    const entries = Object.entries(restocks)
+    if (entries.length === 0) return
+
+    setInventory((prev) =>
+      prev.map((inv) => {
+        const r = restocks[inv.id]
+        if (!r) return inv
+        // Round to 3 dp to avoid float drift (e.g. 0.1 + 0.2)
+        const next = Math.round((inv.stock + r.amount) * 1000) / 1000
+        return { ...inv, stock: next }
+      }),
+    )
+    setAuditLog((prev) => [
+      {
+        id: `AUD-${Date.now()}`,
+        action: 'INVENTORY_RESTOCKED',
+        details: entries.map(([id, r]) => ({ inventoryItemId: id, itemName: r.itemName, restocked: r.amount, unit: r.unit })),
         by: user?.name || 'System',
         role: user?.role || '—',
         at: new Date().toISOString(),
@@ -248,26 +406,80 @@ export function AppProvider({ children }) {
 
   // Manager/Admin only — cancel an UNPAID order with a reason + audit entry.
   const cancelOrder = (id, { reason, notes = '' } = {}) => {
-    let recorded = null
+    const orderToCancel = orders.find((o) => o.id === id)
+    if (!orderToCancel || orderToCancel.payment !== 'Unpaid' || orderToCancel.cancelled) return
+
+    const recorded = {
+      reason,
+      notes,
+      by: user?.name || 'Unknown',
+      role: user?.role || '—',
+      at: new Date().toISOString(),
+    }
+
     setOrders((prev) =>
       prev.map((o) => {
-        if (o.id !== id || o.payment !== 'Unpaid' || o.cancelled) return o
-        recorded = {
-          reason,
-          notes,
-          by: user?.name || 'Unknown',
-          role: user?.role || '—',
-          at: new Date().toISOString(),
-        }
+        if (o.id !== id) return o
         return { ...o, cancelled: true, cancellation: recorded }
       }),
     )
-    if (recorded) {
-      setAuditLog((prev) => [
-        { id: `AUD-${Date.now()}`, orderId: id, action: 'CANCELLED', ...recorded },
-        ...prev,
-      ])
+
+    // Restock the cancelled order items
+    restockInventoryForOrder(orderToCancel.items)
+
+    setAuditLog((prev) => [
+      { id: `AUD-${Date.now()}`, orderId: id, action: 'CANCELLED', ...recorded },
+      ...prev,
+    ])
+  }
+
+  const updateOrderItemQty = (orderId, itemId, newQty) => {
+    const orderObj = orders.find((o) => o.id === orderId)
+    if (!orderObj || orderObj.cancelled || orderObj.payment === 'Paid') return
+
+    const itemObj = orderObj.items.find((it) => it.id === itemId)
+    if (!itemObj) return
+
+    const oldQty = itemObj.qty
+    if (oldQty === newQty) return
+
+    setOrders((prev) =>
+      prev.map((o) => {
+        if (o.id !== orderId) return o
+        const items = o.items.map((it) => {
+          if (it.id === itemId) {
+            return { ...it, qty: newQty }
+          }
+          return it
+        })
+        return { ...o, items }
+      }),
+    )
+
+    const diffQty = newQty - oldQty
+    if (diffQty > 0) {
+      // Deduct more inventory
+      deductInventoryForOrder([{ ...itemObj, qty: diffQty }])
+    } else if (diffQty < 0) {
+      // Restock inventory
+      restockInventoryForOrder([{ ...itemObj, qty: Math.abs(diffQty) }])
     }
+
+    setAuditLog((prev) => [
+      {
+        id: `AUD-${Date.now()}`,
+        action: 'ORDER_QTY_UPDATED',
+        orderId,
+        itemId,
+        itemName: itemObj.name,
+        oldQty,
+        newQty,
+        by: user?.name || 'System',
+        role: user?.role || '—',
+        at: new Date().toISOString(),
+      },
+      ...prev,
+    ])
   }
 
   // Admin/Manager only — apply a flat discount to an order with a reason +
@@ -717,6 +929,7 @@ export function AppProvider({ children }) {
     markReady,
     clearKitchen,
     cancelOrder,
+    updateOrderItemQty,
     applyDiscount,
     removeDiscount,
     auditLog,
@@ -734,6 +947,10 @@ export function AppProvider({ children }) {
     createRecipe,
     approveRecipe,
     rejectRecipe,
+    ingredientRequests,
+    createIngredientRequest,
+    approveIngredientRequest,
+    rejectIngredientRequest,
     getActiveRecipe,
     menu,
     menuCategories,

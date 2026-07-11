@@ -352,6 +352,198 @@ function OnDutyStaff({ attendance }) {
 }
 
 // ============================================================================
+// INGREDIENT REQUESTS PANEL
+// ============================================================================
+
+function IngredientRequestsPanel({ role }) {
+  const { ingredientRequests, approveIngredientRequest, rejectIngredientRequest } = useApp()
+  
+  // Local state for approval forms
+  const [editingId, setEditingId] = useState(null)
+  const [baseUnit, setBaseUnit] = useState('kg')
+  const [initialStock, setInitialStock] = useState('0')
+  const [threshold, setThreshold] = useState('10')
+  const [error, setError] = useState('')
+  const [rejectingId, setRejectingId] = useState(null)
+  const [rejectReason, setRejectReason] = useState('')
+
+  const pending = ingredientRequests ? ingredientRequests.filter((r) => r.status === 'pending') : []
+
+  if (pending.length === 0) return null
+
+  return (
+    <div className="card p-6">
+      <div className="flex items-center justify-between mb-5 border-b border-ink-line pb-4">
+        <div>
+          <h3 className="font-serif text-xl text-cream">Pending Ingredient Requests</h3>
+          <p className="text-xs text-cream-dim mt-0.5">Submitted by chefs when building recipes.</p>
+        </div>
+        <span className="badge bg-gold/15 text-gold font-semibold">{pending.length} pending</span>
+      </div>
+
+      <div className="space-y-4">
+        {pending.map((req) => (
+          <div key={req.id} className="rounded-xl border border-ink-line bg-ink-soft p-4 animate-fade-up">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h4 className="font-semibold text-cream text-base">{req.name}</h4>
+                <p className="text-xs text-cream-dim mt-0.5">
+                  Category: <span className="text-gold">{req.category}</span> · Requested by: {req.requestedBy} · {new Date(req.requestedAt).toLocaleDateString()}
+                </p>
+              </div>
+
+              {role === 'Admin' && (
+                <div className="flex items-center gap-2">
+                  {editingId !== req.id && rejectingId !== req.id && (
+                    <>
+                      <button
+                        onClick={() => {
+                          setEditingId(req.id)
+                          setRejectingId(null)
+                          setError('')
+                        }}
+                        className="rounded-lg bg-gold-grad px-3.5 py-1.5 text-xs font-bold text-ink transition hover:brightness-110"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => {
+                          setRejectingId(req.id)
+                          setEditingId(null)
+                          setRejectReason('')
+                        }}
+                        className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3.5 py-1.5 text-xs font-bold text-rose-300 transition hover:bg-rose-500/20"
+                      >
+                        Reject
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Approval Form (Admin Only) */}
+            {editingId === req.id && (
+              <div className="mt-4 border-t border-ink-line/50 pt-4">
+                <p className="text-xs font-bold text-gold mb-3">Setup Inventory Details for approval</p>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div>
+                    <label className="mb-1 block text-[10px] uppercase tracking-wider text-cream-dim">Base Unit *</label>
+                    <select
+                      className="input py-2 text-xs"
+                      value={baseUnit}
+                      onChange={(e) => setBaseUnit(e.target.value)}
+                    >
+                      <option value="kg">kg</option>
+                      <option value="g">g</option>
+                      <option value="L">L</option>
+                      <option value="ml">ml</option>
+                      <option value="tbsp">tbsp</option>
+                      <option value="tsp">tsp</option>
+                      <option value="pcs">pcs</option>
+                      <option value="packs">packs</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] uppercase tracking-wider text-cream-dim">Initial Stock *</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="input py-2 text-xs"
+                      value={initialStock}
+                      onChange={(e) => setInitialStock(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] uppercase tracking-wider text-cream-dim">Min Threshold *</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      className="input py-2 text-xs"
+                      value={threshold}
+                      onChange={(e) => setThreshold(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {error && <p className="mt-3 text-xs text-rose-300 font-semibold">{error}</p>}
+
+                <div className="mt-4 flex gap-2 justify-end">
+                  <button
+                    onClick={() => {
+                      if (!baseUnit) return setError('Base unit is required.')
+                      const res = approveIngredientRequest(req.id, {
+                        baseUnit,
+                        initialStock: Number(initialStock) || 0,
+                        threshold: Number(threshold) || 10,
+                      })
+                      if (res && res.error) {
+                        return setError(res.error)
+                      }
+                      setEditingId(null)
+                    }}
+                    className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-emerald-700"
+                  >
+                    Confirm Approve
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingId(null)
+                      setError('')
+                    }}
+                    className="rounded-lg bg-ink-line px-3 py-1.5 text-xs font-bold text-cream-dim hover:text-cream"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Rejection Form (Admin Only) */}
+            {rejectingId === req.id && (
+              <div className="mt-4 border-t border-ink-line/50 pt-4">
+                <div>
+                  <label className="mb-1 block text-[10px] uppercase tracking-wider text-rose-300">Reason for rejection *</label>
+                  <input
+                    type="text"
+                    className="input py-2 text-xs"
+                    placeholder="e.g. Already tracked under another name"
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                  />
+                </div>
+
+                <div className="mt-4 flex gap-2 justify-end">
+                  <button
+                    onClick={() => {
+                      if (!rejectReason.trim()) return
+                      rejectIngredientRequest(req.id, rejectReason.trim())
+                      setRejectingId(null)
+                    }}
+                    disabled={!rejectReason.trim()}
+                    className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-rose-700 disabled:opacity-40"
+                  >
+                    Confirm Reject
+                  </button>
+                  <button
+                    onClick={() => setRejectingId(null)}
+                    className="rounded-lg bg-ink-line px-3 py-1.5 text-xs font-bold text-cream-dim hover:text-cream"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ============================================================================
 // 1. ADMIN DASHBOARD VIEW
 // ============================================================================
 
@@ -392,6 +584,8 @@ function AdminDashboard({ stats, orders, orderTotal, attendance, lowStock }) {
       </div>
 
       <LowStockAlert items={lowStock} />
+
+      <IngredientRequestsPanel role="Admin" />
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Main Column */}
@@ -479,6 +673,8 @@ function ManagerDashboard({ stats, orders, orderTotal, attendance, unpaidTotal, 
       </div>
 
       <LowStockAlert items={lowStock} />
+
+      <IngredientRequestsPanel role="Manager" />
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Main Column */}

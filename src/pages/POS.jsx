@@ -602,13 +602,16 @@ export default function POS() {
             </button>
           </div>
 
-          {/* 3. Most Ordered — manually-curated shared list (see AppContext) */}
-          <MostOrdered
-            items={mostOrderedItems}
-            onAdd={onItemClick}
-            canManage={canManageMostOrdered}
-            onManage={() => setShowManageMostOrdered(true)}
-          />
+          {/* 3. Most Ordered — manually-curated shared list (see AppContext).
+              Hidden while searching so results show without extra scrolling. */}
+          {query.trim() === '' && (
+            <MostOrdered
+              items={mostOrderedItems}
+              onAdd={onItemClick}
+              canManage={canManageMostOrdered}
+              onManage={() => setShowManageMostOrdered(true)}
+            />
+          )}
 
           {/* 4. Menu items grid — denser columns so more items fit, less scroll */}
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
