@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
+import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader } from '../components/ui.jsx'
 import { money } from '../utils/format.js'
 import { monthFigures } from '../utils/accounting.js'
@@ -58,6 +59,7 @@ function Row({ label, value, tone = 'text-[#3498DB]', strong }) {
 
 export default function Reports() {
   const { orders, orderTotal, transactions, staff } = useApp()
+  const t = useT()
   const today = useMemo(() => new Date(), [])
 
   const monthOptions = useMemo(() => {
@@ -144,9 +146,9 @@ export default function Reports() {
       const [y, m] = monthKey.split('-').map(Number)
       const fig = monthFigures(transactions, y, m - 1, today, staff)
       return {
-        title: 'Monthly Report',
+        titleKey: 'reports.monthlyReport',
         rangeLabel: monthOptions.find((o) => o.key === monthKey)?.label,
-        revenueLabel: 'Sales income (ledger)',
+        revenueLabelKey: 'reports.salesIncomeLedger',
         revenue: fig.income,
         expenses: fig.expense,
         payroll: fig.payroll,
@@ -167,7 +169,7 @@ export default function Reports() {
       .filter((tx) => tx.type === 'expense' && toDayStr(new Date(tx.date)) === dailyDate)
       .reduce((s, tx) => s + tx.amount, 0)
     return {
-      title: 'Daily Report',
+      titleKey: 'reports.dailyReport',
       rangeLabel: new Date(`${dailyDate}T00:00:00`).toLocaleDateString('en-PK', {
         weekday: 'long',
         day: 'numeric',
@@ -176,7 +178,7 @@ export default function Reports() {
       }),
       // Total Sale = collected (paid) orders only, so it always equals
       // Cash + Card. Unpaid/running tabs are excluded until they're paid.
-      revenueLabel: 'Total Sale (collected)',
+      revenueLabelKey: 'reports.totalSaleCollected',
       revenue: collected,
       expenses: dailyExpenses,
       payroll: 0,
@@ -194,21 +196,21 @@ export default function Reports() {
 
   const shareWhatsApp = () => {
     const lines = [
-      `*Cafe Ali — ${report.title}*`,
+      `*Cafe Ali — ${t(report.titleKey)}*`,
       report.rangeLabel,
       '',
-      `Orders: ${report.totalOrders}`,
-      `${report.revenueLabel}: ${money(report.revenue)}`,
-      `Expenses: ${money(report.expenses)}`,
-      `Net Profit: ${money(report.netProfit)}`,
+      `${t('reports.totalOrders')}: ${report.totalOrders}`,
+      `${t(report.revenueLabelKey)}: ${money(report.revenue)}`,
+      `${t('reports.expenses')}: ${money(report.expenses)}`,
+      `${t('reports.netProfit')}: ${money(report.netProfit)}`,
     ]
     if (report.discounts.total > 0) {
       lines.push(
-        `Discounts: ${money(report.discounts.total)} (${report.discounts.count} orders)`,
+        `${t('reports.discountsGiven')}: ${money(report.discounts.total)} (${report.discounts.count})`,
       )
     }
     if (report.top.length) {
-      lines.push('', 'Top items:')
+      lines.push('', `${t('reports.topSelling')}:`)
       report.top.forEach(([name, qty], i) => lines.push(`${i + 1}. ${name} ×${qty}`))
     }
     window.open(`https://wa.me/?text=${encodeURIComponent(lines.join('\n'))}`, '_blank')
@@ -216,18 +218,18 @@ export default function Reports() {
 
   return (
     <div>
-      <PageHeader title="Reports" subtitle="Daily & monthly summary — printable.">
+      <PageHeader title={t('reports.title')} subtitle={t('reports.subtitle')}>
         <div className="flex flex-wrap items-center gap-2 no-print">
           <div className="flex overflow-hidden rounded-xl border border-ink-line">
-            {['daily', 'monthly'].map((t) => (
+            {['daily', 'monthly'].map((p) => (
               <button
-                key={t}
-                onClick={() => setType(t)}
-                className={`px-4 py-2 text-sm font-semibold capitalize transition ${
-                  type === t ? 'bg-gold/15 text-gold' : 'bg-ink-soft text-cream-dim hover:text-cream'
+                key={p}
+                onClick={() => setType(p)}
+                className={`px-4 py-2 text-sm font-semibold transition ${
+                  type === p ? 'bg-gold/15 text-gold' : 'bg-ink-soft text-cream-dim hover:text-cream'
                 }`}
               >
-                {t}
+                {t(`reports.${p}`)}
               </button>
             ))}
           </div>
@@ -259,9 +261,9 @@ export default function Reports() {
       {/* View tabs — Summary (totals) vs Item-Wise (per-item breakdown) */}
       <div className="mx-auto mb-4 flex max-w-2xl gap-2 border-b border-ink-line no-print">
         {[
-          ['summary', 'Summary'],
-          ['itemwise', 'Item-Wise'],
-        ].map(([key, label]) => (
+          ['summary', 'reports.summary'],
+          ['itemwise', 'reports.itemWise'],
+        ].map(([key, labelKey]) => (
           <button
             key={key}
             onClick={() => setView(key)}
@@ -271,7 +273,7 @@ export default function Reports() {
                 : 'border-transparent text-cream-dim hover:text-cream'
             }`}
           >
-            {label}
+            {t(labelKey)}
           </button>
         ))}
       </div>
@@ -290,31 +292,31 @@ export default function Reports() {
           <div className="my-5 border-t-2 border-dashed border-[#E8DCC4]" />
 
           <div className="flex items-baseline justify-between">
-            <h2 className="text-xl font-bold text-[#C9A961]">{report.title}</h2>
+            <h2 className="text-xl font-bold text-[#C9A961]">{t(report.titleKey)}</h2>
             <span className="text-sm font-semibold text-[#5D4037]">{report.rangeLabel}</span>
           </div>
           <p className="mt-1 text-[11px] text-[#8D6E63]">
-            Generated {new Date().toLocaleString('en-PK')}
+            {t('reports.generated')} {new Date().toLocaleString('en-PK')}
           </p>
 
           {view === 'summary' && (
           <>
           {/* Summary */}
           <div className="mt-5">
-            <Row label="Total Orders" value={report.totalOrders} tone="text-[#3498DB]" />
-            <Row label={report.revenueLabel} value={money(report.revenue)} tone="text-[#3498DB]" />
+            <Row label={t('reports.totalOrders')} value={report.totalOrders} tone="text-[#3498DB]" />
+            <Row label={t(report.revenueLabelKey)} value={money(report.revenue)} tone="text-[#3498DB]" />
             {type === 'daily' && (
               <>
-                <Row label="— Cash" value={money(report.cash)} tone="text-[#3498DB]" />
-                <Row label="— Card" value={money(report.card)} tone="text-[#3498DB]" />
+                <Row label={t('reports.cash')} value={money(report.cash)} tone="text-[#3498DB]" />
+                <Row label={t('reports.card')} value={money(report.card)} tone="text-[#3498DB]" />
               </>
             )}
             {type === 'monthly' && report.payroll > 0 && (
-              <Row label="— incl. Staff Payroll" value={money(report.payroll)} tone="text-[#3498DB]" />
+              <Row label={t('reports.inclPayroll')} value={money(report.payroll)} tone="text-[#3498DB]" />
             )}
-            <Row label="Expenses" value={money(report.expenses)} tone="text-[#E74C3C]" />
+            <Row label={t('reports.expenses')} value={money(report.expenses)} tone="text-[#E74C3C]" />
             <Row
-              label="Net Profit"
+              label={t('reports.netProfit')}
               value={money(report.netProfit)}
               tone={report.netProfit >= 0 ? 'text-[#27AE60]' : 'text-[#E74C3C]'}
               strong
@@ -323,9 +325,9 @@ export default function Reports() {
 
           {/* Top items */}
           <div className="mt-6">
-            <h3 className="text-sm font-bold uppercase tracking-wide text-[#3E2723]/90">Top Selling Items</h3>
+            <h3 className="text-sm font-bold uppercase tracking-wide text-[#3E2723]/90">{t('reports.topSelling')}</h3>
             {report.top.length === 0 ? (
-              <p className="mt-2 text-sm text-[#8D6E63]">No orders in this period.</p>
+              <p className="mt-2 text-sm text-[#8D6E63]">{t('reports.noOrdersPeriod')}</p>
             ) : (
               <ol className="mt-2 space-y-1">
                 {report.top.map(([name, qty], i) => (
@@ -333,7 +335,7 @@ export default function Reports() {
                     <span>
                       {i + 1}. {name}
                     </span>
-                    <span className="font-semibold text-[#3498DB]">{qty} sold</span>
+                    <span className="font-semibold text-[#3498DB]">{qty} {t('reports.sold')}</span>
                   </li>
                 ))}
               </ol>
@@ -343,16 +345,16 @@ export default function Reports() {
           {/* Discounts given */}
           <div className="mt-6">
             <h3 className="text-sm font-bold uppercase tracking-wide text-[#3E2723]/90">
-              Discounts Given
+              {t('reports.discountsGiven')}
             </h3>
             {report.discounts.count === 0 ? (
-              <p className="mt-2 text-sm text-[#8D6E63]">No discounts in this period.</p>
+              <p className="mt-2 text-sm text-[#8D6E63]">{t('reports.noDiscounts')}</p>
             ) : (
               <>
                 <div className="mt-2 grid grid-cols-2 gap-x-6">
-                  <Row label="Orders discounted" value={report.discounts.count} tone="text-[#3498DB]" />
+                  <Row label={t('reports.ordersDiscounted')} value={report.discounts.count} tone="text-[#3498DB]" />
                   <Row
-                    label="Total discount"
+                    label={t('reports.totalDiscount')}
                     value={money(report.discounts.total)}
                     tone="text-[#E74C3C]"
                   />
@@ -372,10 +374,10 @@ export default function Reports() {
           {/* Stock used */}
           <div className="mt-6">
             <h3 className="text-sm font-bold uppercase tracking-wide text-[#3E2723]/90">
-              Estimated Stock Used
+              {t('reports.estStockUsed')}
             </h3>
             {report.stock.length === 0 ? (
-              <p className="mt-2 text-sm text-[#8D6E63]">No consumption recorded.</p>
+              <p className="mt-2 text-sm text-[#8D6E63]">{t('reports.noConsumption')}</p>
             ) : (
               <ul className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1">
                 {report.stock.map((s) => (
@@ -396,17 +398,17 @@ export default function Reports() {
           {view === 'itemwise' && (
             <div className="mt-5">
               <h3 className="text-sm font-bold uppercase tracking-wide text-[#3E2723]/90">
-                Item-Wise Sales
+                {t('reports.itemWiseSales')}
               </h3>
               {report.items.length === 0 ? (
-                <p className="mt-2 text-sm text-[#8D6E63]">No items sold in this period.</p>
+                <p className="mt-2 text-sm text-[#8D6E63]">{t('reports.noItemsSold')}</p>
               ) : (
                 <table className="mt-3 w-full text-sm">
                   <thead>
                     <tr className="border-b-2 border-[#E8DCC4] text-left text-[11px] uppercase tracking-wide text-[#8D6E63]">
-                      <th className="py-2 font-semibold">Item</th>
-                      <th className="py-2 text-center font-semibold">Qty Sold</th>
-                      <th className="py-2 text-right font-semibold">Revenue</th>
+                      <th className="py-2 font-semibold">{t('reports.colItem')}</th>
+                      <th className="py-2 text-center font-semibold">{t('reports.colQtySold')}</th>
+                      <th className="py-2 text-right font-semibold">{t('reports.colRevenue')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -420,7 +422,7 @@ export default function Reports() {
                       </tr>
                     ))}
                     <tr className="border-t-2 border-[#E8DCC4] font-bold">
-                      <td className="py-2 text-[#3E2723]">Total</td>
+                      <td className="py-2 text-[#3E2723]">{t('reports.total')}</td>
                       <td className="py-2 text-center text-[#3498DB]">
                         {report.items.reduce((s, it) => s + it.qty, 0)}
                       </td>
@@ -436,17 +438,17 @@ export default function Reports() {
 
           <div className="my-5 border-t-2 border-dashed border-[#E8DCC4]" />
           <p className="text-center text-[11px] text-[#8D6E63]">
-            Cafe Ali POS — figures in Pakistani Rupees (Rs.)
+            {t('reports.footer')}
           </p>
         </div>
 
         {/* Actions */}
         <div className="mt-5 flex flex-wrap justify-center gap-3 no-print">
           <button onClick={safePrint} className="btn-gold px-5 py-2.5">
-            <IconPrint size={18} /> Print / Save PDF
+            <IconPrint size={18} /> {t('reports.printPdf')}
           </button>
           <button onClick={shareWhatsApp} className="btn-ghost px-5 py-2.5">
-            <IconWhatsApp size={18} /> Share on WhatsApp
+            <IconWhatsApp size={18} /> {t('reports.shareWhatsApp')}
           </button>
         </div>
       </div>
