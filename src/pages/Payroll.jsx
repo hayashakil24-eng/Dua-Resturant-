@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
+import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader, StatCard } from '../components/ui.jsx'
 import { money, dateShort } from '../utils/format.js'
 import { monthAttendance, calcSalary } from '../utils/payroll.js'
@@ -24,6 +25,7 @@ const DAY_STYLES = {
 }
 
 function DetailsModal({ staff, att, year, month, monthLabel, onClose }) {
+  const t = useT()
   const firstDow = new Date(year, month, 1).getDay()
   const cells = [
     ...Array(firstDow).fill(null),
@@ -69,13 +71,13 @@ function DetailsModal({ staff, att, year, month, monthLabel, onClose }) {
 
           <div className="mt-5 flex flex-wrap gap-3 text-[11px] text-cream-dim">
             <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded bg-emerald-400" /> Present ({att.present})
+              <span className="h-2.5 w-2.5 rounded bg-emerald-400" /> {t('payroll.present')} ({att.present})
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded bg-rose-400" /> Absent ({att.absent})
+              <span className="h-2.5 w-2.5 rounded bg-rose-400" /> {t('payroll.absent')} ({att.absent})
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded bg-white/20" /> Day off
+              <span className="h-2.5 w-2.5 rounded bg-white/20" /> {t('payroll.dayOff')}
             </span>
           </div>
         </div>
@@ -104,6 +106,7 @@ function Row({ label, value }) {
 }
 
 function EditModal({ staff, att, calculated, advances, onAddAdvance, onDeleteAdvance, onClose }) {
+  const t = useT()
   const [amount, setAmount] = useState('')
   const [reason, setReason] = useState('')
 
@@ -125,9 +128,9 @@ function EditModal({ staff, att, calculated, advances, onAddAdvance, onDeleteAdv
         <div className="card max-h-[90vh] overflow-y-auto p-6">
           <div className="flex items-start justify-between">
             <div>
-              <h3 className="font-serif text-2xl text-cream">Salary & Advances</h3>
+              <h3 className="font-serif text-2xl text-cream">{t('payroll.salaryAdvances')}</h3>
               <p className="mt-0.5 text-xs text-cream-dim">
-                {staff.name} · {staff.role}
+                {staff.name} · {t(`roles.${staff.role}`, staff.role)}
               </p>
             </div>
             <button onClick={onClose} className="text-cream-dim hover:text-cream">
@@ -136,19 +139,19 @@ function EditModal({ staff, att, calculated, advances, onAddAdvance, onDeleteAdv
           </div>
 
           <div className="mt-4 divide-y divide-ink-line">
-            <Row label="Base salary (locked)" value={money(staff.baseSalary)} />
-            <Row label="Present days" value={`${att.present} / ${att.workingDays}`} />
-            <Row label="Calculated salary" value={money(calculated)} />
+            <Row label={t('payroll.baseSalaryLocked')} value={money(staff.baseSalary)} />
+            <Row label={t('payroll.presentDays')} value={`${att.present} / ${att.workingDays}`} />
+            <Row label={t('payroll.calculatedSalary')} value={money(calculated)} />
           </div>
 
           {/* Advances this month */}
           <div className="mt-4">
             <label className="mb-2 block text-[11px] uppercase tracking-wider text-cream-dim">
-              Advances this month
+              {t('payroll.advancesThisMonth')}
             </label>
             {advances.length === 0 ? (
               <p className="rounded-lg border border-ink-line bg-ink-soft/50 px-3 py-2 text-xs text-cream-dim">
-                No advances recorded this month.
+                {t('payroll.noAdvances')}
               </p>
             ) : (
               <div className="space-y-2">
@@ -166,13 +169,13 @@ function EditModal({ staff, att, calculated, advances, onAddAdvance, onDeleteAdv
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`badge ring-1 ${ADV_STATUS[a.status] || ADV_STATUS.pending}`}>
-                        {a.status}
+                        {a.status === 'recovered' ? t('payroll.statusRecovered') : t('payroll.statusPending')}
                       </span>
                       {a.status === 'pending' && (
                         <button
                           onClick={() => onDeleteAdvance(a.id)}
                           className="text-cream-dim transition hover:text-rose-300"
-                          title="Remove advance"
+                          title={t('payroll.removeAdvance')}
                         >
                           <IconTrash size={15} />
                         </button>
@@ -190,13 +193,13 @@ function EditModal({ staff, att, calculated, advances, onAddAdvance, onDeleteAdv
                 inputMode="numeric"
                 min={0}
                 className="input py-2"
-                placeholder="Amount"
+                placeholder={t('payroll.amountPh')}
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
               />
               <input
                 className="input py-2"
-                placeholder="Reason (optional)"
+                placeholder={t('payroll.reasonPh')}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
               />
@@ -205,24 +208,24 @@ function EditModal({ staff, att, calculated, advances, onAddAdvance, onDeleteAdv
                 disabled={!canAdd}
                 className="btn-gold shrink-0 px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <IconPlus size={16} /> Add
+                <IconPlus size={16} /> {t('payroll.add')}
               </button>
             </div>
           </div>
 
           <div className="mt-4 space-y-1 rounded-xl border border-gold/25 bg-gold/[0.06] px-4 py-3">
             <div className="flex items-center justify-between text-xs text-cream-dim">
-              <span>Total advances</span>
+              <span>{t('payroll.totalAdvances')}</span>
               <span className="text-rose-300">− {money(advTotal)}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-cream-dim">Final salary</span>
+              <span className="text-sm text-cream-dim">{t('payroll.finalSalary')}</span>
               <span className="font-serif text-2xl font-semibold text-gold">{money(final)}</span>
             </div>
           </div>
 
           <button onClick={onClose} className="btn-ghost mt-6 w-full py-3">
-            <IconCheck size={18} /> Done
+            <IconCheck size={18} /> {t('payroll.done')}
           </button>
         </div>
       </div>
@@ -234,6 +237,7 @@ function EditModal({ staff, att, calculated, advances, onAddAdvance, onDeleteAdv
 // Staff payroll card
 // ---------------------------------------------------------------------------
 function PayrollCard({ staff, att, calculated, advTotal, final, onDetails, onEdit }) {
+  const t = useT()
   const pct = att.workingDays > 0 ? (att.present / att.workingDays) * 100 : 0
   return (
     <div className="card p-5">
@@ -243,16 +247,16 @@ function PayrollCard({ staff, att, calculated, advTotal, final, onDetails, onEdi
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate font-semibold text-cream">{staff.name}</p>
-          <p className="text-xs text-cream-dim">{staff.role}</p>
+          <p className="text-xs text-cream-dim">{t(`roles.${staff.role}`, staff.role)}</p>
         </div>
         <span className="badge bg-gold/10 text-gold ring-1 ring-gold/20">{money(staff.baseSalary)}</span>
       </div>
 
       <div className="mt-4">
         <div className="flex items-center justify-between text-xs">
-          <span className="text-cream-dim">Attendance</span>
+          <span className="text-cream-dim">{t('payroll.attendance')}</span>
           <span className="font-semibold text-cream">
-            {att.present}/{att.workingDays} days
+            {att.present}/{att.workingDays} {t('payroll.days')}
           </span>
         </div>
         <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-ink-line">
@@ -265,30 +269,30 @@ function PayrollCard({ staff, att, calculated, advTotal, final, onDetails, onEdi
 
       <div className="mt-4 space-y-1.5 border-t border-ink-line pt-4 text-sm">
         <div className="flex justify-between text-cream-dim">
-          <span>Calculated</span>
+          <span>{t('payroll.calculated')}</span>
           <span className="text-cream">{money(calculated)}</span>
         </div>
         {advTotal > 0 && (
           <div className="flex justify-between text-cream-dim">
-            <span>Advances</span>
+            <span>{t('payroll.advances')}</span>
             <span className="text-rose-300">− {money(advTotal)}</span>
           </div>
         )}
         <div className="flex items-center justify-between pt-1">
-          <span className="font-medium text-cream">Net salary</span>
+          <span className="font-medium text-cream">{t('payroll.netSalary')}</span>
           <span className="font-serif text-xl font-semibold text-gold">{money(final)}</span>
         </div>
       </div>
 
       <div className="mt-4 flex gap-2">
         <button onClick={onDetails} className="btn-ghost flex-1 py-2 text-sm">
-          <IconCalendar size={15} /> Details
+          <IconCalendar size={15} /> {t('payroll.details')}
         </button>
         <button
           onClick={onEdit}
           className="flex-1 rounded-xl border border-gold/40 bg-gold/10 py-2 text-sm font-semibold text-gold transition hover:bg-gold/20"
         >
-          Edit
+          {t('payroll.edit')}
         </button>
       </div>
     </div>
@@ -299,6 +303,7 @@ function PayrollCard({ staff, att, calculated, advTotal, final, onDetails, onEdi
 // Payroll page
 // ---------------------------------------------------------------------------
 export default function Payroll() {
+  const t = useT()
   const today = useMemo(() => new Date(), [])
   const monthOptions = useMemo(() => {
     const opts = []
@@ -365,7 +370,7 @@ export default function Payroll() {
 
   return (
     <div>
-      <PageHeader title="Payroll" subtitle="Monthly salaries based on attendance.">
+      <PageHeader title={t('payroll.title')} subtitle={t('payroll.subtitle')}>
         <select
           className="input w-48 py-2"
           value={monthKey}
@@ -380,9 +385,9 @@ export default function Payroll() {
       </PageHeader>
 
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
-        <StatCard icon={IconUsers} label="Staff on Payroll" value={rows.length} sub={monthLabel} />
-        <StatCard icon={IconCalendar} label="Avg Attendance" value={`${avgAttendance}%`} sub="Present / working days" />
-        <StatCard icon={IconWallet} label="Total Payroll" value={money(totalPayroll)} sub="Net, after advances" />
+        <StatCard icon={IconUsers} label={t('payroll.staffOnPayroll')} value={rows.length} sub={monthLabel} />
+        <StatCard icon={IconCalendar} label={t('payroll.avgAttendance')} value={`${avgAttendance}%`} sub={t('payroll.presentOverWorking')} />
+        <StatCard icon={IconWallet} label={t('payroll.totalPayroll')} value={money(totalPayroll)} sub={t('payroll.netAfterAdvances')} />
       </div>
 
       {saved && (
@@ -391,8 +396,7 @@ export default function Payroll() {
             <IconCheck size={16} />
           </span>
           <p className="text-sm text-cream">
-            Payroll for <span className="font-semibold text-emerald-300">{monthLabel}</span> confirmed —
-            total {money(totalPayroll)}.
+            {t('payroll.confirmedFor')} <span className="font-semibold text-emerald-300">{monthLabel}</span> {t('payroll.confirmedTotal')} {money(totalPayroll)}.
           </p>
         </div>
       )}
@@ -415,7 +419,7 @@ export default function Payroll() {
       {/* Footer total + confirm */}
       <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-ink-line bg-ink-soft/40 p-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-widest text-cream-dim">Total payroll · {monthLabel}</p>
+          <p className="text-xs uppercase tracking-widest text-cream-dim">{t('payroll.totalPayrollLabel')} · {monthLabel}</p>
           <p className="mt-1 font-serif text-3xl font-semibold text-gold">{money(totalPayroll)}</p>
         </div>
         <button
@@ -425,7 +429,7 @@ export default function Payroll() {
           }}
           className="btn-gold px-6 py-3"
         >
-          <IconCheck size={18} /> Save &amp; Confirm Payroll
+          <IconCheck size={18} /> {t('payroll.saveConfirm')}
         </button>
       </div>
 

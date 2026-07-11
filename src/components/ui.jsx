@@ -1,6 +1,8 @@
 // Small shared presentational components
+import { useT } from '../i18n/LanguageContext.jsx'
 
 export function PaymentBadge({ status }) {
+  const t = useT()
   const paid = status === 'Paid'
   return (
     <span
@@ -13,7 +15,7 @@ export function PaymentBadge({ status }) {
       <span
         className={`h-1.5 w-1.5 rounded-full ${paid ? 'bg-emerald-400' : 'bg-amber-400'}`}
       />
-      {status}
+      {t(paid ? 'status.paid' : 'status.unpaid', status)}
     </span>
   )
 }
@@ -26,9 +28,10 @@ const ATT_STYLES = {
 }
 
 export function StatusBadge({ status }) {
+  const t = useT()
   return (
     <span className={`badge ring-1 ${ATT_STYLES[status] || 'bg-white/5 text-cream-dim ring-white/10'}`}>
-      {status}
+      {t(`attStatus.${status}`, status)}
     </span>
   )
 }

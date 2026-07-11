@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
+import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader, StatCard } from '../components/ui.jsx'
 import { canModify } from '../config/permissions.js'
 import { money } from '../utils/format.js'
@@ -29,6 +30,7 @@ const NEW_CAT = '__new__'
 
 // ---------------------------------------------------------------------------
 function ItemModal({ item, categories, onSave, onClose }) {
+  const t = useT()
   const editing = !!item
   const [name, setName] = useState(item?.name || '')
   const [existingCat] = useState(item?.category || categories[0] || '')
@@ -55,11 +57,11 @@ function ItemModal({ item, categories, onSave, onClose }) {
     e.target.value = '' // allow re-selecting the same file after a remove
     if (!file) return
     if (!file.type.startsWith('image/')) {
-      setImageError('Please choose an image file.')
+      setImageError(t('menu.chooseImage'))
       return
     }
     if (file.size > 2 * 1024 * 1024) {
-      setImageError('Image must be under 2MB.')
+      setImageError(t('menu.imageUnder2mb'))
       return
     }
     setImageError('')
@@ -115,7 +117,7 @@ function ItemModal({ item, categories, onSave, onClose }) {
       <div className="relative z-10 w-full max-w-lg animate-fade-up">
         <div className="card max-h-[90vh] overflow-y-auto p-6">
           <div className="flex items-start justify-between">
-            <h3 className="font-serif text-2xl text-cream">{editing ? 'Edit Item' : 'Add Item'}</h3>
+            <h3 className="font-serif text-2xl text-cream">{editing ? t('menu.editItem') : t('menu.addItem')}</h3>
             <button onClick={onClose} className="text-cream-dim hover:text-cream">
               <IconClose size={20} />
             </button>
@@ -124,14 +126,14 @@ function ItemModal({ item, categories, onSave, onClose }) {
           <div className="mt-5 space-y-4">
             <div>
               <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
-                Item name
+                {t('menu.itemName')}
               </label>
-              <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Chicken Tikka Pizza" />
+              <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('menu.itemNamePh')} />
             </div>
 
             <div>
               <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
-                Category
+                {t('menu.category')}
               </label>
               <select className="input py-2.5" value={category} onChange={(e) => setCategory(e.target.value)}>
                 {categories.map((c) => (
@@ -139,34 +141,34 @@ function ItemModal({ item, categories, onSave, onClose }) {
                     {c}
                   </option>
                 ))}
-                <option value={NEW_CAT}>+ New category…</option>
+                <option value={NEW_CAT}>{t('menu.newCategoryOpt')}</option>
               </select>
               {category === NEW_CAT && (
                 <input
                   className="input mt-2"
                   value={newCat}
                   onChange={(e) => setNewCat(e.target.value)}
-                  placeholder="New category name"
+                  placeholder={t('menu.newCategoryPh')}
                 />
               )}
             </div>
 
             <div>
               <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
-                Description (optional)
+                {t('menu.descriptionOptional')}
               </label>
               <textarea
                 className="input min-h-[64px]"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Short description…"
+                placeholder={t('menu.descriptionPh')}
               />
             </div>
 
             {/* Image (optional) */}
             <div>
               <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
-                Item image (optional)
+                {t('menu.itemImageOptional')}
               </label>
               {image ? (
                 <div className="flex items-center gap-4">
@@ -177,20 +179,20 @@ function ItemModal({ item, categories, onSave, onClose }) {
                   />
                   <div className="flex flex-col gap-2">
                     <label className="btn-ghost cursor-pointer px-3 py-1.5 text-sm">
-                      Change image
+                      {t('menu.changeImage')}
                       <input type="file" accept="image/*" onChange={onImageChange} className="hidden" />
                     </label>
                     <button
                       onClick={removeImage}
                       className="text-xs text-rose-300 hover:text-rose-200"
                     >
-                      Remove image
+                      {t('menu.removeImage')}
                     </button>
                   </div>
                 </div>
               ) : (
                 <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-ink-line p-5 text-sm text-cream-dim transition hover:border-gold/50 hover:text-cream">
-                  📷 Click to upload an image
+                  📷 {t('menu.uploadImage')}
                   <input type="file" accept="image/*" onChange={onImageChange} className="hidden" />
                 </label>
               )}
@@ -198,7 +200,7 @@ function ItemModal({ item, categories, onSave, onClose }) {
                 <p className="mt-1.5 text-xs text-rose-300">{imageError}</p>
               ) : (
                 <p className="mt-1.5 text-xs text-cream-dim/60">
-                  No image? A themed placeholder is shown on the POS.
+                  {t('menu.noImageHint')}
                 </p>
               )}
             </div>
@@ -211,7 +213,7 @@ function ItemModal({ item, categories, onSave, onClose }) {
                 onChange={(e) => setHasVariants(e.target.checked)}
                 className="h-4 w-4 accent-gold"
               />
-              This item has options (sizes / types)
+              {t('menu.hasOptions')}
             </label>
 
             {hasVariants ? (
@@ -220,7 +222,7 @@ function ItemModal({ item, categories, onSave, onClose }) {
                   <div key={i} className="flex items-center gap-2">
                     <input
                       className="input py-2"
-                      placeholder="Label (e.g. Large)"
+                      placeholder={t('menu.labelPh')}
                       value={v.label}
                       onChange={(e) => setVariant(i, 'label', e.target.value)}
                     />
@@ -228,7 +230,7 @@ function ItemModal({ item, categories, onSave, onClose }) {
                       type="number"
                       min={0}
                       className="input w-32 py-2"
-                      placeholder="Price"
+                      placeholder={t('menu.pricePh')}
                       value={v.price}
                       onChange={(e) => setVariant(i, 'price', e.target.value)}
                     />
@@ -241,13 +243,13 @@ function ItemModal({ item, categories, onSave, onClose }) {
                   </div>
                 ))}
                 <button onClick={addVariant} className="btn-ghost w-full py-2 text-sm">
-                  <IconPlus size={16} /> Add option
+                  <IconPlus size={16} /> {t('menu.addOption')}
                 </button>
               </div>
             ) : (
               <div>
                 <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
-                  Price (Rs.)
+                  {t('menu.priceRs')}
                 </label>
                 <input
                   type="number"
@@ -267,20 +269,20 @@ function ItemModal({ item, categories, onSave, onClose }) {
                 onChange={(e) => setActive(e.target.checked)}
                 className="h-4 w-4 accent-gold"
               />
-              Available (shown on POS)
+              {t('menu.availablePos')}
             </label>
           </div>
 
           <div className="mt-6 flex gap-3">
             <button onClick={onClose} className="btn-ghost flex-1 py-3">
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               onClick={save}
               disabled={!valid}
               className="btn-gold flex-1 py-3 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <IconCheck size={18} /> {editing ? 'Save Changes' : 'Add Item'}
+              <IconCheck size={18} /> {editing ? t('menu.saveChanges') : t('menu.addItem')}
             </button>
           </div>
         </div>
@@ -303,6 +305,7 @@ export default function MenuManagement() {
     replaceMenu,
     user,
   } = useApp()
+  const t = useT()
 
   const [query, setQuery] = useState('')
   const [catFilter, setCatFilter] = useState('All')
@@ -410,25 +413,25 @@ export default function MenuManagement() {
 
   return (
     <div>
-      <PageHeader title="Menu Management" subtitle="Add, edit and price items — changes sync to the POS instantly.">
+      <PageHeader title={t('menu.title')} subtitle={t('menu.subtitle')}>
         <div className="flex flex-wrap gap-2">
           <button onClick={exportMenu} className="btn-ghost px-4 py-2 text-sm">
-            Export
+            {t('menu.export')}
           </button>
           <button onClick={() => fileRef.current?.click()} className="btn-ghost px-4 py-2 text-sm">
-            Import
+            {t('menu.import')}
           </button>
           <input ref={fileRef} type="file" accept="application/json" className="hidden" onChange={importMenu} />
           <button onClick={() => setModalItem(null)} className="btn-gold px-4 py-2 text-sm">
-            <IconPlus size={16} /> Add Item
+            <IconPlus size={16} /> {t('menu.addItem')}
           </button>
         </div>
       </PageHeader>
 
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
-        <StatCard icon={IconMenuBook} label="Total Items" value={menu.length} sub="On the menu" />
-        <StatCard icon={IconCheck} label="Available" value={activeCount} sub="Shown on POS" />
-        <StatCard icon={IconMenuBook} label="Categories" value={menuCategories.length} sub="In use" />
+        <StatCard icon={IconMenuBook} label={t('menu.totalItems')} value={menu.length} sub={t('menu.onTheMenu')} />
+        <StatCard icon={IconCheck} label={t('menu.available')} value={activeCount} sub={t('menu.shownOnPos')} />
+        <StatCard icon={IconMenuBook} label={t('menu.categories')} value={menuCategories.length} sub={t('menu.inUse')} />
       </div>
 
       {notice && (
@@ -440,17 +443,17 @@ export default function MenuManagement() {
       {/* Add category — free text, Admin/Manager only. No fixed/predefined list. */}
       {canAddCategory && (
         <div className="card mb-5 p-4">
-          <p className="mb-2 text-[11px] uppercase tracking-wider text-cream-dim">Add category</p>
+          <p className="mb-2 text-[11px] uppercase tracking-wider text-cream-dim">{t('menu.addCategory')}</p>
           <div className="flex flex-col gap-2 sm:flex-row">
             <input
               className="input flex-1"
-              placeholder="Type any category name… e.g. Weekend Specials"
+              placeholder={t('menu.categoryPlaceholder')}
               value={newCategory}
               onChange={(e) => setNewCategory(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && submitCategory()}
             />
             <button onClick={submitCategory} className="btn-gold px-4 py-2 text-sm sm:w-auto">
-              <IconPlus size={16} /> Add Category
+              <IconPlus size={16} /> {t('menu.addCategoryBtn')}
             </button>
           </div>
           {categoryError && (
@@ -476,7 +479,7 @@ export default function MenuManagement() {
                         ? `Delete “${c}”`
                         : `Cannot delete — ${count} item${count > 1 ? 's' : ''} in use`
                     }
-                    className={`ml-0.5 transition ${
+                    className={`ms-0.5 transition ${
                       empty ? 'hover:text-rose-300' : 'text-gold/40 hover:text-rose-300'
                     }`}
                   >
@@ -492,12 +495,12 @@ export default function MenuManagement() {
       {/* Search + filter */}
       <div className="mb-5 flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">
-          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-cream-dim">
+          <span className="pointer-events-none absolute start-3.5 top-1/2 -translate-y-1/2 text-cream-dim">
             <IconSearch size={18} />
           </span>
           <input
-            className="input pl-11"
-            placeholder="Search items…"
+            className="input ps-11"
+            placeholder={t('menu.searchItems')}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -507,7 +510,7 @@ export default function MenuManagement() {
           value={catFilter}
           onChange={(e) => setCatFilter(e.target.value)}
         >
-          <option value="All">All Categories</option>
+          <option value="All">{t('menu.allCategories')}</option>
           {menuCategories.map((c) => (
             <option key={c} value={c}>
               {c}
@@ -522,11 +525,11 @@ export default function MenuManagement() {
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead className="sticky top-0 z-10 bg-ink-card">
               <tr className="border-b border-ink-line text-xs uppercase tracking-wider text-cream-dim">
-                <th className="px-5 py-3 font-semibold">Item</th>
-                <th className="px-5 py-3 font-semibold">Category</th>
-                <th className="px-5 py-3 text-right font-semibold">Price</th>
-                <th className="px-5 py-3 text-center font-semibold">Available</th>
-                <th className="px-5 py-3 text-right font-semibold">Actions</th>
+                <th className="px-5 py-3 font-semibold">{t('menu.colItem')}</th>
+                <th className="px-5 py-3 font-semibold">{t('menu.colCategory')}</th>
+                <th className="px-5 py-3 text-right font-semibold">{t('menu.colPrice')}</th>
+                <th className="px-5 py-3 text-center font-semibold">{t('menu.colAvailable')}</th>
+                <th className="px-5 py-3 text-right font-semibold">{t('menu.colActions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-line">
@@ -559,7 +562,7 @@ export default function MenuManagement() {
                     <div className="flex justify-center">
                       <button
                         onClick={() => toggleMenuItem(m.id)}
-                        title={m.active !== false ? 'Available' : 'Hidden from POS'}
+                        title={m.active !== false ? t('menu.available') : t('menu.hiddenFromPos')}
                         className={`relative h-6 w-11 rounded-full transition ${
                           m.active !== false ? 'bg-emerald-500/70' : 'bg-ink-line'
                         }`}
@@ -577,14 +580,14 @@ export default function MenuManagement() {
                       <button
                         onClick={() => setModalItem(m)}
                         className="grid h-8 w-8 place-items-center rounded-lg border border-ink-line text-cream-dim transition hover:border-gold/40 hover:text-gold"
-                        title="Edit"
+                        title={t('common.edit')}
                       >
                         <IconEdit size={15} />
                       </button>
                       <button
                         onClick={() => deleteMenuItem(m.id)}
                         className="grid h-8 w-8 place-items-center rounded-lg border border-ink-line text-cream-dim transition hover:border-rose-500/40 hover:text-rose-300"
-                        title="Delete"
+                        title={t('common.delete')}
                       >
                         <IconTrash size={15} />
                       </button>
@@ -596,7 +599,7 @@ export default function MenuManagement() {
           </table>
         </div>
         {filtered.length === 0 && (
-          <div className="p-10 text-center text-sm text-cream-dim">No items match your search.</div>
+          <div className="p-10 text-center text-sm text-cream-dim">{t('menu.noItems')}</div>
         )}
       </div>
 
@@ -617,23 +620,23 @@ export default function MenuManagement() {
           />
           <div className="relative z-10 w-full max-w-sm animate-fade-up">
             <div className="card p-6">
-              <h3 className="font-serif text-xl text-cream">Delete category?</h3>
+              <h3 className="font-serif text-xl text-cream">{t('menu.deleteCategoryQ')}</h3>
               <p className="mt-2 text-sm text-cream-dim">
-                Delete the empty category “<span className="text-cream">{confirmingDelete}</span>”?
-                This can’t be undone.
+                {t('menu.deleteEmptyCatMsg')} “<span className="text-cream">{confirmingDelete}</span>”؟
+                {' '}{t('menu.cannotBeUndone')}
               </p>
               <div className="mt-6 flex gap-3">
                 <button
                   onClick={confirmDeleteCategory}
                   className="flex-1 rounded-xl bg-rose-500/90 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-500"
                 >
-                  Delete
+                  {t('common.delete')}
                 </button>
                 <button
                   onClick={() => setConfirmingDelete(null)}
                   className="btn-ghost flex-1 py-2.5 text-sm"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
               </div>
             </div>

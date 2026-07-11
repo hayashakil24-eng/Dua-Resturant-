@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
+import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader } from '../components/ui.jsx'
 import { money, dateShort } from '../utils/format.js'
 import { safePrint } from '../utils/print.js'
@@ -46,17 +47,18 @@ function StatTile({ icon: Icon, label, value, sub, tone }) {
 
 // ---------------------------------------------------------------------------
 function PLChart({ data }) {
+  const t = useT()
   const max = Math.max(1, ...data.flatMap((d) => [d.income, d.expense]))
   return (
     <div className="card p-6">
       <div className="flex items-center justify-between">
-        <h3 className="font-serif text-xl text-cream">Profit &amp; Loss</h3>
+        <h3 className="font-serif text-xl text-cream">{t('accounting.profitAndLoss')}</h3>
         <div className="flex items-center gap-3 text-[11px] text-cream-dim">
           <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded bg-emerald-400" /> Income
+            <span className="h-2.5 w-2.5 rounded bg-emerald-400" /> {t('accounting.income')}
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded bg-rose-400" /> Expenses
+            <span className="h-2.5 w-2.5 rounded bg-rose-400" /> {t('accounting.expenses')}
           </span>
         </div>
       </div>
@@ -85,12 +87,13 @@ function PLChart({ data }) {
 
 // ---------------------------------------------------------------------------
 function ExpenseBreakdown({ inMonth, payroll }) {
+  const t = useT()
   const rows = useMemo(() => {
     const map = {}
     inMonth
-      .filter((t) => t.type === 'expense')
-      .forEach((t) => {
-        map[t.category] = (map[t.category] || 0) + t.amount
+      .filter((tx) => tx.type === 'expense')
+      .forEach((tx) => {
+        map[tx.category] = (map[tx.category] || 0) + tx.amount
       })
     if (payroll > 0) map.Salaries = (map.Salaries || 0) + payroll
     return Object.entries(map).sort((a, b) => b[1] - a[1])
@@ -100,9 +103,9 @@ function ExpenseBreakdown({ inMonth, payroll }) {
 
   return (
     <div className="card p-6">
-      <h3 className="font-serif text-xl text-cream">Expense Breakdown</h3>
+      <h3 className="font-serif text-xl text-cream">{t('accounting.expenseBreakdown')}</h3>
       {rows.length === 0 ? (
-        <p className="mt-6 text-sm text-cream-dim">No expenses this month.</p>
+        <p className="mt-6 text-sm text-cream-dim">{t('accounting.noExpenses')}</p>
       ) : (
         <div className="mt-5 space-y-3">
           {rows.map(([cat, amt]) => (
@@ -127,6 +130,7 @@ function ExpenseBreakdown({ inMonth, payroll }) {
 
 // ---------------------------------------------------------------------------
 function AddTransactionModal({ onClose, onSave }) {
+  const t = useT()
   const [type, setType] = useState('expense')
   const [category, setCategory] = useState(EXPENSE_CATEGORIES[0])
   const [description, setDescription] = useState('')
@@ -147,7 +151,7 @@ function AddTransactionModal({ onClose, onSave }) {
       <div className="relative z-10 w-full max-w-md animate-fade-up">
         <div className="card p-6">
           <div className="flex items-start justify-between">
-            <h3 className="font-serif text-2xl text-cream">Add Transaction</h3>
+            <h3 className="font-serif text-2xl text-cream">{t('accounting.addTransaction')}</h3>
             <button onClick={onClose} className="text-cream-dim hover:text-cream">
               <IconClose size={20} />
             </button>
@@ -155,19 +159,19 @@ function AddTransactionModal({ onClose, onSave }) {
 
           {/* Type toggle */}
           <div className="mt-5 grid grid-cols-2 gap-2">
-            {['income', 'expense'].map((t) => (
+            {['income', 'expense'].map((ty) => (
               <button
-                key={t}
-                onClick={() => changeType(t)}
-                className={`rounded-xl border py-2.5 text-sm font-semibold capitalize transition ${
-                  type === t
-                    ? t === 'income'
+                key={ty}
+                onClick={() => changeType(ty)}
+                className={`rounded-xl border py-2.5 text-sm font-semibold transition ${
+                  type === ty
+                    ? ty === 'income'
                       ? 'border-emerald-500/50 bg-emerald-500/12 text-emerald-300'
                       : 'border-rose-500/50 bg-rose-500/12 text-rose-300'
                     : 'border-ink-line bg-ink-soft text-cream-dim hover:text-cream'
                 }`}
               >
-                {t}
+                {ty === 'income' ? t('accounting.typeIncome') : t('accounting.typeExpense')}
               </button>
             ))}
           </div>
@@ -175,7 +179,7 @@ function AddTransactionModal({ onClose, onSave }) {
           <div className="mt-4 space-y-3">
             <div>
               <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
-                Category
+                {t('accounting.category')}
               </label>
               <select className="input py-2" value={category} onChange={(e) => setCategory(e.target.value)}>
                 {cats.map((c) => (
@@ -187,11 +191,11 @@ function AddTransactionModal({ onClose, onSave }) {
             </div>
             <div>
               <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
-                Description
+                {t('accounting.description')}
               </label>
               <input
                 className="input"
-                placeholder="e.g. Vegetable purchase"
+                placeholder={t('accounting.descriptionPh')}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
@@ -199,7 +203,7 @@ function AddTransactionModal({ onClose, onSave }) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
-                  Amount (Rs.)
+                  {t('accounting.amountRs')}
                 </label>
                 <input
                   type="number"
@@ -213,7 +217,7 @@ function AddTransactionModal({ onClose, onSave }) {
               </div>
               <div>
                 <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
-                  Date
+                  {t('accounting.date')}
                 </label>
                 <input
                   type="date"
@@ -227,7 +231,7 @@ function AddTransactionModal({ onClose, onSave }) {
 
           <div className="mt-6 flex gap-3">
             <button onClick={onClose} className="btn-ghost flex-1 py-3">
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               onClick={() => {
@@ -243,7 +247,7 @@ function AddTransactionModal({ onClose, onSave }) {
               disabled={!valid}
               className="btn-gold flex-1 py-3 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <IconCheck size={18} /> Save
+              <IconCheck size={18} /> {t('common.save')}
             </button>
           </div>
         </div>
@@ -255,6 +259,7 @@ function AddTransactionModal({ onClose, onSave }) {
 // ---------------------------------------------------------------------------
 export default function Accounting() {
   const { transactions, addTransaction, deleteTransaction, staff } = useApp()
+  const t = useT()
   const today = useMemo(() => new Date(), [])
 
   const monthOptions = useMemo(() => {
@@ -293,8 +298,8 @@ export default function Accounting() {
   // isn't apportioned to any one day; daily P&L is manual income vs expense.
   const dayFig = useMemo(() => {
     const inDay = transactions.filter((tx) => toDayStr(new Date(tx.date)) === dayDate)
-    const income = inDay.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
-    const expense = inDay.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+    const income = inDay.filter((tx) => tx.type === 'income').reduce((s, tx) => s + tx.amount, 0)
+    const expense = inDay.filter((tx) => tx.type === 'expense').reduce((s, tx) => s + tx.amount, 0)
     const profit = income - expense
     const margin = income > 0 ? (profit / income) * 100 : 0
     return { inDay, income, expense, profit, margin }
@@ -332,14 +337,14 @@ export default function Accounting() {
         id: 'AUTO-PAYROLL',
         type: 'expense',
         category: 'Salaries',
-        description: 'Staff payroll (auto from Payroll)',
+        description: t('accounting.staffPayrollAuto'),
         amount: fig.payroll,
         date: new Date(year, monthIndex + 1, 0).toISOString(),
         auto: true,
       })
     }
     return list.sort((a, b) => new Date(b.date) - new Date(a.date))
-  }, [fig, year, monthIndex])
+  }, [fig, year, monthIndex, t])
 
   const dayRows = useMemo(
     () => [...dayFig.inDay].sort((a, b) => new Date(b.date) - new Date(a.date)),
@@ -353,20 +358,20 @@ export default function Accounting() {
 
   return (
     <div>
-      <PageHeader title="Accounting" subtitle="Income, expenses and profit & loss.">
+      <PageHeader title={t('accounting.title')} subtitle={t('accounting.subtitle')}>
         <div className="flex flex-wrap items-center gap-2 no-print">
           <div className="flex overflow-hidden rounded-xl border border-ink-line">
             {['daily', 'monthly'].map((v) => (
               <button
                 key={v}
                 onClick={() => setAccView(v)}
-                className={`px-4 py-2 text-sm font-semibold capitalize transition ${
+                className={`px-4 py-2 text-sm font-semibold transition ${
                   accView === v
                     ? 'bg-gold/15 text-gold'
                     : 'bg-ink-soft text-cream-dim hover:text-cream'
                 }`}
               >
-                {v}
+                {t(`accounting.${v}`)}
               </button>
             ))}
           </div>
@@ -397,26 +402,26 @@ export default function Accounting() {
 
       {/* Quick stats */}
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile icon={IconTrend} label="Income" value={money(figures.income)} sub={scopeLabel} tone="green" />
+        <StatTile icon={IconTrend} label={t('accounting.income')} value={money(figures.income)} sub={scopeLabel} tone="green" />
         <StatTile
           icon={IconTrendDown}
-          label="Expenses"
+          label={t('accounting.expenses')}
           value={money(figures.expense)}
-          sub={daily ? scopeLabel : 'Incl. payroll'}
+          sub={daily ? scopeLabel : t('accounting.inclPayroll')}
           tone="red"
         />
         <StatTile
           icon={IconWallet}
-          label="Net Profit"
+          label={t('accounting.netProfit')}
           value={money(figures.profit)}
-          sub={figures.profit >= 0 ? 'Profit' : 'Loss'}
+          sub={figures.profit >= 0 ? t('accounting.profit') : t('accounting.loss')}
           tone={figures.profit >= 0 ? 'gold' : 'red'}
         />
         <StatTile
           icon={IconChart}
-          label="Profit Margin"
+          label={t('accounting.profitMargin')}
           value={`${Math.round(figures.margin)}%`}
-          sub="Profit / income"
+          sub={t('accounting.profitOverIncome')}
           tone={figures.margin >= 0 ? 'blue' : 'red'}
         />
       </div>
@@ -433,31 +438,31 @@ export default function Accounting() {
       {/* Ledger */}
       <div className="mt-6 card overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-ink-line p-5 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="font-serif text-xl text-cream">Transactions · {scopeLabel}</h3>
+          <h3 className="font-serif text-xl text-cream">{t('accounting.transactions')} · {scopeLabel}</h3>
           <div className="flex gap-2 no-print">
             <button onClick={safePrint} className="btn-ghost px-4 py-2 text-sm">
-              <IconPrint size={16} /> Print Report
+              <IconPrint size={16} /> {t('accounting.printReport')}
             </button>
             <button onClick={() => setShowAdd(true)} className="btn-gold px-4 py-2 text-sm">
-              <IconPlus size={16} /> Add Transaction
+              <IconPlus size={16} /> {t('accounting.addTransaction')}
             </button>
           </div>
         </div>
 
         {ledgerRows.length === 0 ? (
           <div className="p-10 text-center text-sm text-cream-dim">
-            No transactions recorded for {scopeLabel}.
+            {t('accounting.noTransactions')} {scopeLabel}.
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-left text-sm">
               <thead>
                 <tr className="border-b border-ink-line text-xs uppercase tracking-wider text-cream-dim">
-                  <th className="px-5 py-3 font-semibold">Date</th>
-                  <th className="px-5 py-3 font-semibold">Description</th>
-                  <th className="px-5 py-3 font-semibold">Category</th>
-                  <th className="px-5 py-3 text-right font-semibold">Amount</th>
-                  <th className="px-5 py-3 text-right font-semibold no-print">Action</th>
+                  <th className="px-5 py-3 font-semibold">{t('accounting.colDate')}</th>
+                  <th className="px-5 py-3 font-semibold">{t('accounting.colDescription')}</th>
+                  <th className="px-5 py-3 font-semibold">{t('accounting.colCategory')}</th>
+                  <th className="px-5 py-3 text-right font-semibold">{t('accounting.colAmount')}</th>
+                  <th className="px-5 py-3 text-right font-semibold no-print">{t('accounting.colAction')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-ink-line">
@@ -469,8 +474,8 @@ export default function Accounting() {
                       <td className="px-5 py-3">
                         <span className="text-cream">{tx.description}</span>
                         {tx.auto && (
-                          <span className="ml-2 rounded bg-white/5 px-1.5 py-0.5 text-[10px] font-semibold text-cream-dim">
-                            AUTO
+                          <span className="ms-2 rounded bg-white/5 px-1.5 py-0.5 text-[10px] font-semibold text-cream-dim">
+                            {t('accounting.auto')}
                           </span>
                         )}
                       </td>
@@ -489,7 +494,7 @@ export default function Accounting() {
                           <button
                             onClick={() => deleteTransaction(tx.id)}
                             className="text-cream-dim transition hover:text-rose-300"
-                            title="Delete"
+                            title={t('common.delete')}
                           >
                             <IconTrash size={16} />
                           </button>

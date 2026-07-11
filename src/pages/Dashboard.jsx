@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useApp } from '../context/AppContext.jsx'
+import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader, StatCard, PaymentBadge } from '../components/ui.jsx'
 import { money, time } from '../utils/format.js'
 import { payrollTotal } from '../utils/payroll.js'
@@ -26,6 +27,7 @@ import {
 // Auto-updating clock (1s) with a "Live" pulse. The 5s auto-refresh handler is
 // passed in so the same widget shows when data was last synced.
 function LiveClock({ lastRefresh, onRefresh }) {
+  const t = useT()
   const [now, setNow] = useState(new Date())
 
   useEffect(() => {
@@ -54,14 +56,16 @@ function LiveClock({ lastRefresh, onRefresh }) {
       </span>
       <div className="leading-tight">
         <p className="font-serif text-sm font-semibold tabular-nums text-cream">{clock}</p>
-        <p className="text-[10px] text-cream-dim">{day} · synced {ago}s ago</p>
+        <p className="text-[10px] text-cream-dim">
+          {day} · {t('dashboard.synced')} {ago}s {t('common.ago')}
+        </p>
       </div>
       <button
         onClick={onRefresh}
-        title="Refresh now"
-        className="ml-1 text-xs font-semibold text-gold hover:underline"
+        title={t('dashboard.refresh')}
+        className="ms-1 text-xs font-semibold text-gold hover:underline"
       >
-        Refresh
+        {t('dashboard.refresh')}
       </button>
     </div>
   )
@@ -72,6 +76,7 @@ function LiveClock({ lastRefresh, onRefresh }) {
 // ============================================================================
 
 function LowStockAlert({ items }) {
+  const t = useT()
   if (!items.length) return null
 
   return (
@@ -82,9 +87,9 @@ function LowStockAlert({ items }) {
             <IconAlert size={20} />
           </span>
           <div>
-            <h3 className="font-serif text-lg text-cream">Low Stock Alert</h3>
+            <h3 className="font-serif text-lg text-cream">{t('dashboard.lowStockAlert')}</h3>
             <p className="text-xs text-cream-dim">
-              {items.length} item{items.length > 1 ? 's' : ''} need restocking soon.
+              {items.length} {t('dashboard.itemsNeedRestock')}
             </p>
           </div>
         </div>
@@ -92,7 +97,7 @@ function LowStockAlert({ items }) {
           to="/inventory"
           className="hidden items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20 sm:inline-flex"
         >
-          <IconInventory size={14} /> View Inventory
+          <IconInventory size={14} /> {t('dashboard.viewInventory')}
         </Link>
       </div>
       <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
@@ -107,7 +112,7 @@ function LowStockAlert({ items }) {
               <span
                 className={`text-xs font-semibold ${critical ? 'text-rose-300' : 'text-amber-300'}`}
               >
-                {it.stock} {it.unit} left
+                {it.stock} {it.unit} {t('dashboard.left')}
               </span>
             </div>
           )
@@ -117,7 +122,7 @@ function LowStockAlert({ items }) {
         to="/inventory"
         className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-amber-200 hover:underline sm:hidden"
       >
-        <IconInventory size={14} /> View Inventory →
+        <IconInventory size={14} /> {t('dashboard.viewInventory')} →
       </Link>
     </div>
   )
@@ -136,6 +141,7 @@ const SHIFT_META = {
 
 function CashReconciliation() {
   const { shiftReconciliations, calculateShiftSales } = useApp()
+  const t = useT()
 
   const todayShifts = shiftReconciliations.filter(
     (s) => new Date(s.shiftStartTime).toDateString() === new Date().toDateString(),
@@ -150,25 +156,25 @@ function CashReconciliation() {
             <IconCash size={20} />
           </span>
           <div>
-            <h3 className="font-serif text-xl text-cream">Cash Reconciliation</h3>
-            <p className="text-xs text-cream-dim">Shift drawer counts · today</p>
+            <h3 className="font-serif text-xl text-cream">{t('dashboard.cashReconciliation')}</h3>
+            <p className="text-xs text-cream-dim">{t('dashboard.shiftDrawerToday')}</p>
           </div>
         </div>
         {shortages.length > 0 && (
           <span className="badge bg-rose-500/12 text-rose-300 ring-1 ring-rose-500/30">
-            {shortages.length} shortage{shortages.length > 1 ? 's' : ''}
+            {shortages.length} {t('dashboard.shortagesLabel')}
           </span>
         )}
       </div>
 
       {shortages.length > 0 && (
-        <div className="mt-4 rounded-xl border-l-4 border-rose-500 bg-rose-500/[0.08] px-4 py-3 text-sm font-semibold text-rose-300">
-          ⚠️ {shortages.length} shift{shortages.length > 1 ? 's' : ''} closed with a cash shortage — review below.
+        <div className="mt-4 rounded-xl border-s-4 border-rose-500 bg-rose-500/[0.08] px-4 py-3 text-sm font-semibold text-rose-300">
+          ⚠️ {shortages.length} {t('dashboard.shiftsShortageWarn')}
         </div>
       )}
 
       {todayShifts.length === 0 ? (
-        <p className="mt-6 text-sm text-cream-dim">No shifts recorded today.</p>
+        <p className="mt-6 text-sm text-cream-dim">{t('dashboard.noShiftsToday')}</p>
       ) : (
         <div className="mt-4 space-y-3">
           {todayShifts.map((s) => {
@@ -184,33 +190,33 @@ function CashReconciliation() {
                     </p>
                   </div>
                   <span className={`shrink-0 rounded-md px-2.5 py-1 text-[11px] font-bold ${meta.chip}`}>
-                    {meta.label}
+                    {t(`status.${s.status}`, meta.label)}
                   </span>
                 </div>
 
                 {s.status === 'active' ? (
                   <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                     <div>
-                      <p className="text-[11px] text-cream-dim">Opening</p>
+                      <p className="text-[11px] text-cream-dim">{t('dashboard.opening')}</p>
                       <p className="font-semibold text-cream">{money(s.openingCash)}</p>
                     </div>
                     <div>
-                      <p className="text-[11px] text-cream-dim">Expected so far</p>
+                      <p className="text-[11px] text-cream-dim">{t('dashboard.expectedSoFar')}</p>
                       <p className="font-semibold text-gold">{money(live?.expectedCash ?? s.openingCash)}</p>
                     </div>
                   </div>
                 ) : (
                   <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
                     <div>
-                      <p className="text-[11px] text-cream-dim">Expected</p>
+                      <p className="text-[11px] text-cream-dim">{t('dashboard.expected')}</p>
                       <p className="font-semibold text-cream">{money(s.expectedCash)}</p>
                     </div>
                     <div>
-                      <p className="text-[11px] text-cream-dim">Actual</p>
+                      <p className="text-[11px] text-cream-dim">{t('dashboard.actual')}</p>
                       <p className="font-semibold text-cream">{money(s.actualCash)}</p>
                     </div>
                     <div>
-                      <p className="text-[11px] text-cream-dim">Difference</p>
+                      <p className="text-[11px] text-cream-dim">{t('dashboard.difference')}</p>
                       <p className={`font-semibold ${meta.diff}`}>
                         {s.status === 'matched' ? money(0) : money(Math.abs(s.difference))}
                       </p>
@@ -231,6 +237,7 @@ function CashReconciliation() {
 // ============================================================================
 
 function RevenueByHour({ orders, orderTotal }) {
+  const t = useT()
   const buckets = {}
   orders
     .filter((o) => o.payment === 'Paid' && !o.cancelled)
@@ -244,11 +251,11 @@ function RevenueByHour({ orders, orderTotal }) {
   return (
     <div className="card p-6">
       <div className="flex items-center justify-between">
-        <h3 className="font-serif text-xl text-cream">Revenue by hour</h3>
-        <span className="text-xs text-cream-dim">Paid orders · today</span>
+        <h3 className="font-serif text-xl text-cream">{t('dashboard.revenueByHour')}</h3>
+        <span className="text-xs text-cream-dim">{t('dashboard.paidOrdersToday')}</span>
       </div>
       {hours.length === 0 ? (
-        <p className="mt-8 text-sm text-cream-dim">No paid revenue yet.</p>
+        <p className="mt-8 text-sm text-cream-dim">{t('dashboard.noPaidRevenue')}</p>
       ) : (
         <div className="mt-8 flex h-44 items-end gap-3">
           {hours.map((h) => {
@@ -276,12 +283,13 @@ function RevenueByHour({ orders, orderTotal }) {
 }
 
 function RecentOrders({ orders, orderTotal }) {
+  const t = useT()
   return (
     <div className="card overflow-hidden">
       <div className="flex items-center justify-between border-b border-ink-line p-5">
-        <h3 className="font-serif text-xl text-cream">Recent orders</h3>
+        <h3 className="font-serif text-xl text-cream">{t('dashboard.recentOrders')}</h3>
         <Link to="/orders" className="text-xs font-semibold text-gold hover:underline">
-          View all →
+          {t('common.viewAll')} →
         </Link>
       </div>
       <div className="divide-y divide-ink-line">
@@ -295,14 +303,14 @@ function RecentOrders({ orders, orderTotal }) {
                 {o.id} · <span className="text-cream-dim">{o.waiter}</span>
               </p>
               <p className="truncate text-xs text-cream-dim">
-                {o.items.reduce((s, i) => s + i.qty, 0)} items · {time(o.createdAt)}
+                {o.items.reduce((s, i) => s + i.qty, 0)} {t('common.items')} · {time(o.createdAt)}
               </p>
             </div>
             <div className="text-right">
               <p className="text-sm font-semibold text-cream">{money(orderTotal(o.items, o.discount?.amount).total)}</p>
               <div className="mt-1">
                 {o.cancelled ? (
-                  <span className="badge bg-rose-500/12 text-rose-300 ring-1 ring-rose-500/30">Cancelled</span>
+                  <span className="badge bg-rose-500/12 text-rose-300 ring-1 ring-rose-500/30">{t('status.cancelled')}</span>
                 ) : (
                   <PaymentBadge status={o.payment} />
                 )}
@@ -317,6 +325,7 @@ function RecentOrders({ orders, orderTotal }) {
 
 function OnDutyStaff({ attendance }) {
   const { staff } = useApp()
+  const t = useT()
   const present = staff.filter((s) => {
     if (s.active === false) return false
     const a = attendance[s.id]
@@ -325,9 +334,9 @@ function OnDutyStaff({ attendance }) {
   return (
     <div className="card h-fit p-6">
       <div className="flex items-center justify-between">
-        <h3 className="font-serif text-xl text-cream">On duty</h3>
+        <h3 className="font-serif text-xl text-cream">{t('dashboard.onDuty')}</h3>
         <span className="badge bg-emerald-500/12 text-emerald-300 ring-1 ring-emerald-500/30">
-          {present.length} present
+          {present.length} {t('dashboard.present')}
         </span>
       </div>
       <div className="mt-5 space-y-3">
@@ -345,7 +354,7 @@ function OnDutyStaff({ attendance }) {
         ))}
       </div>
       <Link to="/attendance" className="btn-ghost mt-6 w-full text-sm">
-        Manage attendance
+        {t('dashboard.manageAttendance')}
       </Link>
     </div>
   )
@@ -357,7 +366,8 @@ function OnDutyStaff({ attendance }) {
 
 function IngredientRequestsPanel({ role }) {
   const { ingredientRequests, approveIngredientRequest, rejectIngredientRequest } = useApp()
-  
+  const t = useT()
+
   // Local state for approval forms
   const [editingId, setEditingId] = useState(null)
   const [baseUnit, setBaseUnit] = useState('kg')
@@ -375,10 +385,10 @@ function IngredientRequestsPanel({ role }) {
     <div className="card p-6">
       <div className="flex items-center justify-between mb-5 border-b border-ink-line pb-4">
         <div>
-          <h3 className="font-serif text-xl text-cream">Pending Ingredient Requests</h3>
-          <p className="text-xs text-cream-dim mt-0.5">Submitted by chefs when building recipes.</p>
+          <h3 className="font-serif text-xl text-cream">{t('dashboard.pendingIngredientRequests')}</h3>
+          <p className="text-xs text-cream-dim mt-0.5">{t('dashboard.submittedByChefs')}</p>
         </div>
-        <span className="badge bg-gold/15 text-gold font-semibold">{pending.length} pending</span>
+        <span className="badge bg-gold/15 text-gold font-semibold">{pending.length} {t('dashboard.pending')}</span>
       </div>
 
       <div className="space-y-4">
@@ -388,7 +398,7 @@ function IngredientRequestsPanel({ role }) {
               <div>
                 <h4 className="font-semibold text-cream text-base">{req.name}</h4>
                 <p className="text-xs text-cream-dim mt-0.5">
-                  Category: <span className="text-gold">{req.category}</span> · Requested by: {req.requestedBy} · {new Date(req.requestedAt).toLocaleDateString()}
+                  {t('dashboard.category')}: <span className="text-gold">{req.category}</span> · {t('dashboard.requestedBy')}: {req.requestedBy} · {new Date(req.requestedAt).toLocaleDateString()}
                 </p>
               </div>
 
@@ -404,7 +414,7 @@ function IngredientRequestsPanel({ role }) {
                         }}
                         className="rounded-lg bg-gold-grad px-3.5 py-1.5 text-xs font-bold text-ink transition hover:brightness-110"
                       >
-                        Approve
+                        {t('common.approve')}
                       </button>
                       <button
                         onClick={() => {
@@ -414,7 +424,7 @@ function IngredientRequestsPanel({ role }) {
                         }}
                         className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3.5 py-1.5 text-xs font-bold text-rose-300 transition hover:bg-rose-500/20"
                       >
-                        Reject
+                        {t('common.reject')}
                       </button>
                     </>
                   )}
@@ -425,10 +435,10 @@ function IngredientRequestsPanel({ role }) {
             {/* Approval Form (Admin Only) */}
             {editingId === req.id && (
               <div className="mt-4 border-t border-ink-line/50 pt-4">
-                <p className="text-xs font-bold text-gold mb-3">Setup Inventory Details for approval</p>
+                <p className="text-xs font-bold text-gold mb-3">{t('dashboard.setupInventoryDetails')}</p>
                 <div className="grid gap-3 sm:grid-cols-3">
                   <div>
-                    <label className="mb-1 block text-[10px] uppercase tracking-wider text-cream-dim">Base Unit *</label>
+                    <label className="mb-1 block text-[10px] uppercase tracking-wider text-cream-dim">{t('dashboard.baseUnit')} *</label>
                     <select
                       className="input py-2 text-xs"
                       value={baseUnit}
@@ -445,7 +455,7 @@ function IngredientRequestsPanel({ role }) {
                     </select>
                   </div>
                   <div>
-                    <label className="mb-1 block text-[10px] uppercase tracking-wider text-cream-dim">Initial Stock *</label>
+                    <label className="mb-1 block text-[10px] uppercase tracking-wider text-cream-dim">{t('dashboard.initialStock')} *</label>
                     <input
                       type="number"
                       min="0"
@@ -456,7 +466,7 @@ function IngredientRequestsPanel({ role }) {
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-[10px] uppercase tracking-wider text-cream-dim">Min Threshold *</label>
+                    <label className="mb-1 block text-[10px] uppercase tracking-wider text-cream-dim">{t('dashboard.minThreshold')} *</label>
                     <input
                       type="number"
                       min="0"
@@ -473,7 +483,7 @@ function IngredientRequestsPanel({ role }) {
                 <div className="mt-4 flex gap-2 justify-end">
                   <button
                     onClick={() => {
-                      if (!baseUnit) return setError('Base unit is required.')
+                      if (!baseUnit) return setError(t('dashboard.baseUnitRequired'))
                       const res = approveIngredientRequest(req.id, {
                         baseUnit,
                         initialStock: Number(initialStock) || 0,
@@ -486,7 +496,7 @@ function IngredientRequestsPanel({ role }) {
                     }}
                     className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-emerald-700"
                   >
-                    Confirm Approve
+                    {t('dashboard.confirmApprove')}
                   </button>
                   <button
                     onClick={() => {
@@ -495,7 +505,7 @@ function IngredientRequestsPanel({ role }) {
                     }}
                     className="rounded-lg bg-ink-line px-3 py-1.5 text-xs font-bold text-cream-dim hover:text-cream"
                   >
-                    Cancel
+                    {t('common.cancel')}
                   </button>
                 </div>
               </div>
@@ -505,11 +515,11 @@ function IngredientRequestsPanel({ role }) {
             {rejectingId === req.id && (
               <div className="mt-4 border-t border-ink-line/50 pt-4">
                 <div>
-                  <label className="mb-1 block text-[10px] uppercase tracking-wider text-rose-300">Reason for rejection *</label>
+                  <label className="mb-1 block text-[10px] uppercase tracking-wider text-rose-300">{t('dashboard.reasonForRejection')} *</label>
                   <input
                     type="text"
                     className="input py-2 text-xs"
-                    placeholder="e.g. Already tracked under another name"
+                    placeholder={t('dashboard.rejectionPlaceholder')}
                     value={rejectReason}
                     onChange={(e) => setRejectReason(e.target.value)}
                   />
@@ -525,13 +535,13 @@ function IngredientRequestsPanel({ role }) {
                     disabled={!rejectReason.trim()}
                     className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-rose-700 disabled:opacity-40"
                   >
-                    Confirm Reject
+                    {t('dashboard.confirmReject')}
                   </button>
                   <button
                     onClick={() => setRejectingId(null)}
                     className="rounded-lg bg-ink-line px-3 py-1.5 text-xs font-bold text-cream-dim hover:text-cream"
                   >
-                    Cancel
+                    {t('common.cancel')}
                   </button>
                 </div>
               </div>
@@ -549,6 +559,7 @@ function IngredientRequestsPanel({ role }) {
 
 function AdminDashboard({ stats, orders, orderTotal, attendance, lowStock }) {
   const { staff } = useApp()
+  const t = useT()
   let cashTotal = 0
   let cardTotal = 0
   
@@ -577,10 +588,10 @@ function AdminDashboard({ stats, orders, orderTotal, attendance, lowStock }) {
     <div className="space-y-6">
       {/* Cards Row */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={IconOrders} label="Today's Orders" value={stats.orderCount} sub={`${stats.pending} awaiting payment`} delay={0} />
-        <StatCard icon={IconTrend} label="Revenue" value={money(stats.revenue)} sub="Collected today" delay={60} />
-        <StatCard icon={IconTable} label="Active Tables" value={stats.activeTables} sub="Currently dining" delay={120} />
-        <StatCard icon={IconUsers} label="Staff Present" value={`${stats.present}/${stats.totalStaff}`} sub="On duty now" delay={180} />
+        <StatCard icon={IconOrders} label={t('dashboard.todaysOrders')} value={stats.orderCount} sub={`${stats.pending} ${t('dashboard.awaitingPayment')}`} delay={0} />
+        <StatCard icon={IconTrend} label={t('dashboard.revenue')} value={money(stats.revenue)} sub={t('dashboard.collectedToday')} delay={60} />
+        <StatCard icon={IconTable} label={t('dashboard.activeTables')} value={stats.activeTables} sub={t('dashboard.currentlyDining')} delay={120} />
+        <StatCard icon={IconUsers} label={t('dashboard.staffPresent')} value={`${stats.present}/${stats.totalStaff}`} sub={t('dashboard.onDutyNow')} delay={180} />
       </div>
 
       <LowStockAlert items={lowStock} />
@@ -599,13 +610,13 @@ function AdminDashboard({ stats, orders, orderTotal, attendance, lowStock }) {
         <div className="space-y-6">
           <div className="card p-6">
             <div className="flex items-center justify-between mb-5">
-              <h3 className="font-serif text-xl text-cream">Payment Methods</h3>
-              <span className="text-xs text-cream-dim font-medium">Breakdown</span>
+              <h3 className="font-serif text-xl text-cream">{t('dashboard.paymentMethods')}</h3>
+              <span className="text-xs text-cream-dim font-medium">{t('dashboard.breakdown')}</span>
             </div>
             <div className="space-y-4">
               <div>
                 <div className="flex justify-between text-xs mb-1.5">
-                  <span className="text-cream-dim">Cash Payments</span>
+                  <span className="text-cream-dim">{t('dashboard.cashPayments')}</span>
                   <span className="font-semibold text-cream">{money(cashTotal)} ({Math.round(cashPct)}%)</span>
                 </div>
                 <div className="w-full h-2 bg-ink-line rounded-full overflow-hidden">
@@ -614,7 +625,7 @@ function AdminDashboard({ stats, orders, orderTotal, attendance, lowStock }) {
               </div>
               <div>
                 <div className="flex justify-between text-xs mb-1.5">
-                  <span className="text-cream-dim">Card Payments</span>
+                  <span className="text-cream-dim">{t('dashboard.cardPayments')}</span>
                   <span className="font-semibold text-cream">{money(cardTotal)} ({Math.round(cardPct)}%)</span>
                 </div>
                 <div className="w-full h-2 bg-ink-line rounded-full overflow-hidden">
@@ -623,7 +634,7 @@ function AdminDashboard({ stats, orders, orderTotal, attendance, lowStock }) {
               </div>
             </div>
             <div className="mt-5 pt-4 border-t border-ink-line flex justify-between items-center text-xs text-cream-dim">
-              <span>Total collected</span>
+              <span>{t('dashboard.totalCollected')}</span>
               <span className="font-serif font-bold text-sm text-gold">{money(grandTotal)}</span>
             </div>
           </div>
@@ -634,19 +645,19 @@ function AdminDashboard({ stats, orders, orderTotal, attendance, lowStock }) {
                 <IconWallet size={20} />
               </span>
               <div>
-                <h3 className="font-serif text-xl text-cream">Monthly Payroll</h3>
-                <p className="text-xs text-cream-dim">{monthName} · estimated</p>
+                <h3 className="font-serif text-xl text-cream">{t('dashboard.monthlyPayroll')}</h3>
+                <p className="text-xs text-cream-dim">{monthName} · {t('dashboard.estimated')}</p>
               </div>
             </div>
             <p className="mt-4 font-serif text-3xl font-semibold text-gold">{money(monthlyPayroll)}</p>
             <p className="mt-1 text-xs text-cream-dim">
-              Across {activeStaffCount} staff · before deductions
+              {t('dashboard.across')} {activeStaffCount} {t('dashboard.beforeDeductions')}
             </p>
             <Link
               to="/payroll"
               className="btn-ghost mt-5 w-full text-sm"
             >
-              View payroll →
+              {t('dashboard.viewPayroll')} →
             </Link>
           </div>
 
@@ -662,14 +673,15 @@ function AdminDashboard({ stats, orders, orderTotal, attendance, lowStock }) {
 // ============================================================================
 
 function ManagerDashboard({ stats, orders, orderTotal, attendance, unpaidTotal, lowStock }) {
+  const t = useT()
   return (
     <div className="space-y-6">
       {/* Cards Row */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={IconOrders} label="Today's Orders" value={stats.orderCount} sub={`${stats.pending} awaiting payment`} delay={0} />
-        <StatCard icon={IconTable} label="Active Tables" value={stats.activeTables} sub="Currently dining" delay={60} />
-        <StatCard icon={IconUsers} label="Staff Present" value={`${stats.present}/${stats.totalStaff}`} sub="On duty now" delay={120} />
-        <StatCard icon={IconCash} label="Outstanding" value={money(unpaidTotal)} sub={`${stats.pending} unpaid orders`} delay={180} />
+        <StatCard icon={IconOrders} label={t('dashboard.todaysOrders')} value={stats.orderCount} sub={`${stats.pending} ${t('dashboard.awaitingPayment')}`} delay={0} />
+        <StatCard icon={IconTable} label={t('dashboard.activeTables')} value={stats.activeTables} sub={t('dashboard.currentlyDining')} delay={60} />
+        <StatCard icon={IconUsers} label={t('dashboard.staffPresent')} value={`${stats.present}/${stats.totalStaff}`} sub={t('dashboard.onDutyNow')} delay={120} />
+        <StatCard icon={IconCash} label={t('dashboard.outstanding')} value={money(unpaidTotal)} sub={`${stats.pending} ${t('dashboard.unpaidOrders')}`} delay={180} />
       </div>
 
       <LowStockAlert items={lowStock} />
@@ -695,31 +707,32 @@ function ManagerDashboard({ stats, orders, orderTotal, attendance, unpaidTotal, 
 
 function FloorMap({ orders, orderTotal }) {
   const { tables } = useApp()
+  const t = useT()
   return (
     <div className="card p-6">
       <div className="flex items-center justify-between mb-5 border-b border-ink-line pb-4">
         <div>
-          <h3 className="font-serif text-xl text-cream">Table Floor Map</h3>
-          <p className="text-xs text-cream-dim mt-0.5">Real-time table status and waitstaff assignments.</p>
+          <h3 className="font-serif text-xl text-cream">{t('dashboard.tableFloorMap')}</h3>
+          <p className="text-xs text-cream-dim mt-0.5">{t('dashboard.floorMapSub')}</p>
         </div>
         <div className="flex items-center gap-3 text-[11px]">
           <span className="flex items-center gap-1.5 text-cream-dim">
-            <span className="h-2.5 w-2.5 rounded bg-ink-line ring-1 ring-white/10" /> Vacant
+            <span className="h-2.5 w-2.5 rounded bg-ink-line ring-1 ring-white/10" /> {t('dashboard.vacant')}
           </span>
           <span className="flex items-center gap-1.5 text-gold">
-            <span className="h-2.5 w-2.5 rounded bg-gold/20 ring-1 ring-gold/50 shadow-sm" /> Occupied
+            <span className="h-2.5 w-2.5 rounded bg-gold/20 ring-1 ring-gold/50 shadow-sm" /> {t('dashboard.occupied')}
           </span>
         </div>
       </div>
       
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-        {tables.map((t) => {
-          const activeOrder = orders.find((o) => o.table === t.id && o.payment === 'Unpaid' && !o.cancelled)
+        {tables.map((tbl) => {
+          const activeOrder = orders.find((o) => o.table === tbl.id && o.payment === 'Unpaid' && !o.cancelled)
           const occupied = !!activeOrder
 
           return (
             <div
-              key={t.id}
+              key={tbl.id}
               className={`relative rounded-xl border p-4 transition-all duration-300 ${
                 occupied
                   ? 'border-gold bg-gold/5 shadow-gold ring-1 ring-gold/25'
@@ -727,9 +740,9 @@ function FloorMap({ orders, orderTotal }) {
               }`}
             >
               <div className="flex justify-between items-start">
-                <span className="font-serif text-lg font-bold text-cream">T{t.id}</span>
+                <span className="font-serif text-lg font-bold text-cream">T{tbl.id}</span>
                 <span className="text-[9px] text-cream-dim font-bold uppercase bg-white/5 px-2 py-0.5 rounded-md">
-                  {t.seats} seats
+                  {tbl.seats} {t('dashboard.seats')}
                 </span>
               </div>
               
@@ -737,23 +750,23 @@ function FloorMap({ orders, orderTotal }) {
                 {occupied ? (
                   <div className="space-y-1">
                     <div>
-                      <p className="text-[9px] uppercase tracking-wider text-gold/75">Waiter</p>
+                      <p className="text-[9px] uppercase tracking-wider text-gold/75">{t('dashboard.waiter')}</p>
                       <p className="text-xs font-semibold text-cream truncate">{activeOrder.waiter}</p>
                     </div>
                     <div>
-                      <p className="text-[9px] uppercase tracking-wider text-cream-dim">Total Bill</p>
+                      <p className="text-[9px] uppercase tracking-wider text-cream-dim">{t('dashboard.totalBill')}</p>
                       <p className="text-xs font-bold text-gold">
                         {money(orderTotal(activeOrder.items, activeOrder.discount?.amount).total)}
                       </p>
                     </div>
-                    <span className="absolute top-2.5 right-2.5 flex h-2 w-2">
+                    <span className="absolute top-2.5 end-2.5 flex h-2 w-2">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gold opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-gold"></span>
                     </span>
                   </div>
                 ) : (
                   <div className="py-2.5">
-                    <span className="text-xs text-cream-dim/50 italic font-medium">Available</span>
+                    <span className="text-xs text-cream-dim/50 italic font-medium">{t('dashboard.available')}</span>
                   </div>
                 )}
               </div>
@@ -770,6 +783,7 @@ function FloorMap({ orders, orderTotal }) {
 // ============================================================================
 
 function CashierDashboard({ stats, orders, orderTotal, unpaidTotal, onProcessBill }) {
+  const t = useT()
   const unpaidOrders = orders.filter((o) => o.payment === 'Unpaid' && !o.cancelled)
   const paidOrders = orders.filter((o) => o.payment === 'Paid' && !o.cancelled)
 
@@ -777,10 +791,10 @@ function CashierDashboard({ stats, orders, orderTotal, unpaidTotal, onProcessBil
     <div className="space-y-6">
       {/* Cards Row */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={IconOrders} label="Today's Orders" value={stats.orderCount} sub="Placed today" delay={0} />
-        <StatCard icon={IconTrend} label="Collected" value={money(stats.revenue)} sub="Paid revenue" delay={60} />
-        <StatCard icon={IconCash} label="Pending" value={stats.pending} sub={`${money(unpaidTotal)} to collect`} delay={120} />
-        <StatCard icon={IconReceipt} label="Receipts" value={orders.length} sub="Ready to print" delay={180} />
+        <StatCard icon={IconOrders} label={t('dashboard.todaysOrders')} value={stats.orderCount} sub={t('dashboard.placedToday')} delay={0} />
+        <StatCard icon={IconTrend} label={t('dashboard.collected')} value={money(stats.revenue)} sub={t('dashboard.paidRevenue')} delay={60} />
+        <StatCard icon={IconCash} label={t('dashboard.pending')} value={stats.pending} sub={`${money(unpaidTotal)} ${t('dashboard.toCollect')}`} delay={120} />
+        <StatCard icon={IconReceipt} label={t('dashboard.receipts')} value={orders.length} sub={t('dashboard.readyToPrint')} delay={180} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -791,12 +805,12 @@ function CashierDashboard({ stats, orders, orderTotal, unpaidTotal, onProcessBil
           {/* Recent Sales History */}
           <div className="card overflow-hidden">
             <div className="flex items-center justify-between border-b border-ink-line p-5">
-              <h3 className="font-serif text-xl text-cream">Recent Payments Collected</h3>
-              <span className="text-xs text-cream-dim font-medium">Paid orders today</span>
+              <h3 className="font-serif text-xl text-cream">{t('dashboard.recentPayments')}</h3>
+              <span className="text-xs text-cream-dim font-medium">{t('dashboard.paidOrdersTodayLabel')}</span>
             </div>
             {paidOrders.length === 0 ? (
               <div className="p-8 text-center text-sm text-cream-dim">
-                No payments collected yet.
+                {t('dashboard.noPaymentsYet')}
               </div>
             ) : (
               <div className="divide-y divide-ink-line">
@@ -810,7 +824,7 @@ function CashierDashboard({ stats, orders, orderTotal, unpaidTotal, onProcessBil
                         {o.id} · <span className="text-cream-dim">{o.waiter}</span>
                       </p>
                       <p className="truncate text-xs text-cream-dim">
-                        {o.items.reduce((s, i) => s + i.qty, 0)} items · {time(o.createdAt)}
+                        {o.items.reduce((s, i) => s + i.qty, 0)} {t('common.items')} · {time(o.createdAt)}
                       </p>
                     </div>
                     <div className="text-right">
@@ -829,8 +843,8 @@ function CashierDashboard({ stats, orders, orderTotal, unpaidTotal, onProcessBil
         {/* Side Column */}
         <div className="space-y-6">
           <div className="card h-fit p-6">
-            <h3 className="font-serif text-xl text-cream">Cashier Desk Actions</h3>
-            <p className="mt-1 text-xs text-cream-dim font-medium">Jump straight to terminal operations.</p>
+            <h3 className="font-serif text-xl text-cream">{t('dashboard.cashierDeskActions')}</h3>
+            <p className="mt-1 text-xs text-cream-dim font-medium">{t('dashboard.jumpToTerminal')}</p>
             <div className="mt-5 space-y-3">
               <Link
                 to="/pos"
@@ -840,8 +854,8 @@ function CashierDashboard({ stats, orders, orderTotal, unpaidTotal, onProcessBil
                   <IconPOS size={20} />
                 </span>
                 <div>
-                  <p className="text-sm font-semibold text-cream">Open POS Terminal</p>
-                  <p className="text-xs text-cream-dim">Take new orders & checkout</p>
+                  <p className="text-sm font-semibold text-cream">{t('dashboard.openPos')}</p>
+                  <p className="text-xs text-cream-dim">{t('dashboard.takeNewOrders')}</p>
                 </div>
               </Link>
               <Link
@@ -852,13 +866,13 @@ function CashierDashboard({ stats, orders, orderTotal, unpaidTotal, onProcessBil
                   <IconReceipt size={20} />
                 </span>
                 <div>
-                  <p className="text-sm font-semibold text-cream">Print Receipts & Bills</p>
-                  <p className="text-xs text-cream-dim">{stats.pending} bills to process</p>
+                  <p className="text-sm font-semibold text-cream">{t('dashboard.printReceipts')}</p>
+                  <p className="text-xs text-cream-dim">{stats.pending} {t('dashboard.billsToProcess')}</p>
                 </div>
               </Link>
             </div>
             <div className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
-              <p className="text-xs uppercase tracking-widest text-amber-300/80 font-bold">Total outstanding to collect</p>
+              <p className="text-xs uppercase tracking-widest text-amber-300/80 font-bold">{t('dashboard.totalOutstanding')}</p>
               <p className="mt-1.5 font-serif text-3xl font-semibold text-amber-300">{money(unpaidTotal)}</p>
             </div>
           </div>
@@ -869,19 +883,20 @@ function CashierDashboard({ stats, orders, orderTotal, unpaidTotal, onProcessBil
 }
 
 function PendingBillsQueue({ orders, orderTotal, onProcessBill }) {
+  const t = useT()
   const unpaidOrders = orders.filter((o) => o.payment === 'Unpaid' && !o.cancelled)
 
   return (
     <div className="card overflow-hidden">
       <div className="flex items-center justify-between border-b border-ink-line p-5">
-        <h3 className="font-serif text-xl text-cream">Awaiting Payment Queue</h3>
+        <h3 className="font-serif text-xl text-cream">{t('dashboard.awaitingPaymentQueue')}</h3>
         <span className="badge bg-amber-500/12 text-amber-300 ring-1 ring-amber-500/30">
-          {unpaidOrders.length} pending bills
+          {unpaidOrders.length} {t('dashboard.pendingBills')}
         </span>
       </div>
       {unpaidOrders.length === 0 ? (
         <div className="p-12 text-center text-sm text-cream-dim">
-          All bills are paid! No pending payments.
+          {t('dashboard.allBillsPaid')}
         </div>
       ) : (
         <div className="divide-y divide-ink-line">
@@ -889,7 +904,7 @@ function PendingBillsQueue({ orders, orderTotal, onProcessBill }) {
             <div key={o.id} className="flex flex-col gap-3 p-4 hover:bg-white/[0.01] sm:flex-row sm:items-center sm:justify-between sm:gap-4">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="font-serif font-bold text-gold text-lg">Table {o.table}</span>
+                  <span className="font-serif font-bold text-gold text-lg">{t('dashboard.table')} {o.table}</span>
                   <span className="text-cream-dim">·</span>
                   <span className="text-sm font-semibold text-cream">{o.id}</span>
                   <span className="text-xs text-cream-dim">({o.waiter})</span>
@@ -907,7 +922,7 @@ function PendingBillsQueue({ orders, orderTotal, onProcessBill }) {
                   onClick={() => onProcessBill(o)}
                   className="btn-gold px-3.5 py-1.5 text-xs font-bold shrink-0"
                 >
-                  Process Bill
+                  {t('dashboard.processBill')}
                 </button>
               </div>
             </div>
@@ -924,6 +939,7 @@ function PendingBillsQueue({ orders, orderTotal, onProcessBill }) {
 
 export default function Dashboard() {
   const { stats, orders, orderTotal, attendance, lowStock, user, markPaid } = useApp()
+  const t = useT()
   const [activeReceipt, setActiveReceipt] = useState(null)
   const [lastRefresh, setLastRefresh] = useState(() => new Date())
 
@@ -943,9 +959,9 @@ export default function Dashboard() {
 
   // Role-specific headers and page headings
   const heading = {
-    Admin: { title: 'Admin Overview', sub: 'Full picture of financial performance and restaurant state today.' },
-    Manager: { title: 'Operations Dashboard', sub: 'Floor tables, waiter workloads, and on-duty staff at a glance.' },
-    Cashier: { title: 'Cashier Desk Dashboard', sub: 'Payments checkout, pending bills queue, and receipt generator.' },
+    Admin: { title: t('dashboard.adminTitle'), sub: t('dashboard.adminSub') },
+    Manager: { title: t('dashboard.managerTitle'), sub: t('dashboard.managerSub') },
+    Cashier: { title: t('dashboard.cashierTitle'), sub: t('dashboard.cashierSub') },
   }[role]
 
   const handleMarkPaid = (id) => {
@@ -958,7 +974,7 @@ export default function Dashboard() {
       <PageHeader title={`${heading.title} · ${user.name.split(' ')[0]}`} subtitle={heading.sub}>
         <LiveClock lastRefresh={lastRefresh} onRefresh={() => setLastRefresh(new Date())} />
         <Link to="/pos" className="btn-gold">
-          <IconPOS size={18} /> New Order
+          <IconPOS size={18} /> {t('nav.newOrder')}
         </Link>
       </PageHeader>
 
