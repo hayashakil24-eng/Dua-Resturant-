@@ -4,6 +4,22 @@ import Logo from './Logo.jsx'
 import { navForRole } from '../config/nav.js'
 import { useApp } from '../context/AppContext.jsx'
 import { useLang } from '../i18n/LanguageContext.jsx'
+
+// Routes translated to Urdu (admin panel). Operational pages used by
+// cashiers/waiters (POS, Orders, Billing) stay English + LTR even in Urdu mode,
+// so only these get RTL when the language is Urdu.
+const RTL_ROUTES = new Set([
+  '/',
+  '/tables',
+  '/menu',
+  '/inventory',
+  '/attendance',
+  '/employees',
+  '/payroll',
+  '/accounting',
+  '/reports',
+  '/kitchen',
+])
 import { dateLong } from '../utils/format.js'
 import { IconLogout, IconMenu, IconClose, IconCash } from './Icons.jsx'
 import ShiftStartModal from './ShiftStartModal.jsx'
@@ -99,10 +115,15 @@ function UserCard({ user, onExit, exitTitle = 'Log out' }) {
 
 export default function Layout({ children }) {
   const { user, logout, activeShift, startShift, endShift } = useApp()
-  const { t } = useLang()
+  const { t, lang } = useLang()
   const [open, setOpen] = useState(false)
   const [endOpen, setEndOpen] = useState(false)
   const location = useLocation()
+
+  // Content direction is per-route: only translated admin pages flip to RTL in
+  // Urdu; operational pages stay LTR. The sidebar/header chrome follows the
+  // global <html dir> (Urdu = RTL) regardless.
+  const contentDir = lang === 'ur' && RTL_ROUTES.has(location.pathname) ? 'rtl' : 'ltr'
 
   // Cashiers run against an open cash drawer: prompt for an opening balance
   // when none is set, and offer an end-of-shift count from the header.
@@ -201,7 +222,7 @@ export default function Layout({ children }) {
           </div>
         </header>
 
-        <main key={location.pathname} className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <main key={location.pathname} dir={contentDir} className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-7xl">{children}</div>
         </main>
       </div>

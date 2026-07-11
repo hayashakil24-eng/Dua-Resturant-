@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
+import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader, StatCard } from '../components/ui.jsx'
 import { dateLong } from '../utils/format.js'
 import { canModify } from '../config/permissions.js'
@@ -29,12 +30,13 @@ const LEVEL_STYLES = {
   ok: 'bg-emerald-500/12 text-emerald-300 ring-emerald-500/30',
 }
 
-const LEVEL_LABEL = { critical: 'Critical', low: 'Low', ok: 'In stock' }
+const LEVEL_LABEL_KEY = { critical: 'inventory.levelCritical', low: 'inventory.levelLow', ok: 'inventory.levelOk' }
 
 // Admin-only form to create a brand-new inventory item directly (separate from
 // the Chef's ingredient-request flow). `categories` seeds the dropdown from the
 // existing inventory; `onSave` runs the context action and returns {error?}.
 function AddItemModal({ categories, onClose, onSave }) {
+  const t = useT()
   const [name, setName] = useState('')
   const [category, setCategory] = useState(categories[0] || 'Other')
   const [unit, setUnit] = useState(UNITS[0])
@@ -66,8 +68,8 @@ function AddItemModal({ categories, onClose, onSave }) {
         <div className="card p-6">
           <div className="flex items-start justify-between">
             <div>
-              <h3 className="font-serif text-2xl text-cream">Add New Item</h3>
-              <p className="mt-0.5 text-xs text-cream-dim">Create a new inventory item directly.</p>
+              <h3 className="font-serif text-2xl text-cream">{t('inventory.addNewItem')}</h3>
+              <p className="mt-0.5 text-xs text-cream-dim">{t('inventory.createDirectly')}</p>
             </div>
             <button onClick={onClose} className="text-cream-dim hover:text-cream">
               <IconClose size={20} />
@@ -77,11 +79,11 @@ function AddItemModal({ categories, onClose, onSave }) {
           <div className="mt-5 space-y-3">
             <div>
               <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
-                Item Name
+                {t('inventory.itemName')}
               </label>
               <input
                 className="input"
-                placeholder="e.g. Green Chillies"
+                placeholder={t('inventory.itemNamePh')}
                 value={name}
                 autoFocus
                 onChange={(e) => {
@@ -94,7 +96,7 @@ function AddItemModal({ categories, onClose, onSave }) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
-                  Category
+                  {t('inventory.category')}
                 </label>
                 <select
                   className="input py-2"
@@ -110,7 +112,7 @@ function AddItemModal({ categories, onClose, onSave }) {
               </div>
               <div>
                 <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
-                  Base Unit
+                  {t('inventory.baseUnit')}
                 </label>
                 <select className="input py-2" value={unit} onChange={(e) => setUnit(e.target.value)}>
                   {UNITS.map((u) => (
@@ -125,7 +127,7 @@ function AddItemModal({ categories, onClose, onSave }) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
-                  Initial Stock
+                  {t('inventory.initialStock')}
                 </label>
                 <input
                   type="number"
@@ -138,7 +140,7 @@ function AddItemModal({ categories, onClose, onSave }) {
               </div>
               <div>
                 <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
-                  Threshold (low-stock alert)
+                  {t('inventory.thresholdAlert')}
                 </label>
                 <input
                   type="number"
@@ -158,14 +160,14 @@ function AddItemModal({ categories, onClose, onSave }) {
 
           <div className="mt-6 flex gap-3">
             <button onClick={onClose} className="btn-ghost flex-1 py-3">
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               onClick={submit}
               disabled={!valid}
               className="btn-gold flex-1 py-3 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <IconCheck size={18} /> Add Item
+              <IconCheck size={18} /> {t('inventory.addItem')}
             </button>
           </div>
         </div>
@@ -176,6 +178,7 @@ function AddItemModal({ categories, onClose, onSave }) {
 
 export default function Inventory() {
   const { inventory, lowStock, adjustStock, restock, addInventoryItem, user } = useApp()
+  const t = useT()
   const [query, setQuery] = useState('')
   const [showAdd, setShowAdd] = useState(false)
   // Page access (also gates whether the Adjust column shows at all).
@@ -211,37 +214,37 @@ export default function Inventory() {
 
   return (
     <div>
-      <PageHeader title="Inventory" subtitle={dateLong()}>
+      <PageHeader title={t('inventory.title')} subtitle={dateLong()}>
         <div className="flex items-center gap-2">
           <div className="relative">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-cream-dim">
+            <span className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-cream-dim">
               <IconSearch size={16} />
             </span>
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search items…"
-              className="w-56 rounded-xl border border-ink-line bg-ink-soft py-2 pl-9 pr-3 text-sm text-cream placeholder:text-cream-dim/60 focus:border-gold/40 focus:outline-none"
+              placeholder={t('inventory.searchItems')}
+              className="w-56 rounded-xl border border-ink-line bg-ink-soft py-2 ps-9 pe-3 text-sm text-cream placeholder:text-cream-dim/60 focus:border-gold/40 focus:outline-none"
             />
           </div>
           {canCreate && (
             <button onClick={() => setShowAdd(true)} className="btn-gold shrink-0 px-4 py-2 text-sm">
-              <IconPlus size={16} /> Add New Item
+              <IconPlus size={16} /> {t('inventory.addNewItem')}
             </button>
           )}
         </div>
       </PageHeader>
 
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
-        <StatCard icon={IconInventory} label="Total Items" value={inventory.length} sub="Tracked in kitchen" />
-        <StatCard icon={IconAlert} label="Low Stock" value={lowStock.length} sub="At or below threshold" />
-        <StatCard icon={IconAlert} label="Critical" value={critical} sub="Needs immediate restock" />
+        <StatCard icon={IconInventory} label={t('inventory.totalItems')} value={inventory.length} sub={t('inventory.trackedInKitchen')} />
+        <StatCard icon={IconAlert} label={t('inventory.lowStock')} value={lowStock.length} sub={t('inventory.atOrBelow')} />
+        <StatCard icon={IconAlert} label={t('inventory.critical')} value={critical} sub={t('inventory.needsRestock')} />
       </div>
 
       {canEdit && !canAddStock && (
         <p className="mb-4 flex items-center gap-2 rounded-xl border border-ink-line bg-ink-soft px-4 py-2.5 text-xs text-cream-dim">
           <IconAlert size={14} className="shrink-0 text-gold" />
-          New stock entries are handled by the Manager. You can adjust existing quantities for corrections.
+          {t('inventory.managerNote')}
         </p>
       )}
 
@@ -250,12 +253,12 @@ export default function Inventory() {
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead>
               <tr className="border-b border-ink-line text-xs uppercase tracking-wider text-cream-dim">
-                <th className="px-5 py-4 font-semibold">Item</th>
-                <th className="px-5 py-4 font-semibold">Category</th>
-                <th className="px-5 py-4 font-semibold">In Stock</th>
-                <th className="px-5 py-4 font-semibold">Threshold</th>
-                <th className="px-5 py-4 font-semibold">Status</th>
-                {canEdit && <th className="px-5 py-4 text-right font-semibold">Adjust</th>}
+                <th className="px-5 py-4 font-semibold">{t('inventory.colItem')}</th>
+                <th className="px-5 py-4 font-semibold">{t('inventory.colCategory')}</th>
+                <th className="px-5 py-4 font-semibold">{t('inventory.colInStock')}</th>
+                <th className="px-5 py-4 font-semibold">{t('inventory.colThreshold')}</th>
+                <th className="px-5 py-4 font-semibold">{t('inventory.colStatus')}</th>
+                {canEdit && <th className="px-5 py-4 text-right font-semibold">{t('inventory.colAdjust')}</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-line">
@@ -290,7 +293,7 @@ export default function Inventory() {
                       {item.threshold} {item.unit}
                     </td>
                     <td className="px-5 py-4">
-                      <span className={`badge ring-1 ${LEVEL_STYLES[level]}`}>{LEVEL_LABEL[level]}</span>
+                      <span className={`badge ring-1 ${LEVEL_STYLES[level]}`}>{t(LEVEL_LABEL_KEY[level])}</span>
                     </td>
                     {canEdit && (
                       <td className="px-5 py-4">
@@ -300,14 +303,14 @@ export default function Inventory() {
                               <button
                                 onClick={() => adjustStock(item.id, -1)}
                                 className="grid h-8 w-8 place-items-center rounded-lg border border-ink-line bg-ink-soft text-cream-dim transition hover:border-rose-500/40 hover:text-rose-300"
-                                title="Use 1 unit (correction)"
+                                title={t('inventory.useOne')}
                               >
                                 <IconMinus size={14} />
                               </button>
                               <button
                                 onClick={() => adjustStock(item.id, 1)}
                                 className="grid h-8 w-8 place-items-center rounded-lg border border-ink-line bg-ink-soft text-cream-dim transition hover:border-emerald-500/40 hover:text-emerald-300"
-                                title="Add 1 unit (correction)"
+                                title={t('inventory.addOne')}
                               >
                                 <IconPlus size={14} />
                               </button>
@@ -317,9 +320,9 @@ export default function Inventory() {
                             <button
                               onClick={() => restock(item.id, 10)}
                               className="btn-gold px-3 py-1.5 text-xs font-bold"
-                              title="Add new stock (purchase)"
+                              title={t('inventory.addNewStock')}
                             >
-                              Restock +10
+                              {t('inventory.restock10')}
                             </button>
                           )}
                         </div>
@@ -333,7 +336,7 @@ export default function Inventory() {
         </div>
         {filtered.length === 0 && (
           <div className="p-10 text-center text-sm text-cream-dim">
-            No items match “{query}”.
+            {t('inventory.noMatch')} “{query}”.
           </div>
         )}
       </div>

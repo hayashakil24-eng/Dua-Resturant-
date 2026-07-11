@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext.jsx'
+import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader, PaymentBadge } from '../components/ui.jsx'
 import { canModify, hasAccess } from '../config/permissions.js'
 import { money, time } from '../utils/format.js'
@@ -17,6 +18,7 @@ const URGENT_MINS = 15
 const minutesSince = (iso, now) => Math.max(0, Math.floor((now - new Date(iso).getTime()) / 60000))
 
 function TableCard({ info, now, onClick }) {
+  const t = useT()
   const inUse = info.status === 'in-use'
   const mins = inUse ? minutesSince(info.order.createdAt, now) : 0
   const urgent = inUse && mins >= URGENT_MINS
@@ -29,22 +31,22 @@ function TableCard({ info, now, onClick }) {
       : 'border-rose-500/40 bg-rose-500/[0.07] hover:border-rose-500/70'
 
   return (
-    <button onClick={onClick} className={`flex flex-col rounded-2xl border-2 p-4 text-left transition ${tone}`}>
+    <button onClick={onClick} className={`flex flex-col rounded-2xl border-2 p-4 text-start transition ${tone}`}>
       <div className="flex items-center justify-between">
         <span className={`flex h-2.5 w-2.5 rounded-full ${inUse ? 'bg-rose-400' : 'bg-emerald-400'}`} />
         <span className="text-[10px] font-semibold uppercase tracking-wider text-cream-dim">
-          {inUse ? 'In use' : 'Available'}
+          {inUse ? t('tables.inUse') : t('tables.available')}
         </span>
       </div>
 
-      <p className="mt-2 font-serif text-2xl font-bold text-cream">Table {info.id}</p>
+      <p className="mt-2 font-serif text-2xl font-bold text-cream">{t('tables.table')} {info.id}</p>
 
       {inUse ? (
         <div className="mt-2 space-y-1">
           <p className="text-xs text-cream-dim">
-            {itemCount} item{itemCount !== 1 ? 's' : ''} ·{' '}
+            {itemCount} {itemCount !== 1 ? t('tables.items') : t('tables.item')} ·{' '}
             <span className={urgent ? 'font-semibold text-rose-300' : 'text-cream'}>
-              {mins} min{urgent && ' ⚠️'}
+              {mins} {t('tables.min')}{urgent && ' ⚠️'}
             </span>
           </p>
           <p className="truncate text-xs text-cream-dim">👤 {info.order.waiter}</p>
@@ -55,18 +57,19 @@ function TableCard({ info, now, onClick }) {
               </p>
             ))}
             {info.order.items.length > 2 && (
-              <p className="text-[11px] text-cream-dim/70">• +{info.order.items.length - 2} more</p>
+              <p className="text-[11px] text-cream-dim/70">• +{info.order.items.length - 2} {t('tables.more')}</p>
             )}
           </div>
         </div>
       ) : (
-        <p className="mt-2 text-xs text-cream-dim">Seats {info.seats} · tap to start order</p>
+        <p className="mt-2 text-xs text-cream-dim">{t('tables.seats')} {info.seats} · {t('tables.tapToStart')}</p>
       )}
     </button>
   )
 }
 
 function OrderDetailsModal({ order, orderTotal, onClose, canAddItems, onAddItems }) {
+  const t = useT()
   const { subtotal, tax, discount, total } = orderTotal(order.items, order.discount?.amount)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -75,7 +78,7 @@ function OrderDetailsModal({ order, orderTotal, onClose, canAddItems, onAddItems
         <div className="card p-6">
           <div className="flex items-start justify-between">
             <div>
-              <h3 className="font-serif text-2xl text-cream">Table {order.table}</h3>
+              <h3 className="font-serif text-2xl text-cream">{t('tables.table')} {order.table}</h3>
               <p className="mt-0.5 text-xs text-cream-dim">
                 {order.id} · {order.waiter} · {time(order.createdAt)}
               </p>
@@ -88,7 +91,7 @@ function OrderDetailsModal({ order, orderTotal, onClose, canAddItems, onAddItems
           <div className="mt-4 flex items-center gap-2">
             <PaymentBadge status={order.payment} />
             <span className="badge bg-white/5 text-cream-dim ring-1 ring-ink-line">
-              Kitchen: {order.kitchen || '—'}
+              {t('tables.kitchen')}: {order.kitchen || '—'}
             </span>
           </div>
 
@@ -105,21 +108,21 @@ function OrderDetailsModal({ order, orderTotal, onClose, canAddItems, onAddItems
 
           <div className="mt-3 space-y-1 border-t border-ink-line pt-3 text-sm">
             <div className="flex justify-between text-cream-dim">
-              <span>Subtotal</span>
+              <span>{t('tables.subtotal')}</span>
               <span className="text-cream">{money(subtotal)}</span>
             </div>
             <div className="flex justify-between text-cream-dim">
-              <span>GST</span>
+              <span>{t('tables.gst')}</span>
               <span className="text-cream">{money(tax)}</span>
             </div>
             {discount > 0 && (
               <div className="flex justify-between text-emerald-300">
-                <span>Discount{order.discount?.reason ? ` (${order.discount.reason})` : ''}</span>
+                <span>{t('tables.discount')}{order.discount?.reason ? ` (${order.discount.reason})` : ''}</span>
                 <span>- {money(discount)}</span>
               </div>
             )}
             <div className="flex items-center justify-between pt-1">
-              <span className="font-serif text-lg text-cream">Total</span>
+              <span className="font-serif text-lg text-cream">{t('tables.total')}</span>
               <span className="font-serif text-2xl font-semibold text-gold">{money(total)}</span>
             </div>
           </div>
@@ -127,7 +130,7 @@ function OrderDetailsModal({ order, orderTotal, onClose, canAddItems, onAddItems
           {/* Running bill: add more items to this same order (one combined bill) */}
           {canAddItems && order.payment === 'Unpaid' && (
             <button onClick={onAddItems} className="btn-gold mt-5 w-full py-2.5 text-sm">
-              <IconPlus size={16} /> Add More Items
+              <IconPlus size={16} /> {t('tables.addMoreItems')}
             </button>
           )}
         </div>
@@ -137,6 +140,7 @@ function OrderDetailsModal({ order, orderTotal, onClose, canAddItems, onAddItems
 }
 
 function TablesManageModal({ tables, occupied, canDelete, onAdd, onUpdate, onDelete, onClose }) {
+  const t = useT()
   const [editingId, setEditingId] = useState(null)
   const [number, setNumber] = useState('')
   const [capacity, setCapacity] = useState('4')
@@ -149,7 +153,7 @@ function TablesManageModal({ tables, occupied, canDelete, onAdd, onUpdate, onDel
     setSection('')
   }
 
-  const numTaken = tables.some((t) => t.id === Number(number)) && Number(number) !== editingId
+  const numTaken = tables.some((tbl) => tbl.id === Number(number)) && Number(number) !== editingId
   const valid = Number(number) > 0 && Number(capacity) > 0 && (editingId != null || !numTaken)
 
   const submit = () => {
@@ -162,11 +166,11 @@ function TablesManageModal({ tables, occupied, canDelete, onAdd, onUpdate, onDel
     reset()
   }
 
-  const startEdit = (t) => {
-    setEditingId(t.id)
-    setNumber(String(t.id))
-    setCapacity(String(t.seats))
-    setSection(t.section || '')
+  const startEdit = (tbl) => {
+    setEditingId(tbl.id)
+    setNumber(String(tbl.id))
+    setCapacity(String(tbl.seats))
+    setSection(tbl.section || '')
   }
 
   return (
@@ -175,7 +179,7 @@ function TablesManageModal({ tables, occupied, canDelete, onAdd, onUpdate, onDel
       <div className="relative z-10 w-full max-w-lg animate-fade-up">
         <div className="card max-h-[90vh] overflow-y-auto p-6">
           <div className="flex items-start justify-between">
-            <h3 className="font-serif text-2xl text-cream">Manage Tables</h3>
+            <h3 className="font-serif text-2xl text-cream">{t('tables.manage')}</h3>
             <button onClick={onClose} className="text-cream-dim hover:text-cream">
               <IconClose size={20} />
             </button>
@@ -184,14 +188,14 @@ function TablesManageModal({ tables, occupied, canDelete, onAdd, onUpdate, onDel
           {/* Add / edit form */}
           <div className="mt-5 rounded-xl border border-ink-line bg-ink-soft/50 p-4">
             <p className="mb-3 text-[11px] uppercase tracking-wider text-cream-dim">
-              {editingId != null ? `Edit Table ${editingId}` : 'Add a table'}
+              {editingId != null ? `${t('tables.editTable')} ${editingId}` : t('tables.addATable')}
             </p>
             <div className="grid grid-cols-3 gap-2">
               <input
                 type="number"
                 min={1}
                 className="input py-2"
-                placeholder="Number"
+                placeholder={t('tables.number')}
                 value={number}
                 disabled={editingId != null}
                 onChange={(e) => setNumber(e.target.value)}
@@ -200,24 +204,24 @@ function TablesManageModal({ tables, occupied, canDelete, onAdd, onUpdate, onDel
                 type="number"
                 min={1}
                 className="input py-2"
-                placeholder="Capacity"
+                placeholder={t('tables.capacity')}
                 value={capacity}
                 onChange={(e) => setCapacity(e.target.value)}
               />
               <input
                 className="input py-2"
-                placeholder="Section"
+                placeholder={t('tables.section')}
                 value={section}
                 onChange={(e) => setSection(e.target.value)}
               />
             </div>
             {numTaken && editingId == null && (
-              <p className="mt-2 text-xs text-rose-300">Table {number} already exists.</p>
+              <p className="mt-2 text-xs text-rose-300">{t('tables.table')} {number} {t('tables.alreadyExists')}</p>
             )}
             <div className="mt-3 flex gap-2">
               {editingId != null && (
                 <button onClick={reset} className="btn-ghost flex-1 py-2 text-sm">
-                  Cancel edit
+                  {t('tables.cancelEdit')}
                 </button>
               )}
               <button
@@ -225,36 +229,36 @@ function TablesManageModal({ tables, occupied, canDelete, onAdd, onUpdate, onDel
                 disabled={!valid}
                 className="btn-gold flex-1 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <IconPlus size={16} /> {editingId != null ? 'Update Table' : 'Add Table'}
+                <IconPlus size={16} /> {editingId != null ? t('tables.updateTable') : t('tables.addTable')}
               </button>
             </div>
           </div>
 
           {/* Existing tables */}
           <div className="mt-4 divide-y divide-ink-line">
-            {tables.map((t) => {
-              const inUse = occupied.has(t.id)
+            {tables.map((tbl) => {
+              const inUse = occupied.has(tbl.id)
               return (
-                <div key={t.id} className="flex items-center justify-between py-2.5">
+                <div key={tbl.id} className="flex items-center justify-between py-2.5">
                   <div>
                     <p className="text-sm font-medium text-cream">
-                      Table {t.id} <span className="text-cream-dim">· {t.seats} seats</span>
+                      {t('tables.table')} {tbl.id} <span className="text-cream-dim">· {tbl.seats} {t('tables.seatsWord')}</span>
                     </p>
-                    {t.section && <p className="text-xs text-cream-dim">{t.section}</p>}
+                    {tbl.section && <p className="text-xs text-cream-dim">{tbl.section}</p>}
                   </div>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => startEdit(t)}
+                      onClick={() => startEdit(tbl)}
                       className="grid h-8 w-8 place-items-center rounded-lg border border-ink-line text-cream-dim transition hover:border-gold/40 hover:text-gold"
-                      title="Edit"
+                      title={t('common.edit')}
                     >
                       <IconEdit size={15} />
                     </button>
                     {canDelete && (
                       <button
-                        onClick={() => onDelete(t.id)}
+                        onClick={() => onDelete(tbl.id)}
                         disabled={inUse}
-                        title={inUse ? 'Table in use — cannot delete' : 'Delete'}
+                        title={inUse ? t('tables.inUse') : t('common.delete')}
                         className="grid h-8 w-8 place-items-center rounded-lg border border-ink-line text-cream-dim transition hover:border-rose-500/40 hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-30"
                       >
                         <IconTrash size={15} />
@@ -272,13 +276,14 @@ function TablesManageModal({ tables, occupied, canDelete, onAdd, onUpdate, onDel
 }
 
 const TABS = [
-  { key: 'running', label: 'Running', dot: 'bg-rose-400' },
-  { key: 'available', label: 'Available', dot: 'bg-emerald-400' },
-  { key: 'all', label: 'All Tables', dot: 'bg-gold' },
+  { key: 'running', labelKey: 'tables.running', dot: 'bg-rose-400' },
+  { key: 'available', labelKey: 'tables.available', dot: 'bg-emerald-400' },
+  { key: 'all', labelKey: 'tables.allTables', dot: 'bg-gold' },
 ]
 
 export default function Tables() {
   const { orders, orderTotal, tables, addTable, updateTable, deleteTable, user } = useApp()
+  const t = useT()
   const navigate = useNavigate()
   const [tab, setTab] = useState('all')
   const [detail, setDetail] = useState(null)
@@ -294,18 +299,18 @@ export default function Tables() {
   // Each table's status = its oldest active (unpaid, non-cancelled) order, if any.
   const tableInfo = useMemo(
     () =>
-      tables.map((t) => {
+      tables.map((tbl) => {
         const order = orders
-          .filter((o) => o.table === t.id && o.payment === 'Unpaid' && !o.cancelled)
+          .filter((o) => o.table === tbl.id && o.payment === 'Unpaid' && !o.cancelled)
           .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))[0]
-        return { ...t, order: order || null, status: order ? 'in-use' : 'available' }
+        return { ...tbl, order: order || null, status: order ? 'in-use' : 'available' }
       }),
     [orders, tables],
   )
 
-  const running = tableInfo.filter((t) => t.status === 'in-use')
-  const available = tableInfo.filter((t) => t.status === 'available')
-  const occupied = new Set(running.map((t) => t.id))
+  const running = tableInfo.filter((tbl) => tbl.status === 'in-use')
+  const available = tableInfo.filter((tbl) => tbl.status === 'available')
+  const occupied = new Set(running.map((tbl) => tbl.id))
   const groups = { running, available, all: tableInfo }
   const shown = groups[tab]
 
@@ -324,30 +329,30 @@ export default function Tables() {
 
   return (
     <div>
-      <PageHeader title="Tables" subtitle="Live floor status — running, available and full overview.">
+      <PageHeader title={t('tables.title')} subtitle={t('tables.subtitle')}>
         {canManageTables && (
           <button onClick={() => setManage(true)} className="btn-ghost px-4 py-2 text-sm">
-            <IconTable size={16} /> Manage Tables
+            <IconTable size={16} /> {t('tables.manage')}
           </button>
         )}
       </PageHeader>
 
       {/* Tabs */}
       <div className="mb-5 flex flex-wrap gap-2 border-b border-ink-line pb-4">
-        {TABS.map((t) => {
-          const count = groups[t.key].length
+        {TABS.map((tb) => {
+          const count = groups[tb.key].length
           return (
             <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
+              key={tb.key}
+              onClick={() => setTab(tb.key)}
               className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition ${
-                tab === t.key
+                tab === tb.key
                   ? 'border-gold/60 bg-gold/12 text-gold'
                   : 'border-ink-line bg-ink-soft text-cream-dim hover:text-cream'
               }`}
             >
-              <span className={`h-2.5 w-2.5 rounded-full ${t.dot}`} />
-              {t.label} <span className="opacity-70">({count})</span>
+              <span className={`h-2.5 w-2.5 rounded-full ${tb.dot}`} />
+              {t(tb.labelKey)} <span className="opacity-70">({count})</span>
             </button>
           )
         })}
@@ -356,9 +361,9 @@ export default function Tables() {
       {/* Grid */}
       {shown.length === 0 ? (
         <div className="card grid place-items-center p-12 text-center text-sm text-cream-dim">
-          {tab === 'running' && 'No tables in use right now.'}
-          {tab === 'available' && 'All tables are occupied!'}
-          {tab === 'all' && 'No tables configured.'}
+          {tab === 'running' && t('tables.noneRunning')}
+          {tab === 'available' && t('tables.allOccupied')}
+          {tab === 'all' && t('tables.noneConfigured')}
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
@@ -371,19 +376,19 @@ export default function Tables() {
       {/* Stats footer */}
       <div className="mt-8 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-ink-line bg-ink-soft/40 px-5 py-4 text-sm">
         <span className="flex items-center gap-2 text-cream-dim">
-          <span className="h-2.5 w-2.5 rounded-full bg-rose-400" /> In use:{' '}
+          <span className="h-2.5 w-2.5 rounded-full bg-rose-400" /> {t('tables.inUse')}:{' '}
           <span className="font-semibold text-cream">{running.length}</span>
         </span>
         <span className="flex items-center gap-2 text-cream-dim">
-          <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" /> Available:{' '}
+          <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" /> {t('tables.available')}:{' '}
           <span className="font-semibold text-cream">{available.length}</span>
         </span>
         <span className="flex items-center gap-2 text-cream-dim">
-          <IconTable size={16} /> Total:{' '}
+          <IconTable size={16} /> {t('tables.totalLabel')}:{' '}
           <span className="font-semibold text-cream">{tableInfo.length}</span>
         </span>
         <button onClick={() => navigate('/pos')} className="btn-gold px-4 py-2 text-sm">
-          <IconPOS size={16} /> New Order
+          <IconPOS size={16} /> {t('nav.newOrder')}
         </button>
       </div>
 

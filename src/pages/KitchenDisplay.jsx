@@ -101,7 +101,8 @@ export default function KitchenDisplay() {
   })
 
   return (
-    <div className="min-h-screen bg-ink bg-ink-grad">
+    // Kitchen Display stays English + LTR (operational screen).
+    <div dir="ltr" className="min-h-screen bg-ink bg-ink-grad">
       <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-ink-line bg-ink/90 px-6 py-4 backdrop-blur">
         <div className="flex items-center gap-3">
           <h1 className="font-serif text-3xl font-bold text-cream sm:text-4xl">
