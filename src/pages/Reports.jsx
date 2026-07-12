@@ -75,7 +75,7 @@ export default function Reports() {
   }, [today])
 
   const [type, setType] = useState('daily')
-  const [view, setView] = useState('summary') // 'summary' | 'itemwise'
+  const [view, setView] = useState('overview') // 'overview' | 'summary' | 'itemwise'
   const [dailyDate, setDailyDate] = useState(() => toDayStr(new Date()))
   const [monthKey, setMonthKey] = useState(monthOptions[0].key)
 
@@ -256,6 +256,7 @@ export default function Reports() {
       {/* View tabs — Summary (totals) vs Item-Wise (per-item breakdown) */}
       <div className="mx-auto mb-4 flex max-w-2xl gap-2 border-b border-ink-line no-print">
         {[
+          ['overview', 'reports.dailyReport'],
           ['summary', 'reports.summary'],
           ['itemwise', 'reports.itemWise'],
         ].map(([key, labelKey]) => (
@@ -273,8 +274,57 @@ export default function Reports() {
         ))}
       </div>
 
-      {/* Printable report (light "paper" — matches print output) */}
       <div className="mx-auto max-w-2xl">
+        {/* Daily Report — a clean, at-a-glance overview (screen view, not the
+            printable paper). Uses the app's real figures incl. net profit. */}
+        {view === 'overview' && (
+          <div className="space-y-4">
+            <div className="card flex items-center justify-between p-5">
+              <span className="text-sm text-cream-dim">{t('reports.date')}</span>
+              <span className="font-serif text-lg font-semibold text-gold">{report.rangeLabel}</span>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="card p-6">
+                <p className="text-xs uppercase tracking-widest text-cream-dim">{t('reports.totalOrders')}</p>
+                <p className="mt-2 font-serif text-4xl font-semibold text-cream">{report.totalOrders}</p>
+              </div>
+              <div className="card p-6">
+                <p className="text-xs uppercase tracking-widest text-cream-dim">{t(report.revenueLabelKey)}</p>
+                <p className="mt-2 font-serif text-4xl font-semibold text-gold">{money(report.revenue)}</p>
+              </div>
+              <div className="card border border-emerald-500/25 bg-emerald-500/[0.06] p-6">
+                <p className="text-xs uppercase tracking-widest text-emerald-300/80">💵 {t('reports.cashPayment')}</p>
+                <p className="mt-2 font-serif text-3xl font-semibold text-emerald-300">{money(report.cash)}</p>
+              </div>
+              <div className="card border border-sky-500/25 bg-sky-500/[0.06] p-6">
+                <p className="text-xs uppercase tracking-widest text-sky-300/80">💳 {t('reports.cardPayment')}</p>
+                <p className="mt-2 font-serif text-3xl font-semibold text-sky-300">{money(report.card)}</p>
+              </div>
+            </div>
+
+            <div className="card border border-gold/30 bg-gold/[0.06] p-6">
+              <p className="text-xs uppercase tracking-widest text-gold/80">{t('reports.totalProfit')}</p>
+              <p
+                className={`mt-2 font-serif text-4xl font-semibold ${
+                  report.netProfit >= 0 ? 'text-gold' : 'text-rose-300'
+                }`}
+              >
+                {money(report.netProfit)}
+              </p>
+            </div>
+
+            {report.totalOrders === 0 && (
+              <div className="card p-8 text-center text-sm text-cream-dim">
+                {t('reports.noOrdersPeriod')}
+              </div>
+            )}
+          </div>
+        )}
+
+        {view !== 'overview' && (
+        <>
+        {/* Printable report (light "paper" — matches print output) */}
         <div id="printable-report" className="rounded-2xl bg-white p-8 text-[#3E2723] shadow-lift border border-[#E8DCC4]">
           {/* Brand header */}
           <div className="text-center">
@@ -446,6 +496,8 @@ export default function Reports() {
             <IconWhatsApp size={18} /> {t('reports.shareWhatsApp')}
           </button>
         </div>
+        </>
+        )}
       </div>
     </div>
   )
