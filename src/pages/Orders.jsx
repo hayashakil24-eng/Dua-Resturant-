@@ -17,7 +17,7 @@ function CancelledBadge() {
   )
 }
 
-// Manager/Admin cancel dialog — reason required, no PIN (role-gated).
+// Admin-only cancel dialog — reason required, no PIN (role-gated).
 function CancelModal({ order, orderTotal, onConfirm, onClose }) {
   const [reason, setReason] = useState('')
   const [notes, setNotes] = useState('')
@@ -152,9 +152,6 @@ export default function Orders() {
             <IconClose size={14} /> Cancel
           </button>
         )}
-        {isUnpaid && !canCancel && (
-          <span className="text-xs text-amber-300/90">⚠️ Contact Manager to cancel</span>
-        )}
       </div>
     )
   }
@@ -273,7 +270,7 @@ export default function Orders() {
         </>
       )}
 
-      {/* Cancellation log — Manager/Admin only */}
+      {/* Cancellation log — Admin only */}
       {canCancel && auditLog.length > 0 && (
         <div className="card mt-6 overflow-hidden">
           <div className="border-b border-ink-line p-5">
