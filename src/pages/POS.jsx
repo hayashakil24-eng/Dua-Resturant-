@@ -564,9 +564,19 @@ export default function POS() {
                     disabled={tableLocked}
                     onChange={(e) => setTable(e.target.value)}
                   >
-                    <option value="">Select</option>
+                    <option value="">Select table or order type</option>
+                    {/* Special order types first, then physical tables by category */}
+                    <optgroup label="🚗 Special Orders">
+                      {tables
+                        .filter((tb) => tb.orderType)
+                        .map((tb) => (
+                          <option key={tb.id} value={tb.id}>
+                            {tb.orderType === 'delivery' ? '🚗 Delivery' : '🛍️ Takeaway'}
+                          </option>
+                        ))}
+                    </optgroup>
                     {TABLE_CATEGORIES.map((c) => (
-                      <optgroup key={c} label={c === 'HUT' ? 'HUT (Outdoor)' : `Category ${c}`}>
+                      <optgroup key={c} label={c === 'HUT' ? '📍 HUT (Outdoor)' : `📍 Category ${c}`}>
                         {tables
                           .filter((tb) => tb.category === c)
                           .map((tb) => (
@@ -576,15 +586,6 @@ export default function POS() {
                           ))}
                       </optgroup>
                     ))}
-                    <optgroup label="Special">
-                      {tables
-                        .filter((tb) => tb.orderType)
-                        .map((tb) => (
-                          <option key={tb.id} value={tb.id}>
-                            {tb.orderType === 'delivery' ? '🚗 Delivery' : '🛍️ Takeaway'}
-                          </option>
-                        ))}
-                    </optgroup>
                   </select>
                 </div>
                 <div>
