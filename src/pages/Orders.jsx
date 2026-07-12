@@ -4,6 +4,7 @@ import { PageHeader, PaymentBadge, EmptyState } from '../components/ui.jsx'
 import { money, time } from '../utils/format.js'
 import { IconOrders, IconSearch, IconCheck, IconClose } from '../components/Icons.jsx'
 import { canModify } from '../config/permissions.js'
+import PaymentModal from '../components/PaymentModal.jsx'
 
 const FILTERS = ['All', 'Paid', 'Unpaid', 'Cancelled']
 const CANCEL_REASONS = ['Customer Request', 'Wrong Order', 'Out of Stock', 'Other']
@@ -103,6 +104,7 @@ export default function Orders() {
   const [filter, setFilter] = useState('All')
   const [query, setQuery] = useState('')
   const [cancelTarget, setCancelTarget] = useState(null)
+  const [payTarget, setPayTarget] = useState(null) // unpaid order awaiting payment
 
   const rows = useMemo(
     () =>
@@ -138,10 +140,10 @@ export default function Orders() {
       <div className="flex items-center justify-end gap-2">
         {isUnpaid && canMarkPaid && (
           <button
-            onClick={() => markPaid(o.id)}
+            onClick={() => setPayTarget(o)}
             className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-500/20"
           >
-            <IconCheck size={14} /> Mark Paid
+            <IconCheck size={14} /> Mark as Paid
           </button>
         )}
         {isUnpaid && canCancel && (
@@ -304,6 +306,18 @@ export default function Orders() {
             setCancelTarget(null)
           }}
           onClose={() => setCancelTarget(null)}
+        />
+      )}
+
+      {/* Mark as Paid → same payment dialog as the POS "Pay Now" flow. */}
+      {payTarget && (
+        <PaymentModal
+          total={orderTotal(payTarget.items, payTarget.discount?.amount).total}
+          onConfirm={(method) => {
+            markPaid(payTarget.id, method)
+            setPayTarget(null)
+          }}
+          onClose={() => setPayTarget(null)}
         />
       )}
     </div>
