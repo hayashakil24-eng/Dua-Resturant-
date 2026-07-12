@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader } from '../components/ui.jsx'
-import { money } from '../utils/format.js'
+import { money, monthYear, dateLong, time } from '../utils/format.js'
 import { monthFigures } from '../utils/accounting.js'
 import { safePrint } from '../utils/print.js'
 import { RECIPE_MAP } from '../data/mockData.js'
@@ -68,7 +68,7 @@ export default function Reports() {
       const d = new Date(today.getFullYear(), today.getMonth() - i, 1)
       opts.push({
         key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
-        label: d.toLocaleDateString('en-PK', { month: 'long', year: 'numeric' }),
+        label: monthYear(d),
       })
     }
     return opts
@@ -170,12 +170,7 @@ export default function Reports() {
       .reduce((s, tx) => s + tx.amount, 0)
     return {
       titleKey: 'reports.dailyReport',
-      rangeLabel: new Date(`${dailyDate}T00:00:00`).toLocaleDateString('en-PK', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      }),
+      rangeLabel: dateLong(`${dailyDate}T00:00:00`),
       // Total Sale = collected (paid) orders only, so it always equals
       // Cash + Card. Unpaid/running tabs are excluded until they're paid.
       revenueLabelKey: 'reports.totalSaleCollected',
@@ -296,7 +291,7 @@ export default function Reports() {
             <span className="text-sm font-semibold text-[#5D4037]">{report.rangeLabel}</span>
           </div>
           <p className="mt-1 text-[11px] text-[#8D6E63]">
-            {t('reports.generated')} {new Date().toLocaleString('en-PK')}
+            {t('reports.generated')} {dateLong()} · {time(new Date().toISOString())}
           </p>
 
           {view === 'summary' && (

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader, StatCard } from '../components/ui.jsx'
-import { money, dateShort } from '../utils/format.js'
+import { money, dateShort, monthYear } from '../utils/format.js'
 import { monthAttendance, calcSalary } from '../utils/payroll.js'
 import {
   IconWallet,
@@ -311,7 +311,7 @@ export default function Payroll() {
       const d = new Date(today.getFullYear(), today.getMonth() - i, 1)
       opts.push({
         key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
-        label: d.toLocaleDateString('en-PK', { month: 'long', year: 'numeric' }),
+        label: monthYear(d),
       })
     }
     return opts
