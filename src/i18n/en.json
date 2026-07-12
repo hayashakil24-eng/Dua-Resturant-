@@ -490,6 +490,7 @@
     "expected": "Expected",
     "actual": "Actual",
     "difference": "Difference",
+    "handedTo": "Handed to",
     "revenueByHour": "Revenue by hour",
     "paidOrdersToday": "Paid orders · today",
     "noPaidRevenue": "No paid revenue yet.",

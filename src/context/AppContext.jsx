@@ -577,13 +577,18 @@ export function AppProvider({ children }) {
 
   // Close a shift against a physical cash count. difference = expected − actual
   // (positive → shortage, negative → excess). Within Rs. 10 counts as matched.
-  const endShift = (shiftId, actualCash) => {
+  // `handover` records who the drawer cash was handed to (Admin/Manager/staff)
+  // and an optional note, for the audit trail.
+  const endShift = (shiftId, actualCash, handover = {}) => {
     const sales = calculateShiftSales(shiftId)
     if (!sales) return null
     const actual = Math.max(0, Number(actualCash) || 0)
     const difference = sales.expectedCash - actual
     const status =
       Math.abs(difference) < 10 ? 'matched' : difference > 0 ? 'shortage' : 'excess'
+    const handedTo = handover.to || null
+    const handedToName = handover.name || handover.to || null
+    const handoverReason = handover.reason || ''
 
     let closed = null
     setShiftReconciliations((prev) =>
@@ -598,6 +603,9 @@ export function AppProvider({ children }) {
           actualCash: actual,
           difference,
           status,
+          handedTo,
+          handedToName,
+          handoverReason,
         }
         return closed
       }),
@@ -615,6 +623,9 @@ export function AppProvider({ children }) {
           actualCash: actual,
           difference,
           status,
+          handedTo,
+          handedToName,
+          handoverReason,
           at: closed.shiftEndTime,
         },
         ...prev,

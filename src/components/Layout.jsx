@@ -130,8 +130,8 @@ export default function Layout({ children }) {
   const isCashier = user.role === 'Cashier'
   const needsShiftStart = isCashier && !activeShift
 
-  const finishShift = (shiftId, actual) => {
-    endShift(shiftId, actual)
+  const finishShift = (shiftId, actual, handover) => {
+    endShift(shiftId, actual, handover)
     setEndOpen(false)
     logout() // shift closed → sign the cashier out, back to login
   }

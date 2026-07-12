@@ -198,22 +198,30 @@ function CashReconciliation() {
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
-                    <div>
-                      <p className="text-[11px] text-cream-dim">{t('dashboard.expected')}</p>
-                      <p className="font-semibold text-cream">{money(s.expectedCash)}</p>
+                  <>
+                    <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
+                      <div>
+                        <p className="text-[11px] text-cream-dim">{t('dashboard.expected')}</p>
+                        <p className="font-semibold text-cream">{money(s.expectedCash)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] text-cream-dim">{t('dashboard.actual')}</p>
+                        <p className="font-semibold text-cream">{money(s.actualCash)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] text-cream-dim">{t('dashboard.difference')}</p>
+                        <p className={`font-semibold ${meta.diff}`}>
+                          {s.status === 'matched' ? money(0) : money(Math.abs(s.difference))}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-[11px] text-cream-dim">{t('dashboard.actual')}</p>
-                      <p className="font-semibold text-cream">{money(s.actualCash)}</p>
-                    </div>
-                    <div>
-                      <p className="text-[11px] text-cream-dim">{t('dashboard.difference')}</p>
-                      <p className={`font-semibold ${meta.diff}`}>
-                        {s.status === 'matched' ? money(0) : money(Math.abs(s.difference))}
+                    {s.handedToName && (
+                      <p className="mt-2 border-t border-ink-line pt-2 text-[11px] text-cream-dim">
+                        {t('dashboard.handedTo')}: <span className="text-cream">{s.handedToName}</span>
+                        {s.handoverReason ? ` · ${s.handoverReason}` : ''}
                       </p>
-                    </div>
-                  </div>
+                    )}
+                  </>
                 )}
               </div>
             )
