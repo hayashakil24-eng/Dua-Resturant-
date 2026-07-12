@@ -51,7 +51,7 @@ export const PERMISSIONS = {
     dashboard: 'full',
     pos: 'hidden',
     orders: 'view',
-    orderCancel: 'full',
+    orderCancel: 'none', // Only Admin may cancel bills; Manager is view-only
     discount: 'full',
     tables: 'full',
     menu: 'hidden',
