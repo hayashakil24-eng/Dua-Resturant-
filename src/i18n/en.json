@@ -333,7 +333,16 @@
     "cancelEdit": "Cancel edit",
     "updateTable": "Update Table",
     "addTable": "Add Table",
-    "seatsWord": "seats"
+    "seatsWord": "seats",
+    "category": "Category",
+    "specialTypes": "Special",
+    "hut": "HUT (Outdoor)",
+    "searchPlaceholder": "Search table number… e.g. A5, G12, HUT15",
+    "locked": "Locked",
+    "delivery": "Delivery",
+    "takeaway": "Takeaway",
+    "selectTable": "Select table or order type",
+    "noResults": "No tables match."
   },
   "app": {
     "menuHeading": "Menu",

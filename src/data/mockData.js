@@ -20,10 +20,57 @@ export const STAFF = [
 
 export const WAITERS = STAFF.filter((s) => s.role === 'Waiter')
 
-export const TABLES = Array.from({ length: 12 }, (_, i) => ({
-  id: i + 1,
-  seats: [2, 4, 6][i % 3],
-}))
+// Dining-hall table categories. A–G are indoor (40 each); HUT is the outdoor
+// seating area (20 tables) → 7×40 + 20 = 300 physical tables.
+export const TABLE_CATEGORIES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'HUT']
+export const TABLE_COUNT_FOR = (category) => (category === 'HUT' ? 20 : 40)
+
+// Special, fixed order types that behave like tables in the order flow but have
+// no physical seating. They are LOCKED — never deleted or edited from the UI.
+export const SPECIAL_TABLE_IDS = { delivery: 301, takeaway: 302 }
+
+// Numeric ids are kept (1…300 for physical tables, 301/302 for the specials) so
+// all order/billing/occupancy/reconciliation logic — which keys on a numeric
+// table id — keeps working unchanged. `number` is the human label (A1…HUT20),
+// `category` groups them (A–G, HUT, or "Special").
+function generateTables() {
+  const list = []
+  let id = 1
+  for (const category of TABLE_CATEGORIES) {
+    const outdoor = category === 'HUT'
+    for (let i = 1; i <= TABLE_COUNT_FOR(category); i++) {
+      list.push({
+        id,
+        number: `${category}${i}`,
+        category,
+        section: outdoor ? 'Outdoor' : 'Indoor',
+        seats: 4,
+      })
+      id++
+    }
+  }
+  list.push({
+    id: SPECIAL_TABLE_IDS.delivery,
+    number: 'Delivery',
+    category: 'Special',
+    section: 'Special',
+    seats: 0,
+    orderType: 'delivery',
+    locked: true,
+  })
+  list.push({
+    id: SPECIAL_TABLE_IDS.takeaway,
+    number: 'Takeaway',
+    category: 'Special',
+    section: 'Special',
+    seats: 0,
+    orderType: 'takeaway',
+    locked: true,
+  })
+  return list
+}
+
+export const TABLES = generateTables()
 
 // Ordered category list for the Cafe Ali menu (POS prepends "All").
 export const MENU_CATEGORIES = [
