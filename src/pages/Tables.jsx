@@ -412,7 +412,9 @@ export default function Tables() {
                 ? t('tables.allTables')
                 : c === 'Special'
                   ? t('tables.specialTypes')
-                  : `${t('tables.category')} ${c}`}
+                  : c === 'HUT'
+                    ? t('tables.hut')
+                    : `${t('tables.category')} ${c}`}
             </button>
           ))}
           </div>

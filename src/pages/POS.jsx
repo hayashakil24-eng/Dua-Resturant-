@@ -694,7 +694,7 @@ export default function POS() {
                   >
                     <option value="">Select</option>
                     {TABLE_CATEGORIES.map((c) => (
-                      <optgroup key={c} label={`Category ${c}`}>
+                      <optgroup key={c} label={c === 'HUT' ? 'HUT (Outdoor)' : `Category ${c}`}>
                         {tables
                           .filter((tb) => tb.category === c)
                           .map((tb) => (
