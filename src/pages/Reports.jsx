@@ -106,12 +106,16 @@ export default function Reports() {
       (s, o) => s + orderTotal(o.items, o.discount?.amount).total,
       0,
     )
-    // Cash vs card split — collected (paid) orders only, by payment method.
+    // Payment-method split — collected (paid) orders only. Cash + Card + Online
+    // always equals the collected total.
     const cash = paidOrders
       .filter((o) => o.method === 'Cash')
       .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount).total, 0)
     const card = paidOrders
       .filter((o) => o.method === 'Card')
+      .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount).total, 0)
+    const online = paidOrders
+      .filter((o) => o.method === 'Online')
       .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount).total, 0)
     const top = topSelling(scopeOrders)
     const stock = estimateStockUsed(scopeOrders)
@@ -172,7 +176,7 @@ export default function Reports() {
       titleKey: 'reports.dailyReport',
       rangeLabel: dateLong(`${dailyDate}T00:00:00`),
       // Total Sale = collected (paid) orders only, so it always equals
-      // Cash + Card. Unpaid/running tabs are excluded until they're paid.
+      // Cash + Card + Online. Unpaid/running tabs are excluded until paid.
       revenueLabelKey: 'reports.totalSaleCollected',
       revenue: collected,
       expenses: dailyExpenses,
@@ -182,6 +186,7 @@ export default function Reports() {
       collected,
       cash,
       card,
+      online,
       top,
       stock,
       items,
@@ -301,6 +306,10 @@ export default function Reports() {
                 <p className="text-xs uppercase tracking-widest text-sky-300/80">💳 {t('reports.cardPayment')}</p>
                 <p className="mt-2 font-serif text-3xl font-semibold text-sky-300">{money(report.card)}</p>
               </div>
+              <div className="card border border-indigo-500/25 bg-indigo-500/[0.06] p-6">
+                <p className="text-xs uppercase tracking-widest text-indigo-300/80">🌐 {t('reports.onlinePayment')}</p>
+                <p className="mt-2 font-serif text-3xl font-semibold text-indigo-300">{money(report.online)}</p>
+              </div>
             </div>
 
             <div className="card border border-gold/30 bg-gold/[0.06] p-6">
@@ -354,6 +363,7 @@ export default function Reports() {
               <>
                 <Row label={t('reports.cash')} value={money(report.cash)} tone="text-[#3498DB]" />
                 <Row label={t('reports.card')} value={money(report.card)} tone="text-[#3498DB]" />
+                <Row label={t('reports.online')} value={money(report.online)} tone="text-[#3498DB]" />
               </>
             )}
             {type === 'monthly' && report.payroll > 0 && (
