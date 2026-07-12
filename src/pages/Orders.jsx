@@ -4,6 +4,7 @@ import { PageHeader, PaymentBadge, EmptyState } from '../components/ui.jsx'
 import { money, time } from '../utils/format.js'
 import { IconOrders, IconSearch, IconCheck, IconClose } from '../components/Icons.jsx'
 import { canModify } from '../config/permissions.js'
+import PaymentModal from '../components/PaymentModal.jsx'
 
 const FILTERS = ['All', 'Paid', 'Unpaid', 'Cancelled']
 const CANCEL_REASONS = ['Customer Request', 'Wrong Order', 'Out of Stock', 'Other']
@@ -17,7 +18,7 @@ function CancelledBadge() {
   )
 }
 
-// Manager/Admin cancel dialog — reason required, no PIN (role-gated).
+// Admin-only cancel dialog — reason required, no PIN (role-gated).
 function CancelModal({ order, orderTotal, onConfirm, onClose }) {
   const [reason, setReason] = useState('')
   const [notes, setNotes] = useState('')
@@ -103,6 +104,7 @@ export default function Orders() {
   const [filter, setFilter] = useState('All')
   const [query, setQuery] = useState('')
   const [cancelTarget, setCancelTarget] = useState(null)
+  const [payTarget, setPayTarget] = useState(null) // unpaid order awaiting payment
 
   const rows = useMemo(
     () =>
@@ -138,10 +140,10 @@ export default function Orders() {
       <div className="flex items-center justify-end gap-2">
         {isUnpaid && canMarkPaid && (
           <button
-            onClick={() => markPaid(o.id)}
+            onClick={() => setPayTarget(o)}
             className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-500/20"
           >
-            <IconCheck size={14} /> Mark Paid
+            <IconCheck size={14} /> Mark as Paid
           </button>
         )}
         {isUnpaid && canCancel && (
@@ -151,9 +153,6 @@ export default function Orders() {
           >
             <IconClose size={14} /> Cancel
           </button>
-        )}
-        {isUnpaid && !canCancel && (
-          <span className="text-xs text-amber-300/90">⚠️ Contact Manager to cancel</span>
         )}
       </div>
     )
@@ -273,7 +272,7 @@ export default function Orders() {
         </>
       )}
 
-      {/* Cancellation log — Manager/Admin only */}
+      {/* Cancellation log — Admin only */}
       {canCancel && auditLog.length > 0 && (
         <div className="card mt-6 overflow-hidden">
           <div className="border-b border-ink-line p-5">
@@ -307,6 +306,18 @@ export default function Orders() {
             setCancelTarget(null)
           }}
           onClose={() => setCancelTarget(null)}
+        />
+      )}
+
+      {/* Mark as Paid → same payment dialog as the POS "Pay Now" flow. */}
+      {payTarget && (
+        <PaymentModal
+          total={orderTotal(payTarget.items, payTarget.discount?.amount).total}
+          onConfirm={(method) => {
+            markPaid(payTarget.id, method)
+            setPayTarget(null)
+          }}
+          onClose={() => setPayTarget(null)}
         />
       )}
     </div>

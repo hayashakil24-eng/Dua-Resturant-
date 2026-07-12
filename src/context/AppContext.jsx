@@ -404,8 +404,10 @@ export function AppProvider({ children }) {
     return updated
   }
 
-  // Manager/Admin only — cancel an UNPAID order with a reason + audit entry.
+  // Admin only — cancel an UNPAID order with a reason + audit entry. Gated in the
+  // UI (orderCancel permission) and re-checked here so a bypass can't cancel.
   const cancelOrder = (id, { reason, notes = '' } = {}) => {
+    if (!user || !canModify(user.role, 'orderCancel')) return
     const orderToCancel = orders.find((o) => o.id === id)
     if (!orderToCancel || orderToCancel.payment !== 'Unpaid' || orderToCancel.cancelled) return
 

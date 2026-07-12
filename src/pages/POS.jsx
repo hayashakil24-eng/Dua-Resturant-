@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext.jsx'
 import { PageHeader } from '../components/ui.jsx'
 import { money, time } from '../utils/format.js'
 import { Receipt } from './Billing.jsx'
+import PaymentModal from '../components/PaymentModal.jsx'
 import ManageMostOrderedModal from '../components/ManageMostOrderedModal.jsx'
 import { canModify } from '../config/permissions.js'
 import { TAX_RATE, TABLE_CATEGORIES } from '../data/mockData.js'
@@ -34,135 +35,6 @@ function Toast({ order, onClose }) {
         <button onClick={onClose} className="ml-3 text-xs text-gold hover:underline">
           Dismiss
         </button>
-      </div>
-    </div>
-  )
-}
-
-// Round up to the next multiple of `step` (for quick-cash suggestions).
-const roundUp = (n, step) => Math.ceil(n / step) * step
-
-function PaymentModal({ total, onClose, onConfirm }) {
-  const [method, setMethod] = useState('Cash')
-  const [tendered, setTendered] = useState('')
-
-  const isCash = method === 'Cash'
-  const tenderedNum = Number(tendered) || 0
-  const change = tenderedNum - total
-  const canConfirm = !isCash || tenderedNum >= total
-
-  // Handy cash denominations at or above the bill total.
-  const suggestions = [
-    ...new Set([total, roundUp(total, 100), roundUp(total, 500), roundUp(total, 1000)]),
-  ]
-    .filter((v) => v >= total)
-    .slice(0, 4)
-
-  const confirm = () => {
-    if (!canConfirm) return
-    onConfirm(method, isCash ? tenderedNum : total)
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-md animate-fade-up">
-        <div className="card p-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="font-serif text-2xl text-cream">Take Payment</h3>
-              <p className="mt-0.5 text-xs text-cream-dim">Select method and collect the amount due.</p>
-            </div>
-            <button onClick={onClose} className="text-cream-dim hover:text-cream">
-              <IconClose size={20} />
-            </button>
-          </div>
-
-          {/* Amount due */}
-          <div className="mt-5 rounded-2xl border border-gold/25 bg-gold/[0.06] p-5 text-center">
-            <p className="text-[11px] uppercase tracking-widest text-gold/80">Amount due</p>
-            <p className="mt-1 font-serif text-4xl font-semibold text-gold">{money(total)}</p>
-          </div>
-
-          {/* Method */}
-          <div className="mt-5">
-            <label className="mb-2 block text-[11px] uppercase tracking-wider text-cream-dim">
-              Payment method
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {['Cash', 'Card', 'Online'].map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setMethod(m)}
-                  className={`rounded-xl border py-2.5 text-sm font-semibold transition ${
-                    method === m
-                      ? 'border-gold/50 bg-gold/12 text-gold'
-                      : 'border-ink-line bg-ink-soft text-cream-dim hover:text-cream'
-                  }`}
-                >
-                  {m}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Cash tendered + change */}
-          {isCash && (
-            <div className="mt-5">
-              <label className="mb-2 block text-[11px] uppercase tracking-wider text-cream-dim">
-                Cash received
-              </label>
-              <input
-                type="number"
-                inputMode="numeric"
-                min={0}
-                autoFocus
-                className="input"
-                placeholder="Enter amount received…"
-                value={tendered}
-                onChange={(e) => setTendered(e.target.value)}
-              />
-              <div className="mt-2 flex flex-wrap gap-2">
-                {suggestions.map((v) => (
-                  <button
-                    key={v}
-                    onClick={() => setTendered(String(v))}
-                    className="rounded-lg border border-ink-line bg-ink-soft px-3 py-1.5 text-xs font-medium text-cream-dim transition hover:border-gold/40 hover:text-cream"
-                  >
-                    {money(v)}
-                  </button>
-                ))}
-              </div>
-
-              <div className="mt-4 flex items-center justify-between rounded-xl border border-ink-line bg-ink-soft px-4 py-3">
-                <span className="text-sm text-cream-dim">
-                  {change >= 0 ? 'Change due' : 'Remaining'}
-                </span>
-                <span
-                  className={`font-serif text-2xl font-semibold ${
-                    change >= 0 ? 'text-emerald-300' : 'text-rose-300'
-                  }`}
-                >
-                  {money(Math.abs(change))}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="mt-6 flex gap-3">
-            <button onClick={onClose} className="btn-ghost flex-1 py-3">
-              Cancel
-            </button>
-            <button
-              onClick={confirm}
-              disabled={!canConfirm}
-              className="btn-gold flex-1 py-3 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <IconCheck size={18} /> Confirm {money(total)}
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   )
@@ -754,40 +626,53 @@ export default function POS() {
                   </div>
                 </div>
               ) : (
-                <ul className="space-y-3">
+                <ul className="space-y-2.5">
                   {items.map((it) => (
-                    <li key={it.key} className="flex items-center gap-3">
-                      {it.emoji && <span className="text-xl">{it.emoji}</span>}
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-cream">{it.name}</p>
-                        <p className="text-xs text-cream-dim">{money(it.price)}</p>
-                      </div>
-                      <div className="flex items-center gap-1.5">
+                    <li
+                      key={it.key}
+                      className="rounded-xl border border-ink-line bg-ink-soft/40 p-3"
+                    >
+                      {/* Name (full width, wraps) + remove */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex min-w-0 flex-1 items-start gap-2">
+                          {it.emoji && <span className="text-xl leading-none">{it.emoji}</span>}
+                          <div className="min-w-0">
+                            <p className="break-words text-sm font-medium text-cream">{it.name}</p>
+                            <p className="text-xs text-cream-dim">{money(it.price)}</p>
+                          </div>
+                        </div>
                         <button
-                          onClick={() => dec(it.key)}
-                          className="grid h-7 w-7 place-items-center rounded-lg border border-ink-line text-cream-dim hover:text-cream"
+                          onClick={() => removeItem(it.key)}
+                          className="shrink-0 text-cream-dim transition hover:text-rose-300"
+                          title="Remove item"
                         >
-                          <IconMinus size={14} />
+                          <IconTrash size={16} />
                         </button>
-                        <span className="w-6 text-center text-sm font-semibold text-cream">
-                          {it.qty}
+                      </div>
+
+                      {/* Qty stepper + line total */}
+                      <div className="mt-2 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => dec(it.key)}
+                            className="grid h-7 w-7 place-items-center rounded-lg border border-ink-line text-cream-dim hover:text-cream"
+                          >
+                            <IconMinus size={14} />
+                          </button>
+                          <span className="w-6 text-center text-sm font-semibold text-cream">
+                            {it.qty}
+                          </span>
+                          <button
+                            onClick={() => add(it.key)}
+                            className="grid h-7 w-7 place-items-center rounded-lg border border-ink-line text-cream-dim hover:text-cream"
+                          >
+                            <IconPlus size={14} />
+                          </button>
+                        </div>
+                        <span className="text-sm font-semibold text-cream">
+                          {money(it.price * it.qty)}
                         </span>
-                        <button
-                          onClick={() => add(it.key)}
-                          className="grid h-7 w-7 place-items-center rounded-lg border border-ink-line text-cream-dim hover:text-cream"
-                        >
-                          <IconPlus size={14} />
-                        </button>
                       </div>
-                      <span className="w-16 text-right text-sm font-semibold text-cream">
-                        {money(it.price * it.qty)}
-                      </span>
-                      <button
-                        onClick={() => removeItem(it.key)}
-                        className="text-cream-dim hover:text-rose-300"
-                      >
-                        <IconTrash size={16} />
-                      </button>
                     </li>
                   ))}
                 </ul>
