@@ -381,7 +381,7 @@ export default function POS() {
   const existingTotal = isContinuing ? orderTotal(continuingOrder.items).total : 0
 
   return (
-    <div>
+    <div className="pb-24 lg:pb-0">
       <PageHeader
         title={isContinuing ? `Add to Order · ${continuingOrder.id}` : 'New Order'}
         subtitle={
@@ -534,7 +534,7 @@ export default function POS() {
         </div>
 
         {/* Cart side */}
-        <div className="lg:sticky lg:top-20 lg:h-fit">
+        <div id="pos-order" className="scroll-mt-20 lg:sticky lg:top-20 lg:h-fit">
           <div className="card flex max-h-[calc(100vh-7rem)] flex-col">
             <div className="flex items-center justify-between border-b border-ink-line p-5">
               <h3 className="font-serif text-xl text-cream">
@@ -564,9 +564,19 @@ export default function POS() {
                     disabled={tableLocked}
                     onChange={(e) => setTable(e.target.value)}
                   >
-                    <option value="">Select</option>
+                    <option value="">Select table or order type</option>
+                    {/* Special order types first, then physical tables by category */}
+                    <optgroup label="🚗 Special Orders">
+                      {tables
+                        .filter((tb) => tb.orderType)
+                        .map((tb) => (
+                          <option key={tb.id} value={tb.id}>
+                            {tb.orderType === 'delivery' ? '🚗 Delivery' : '🛍️ Takeaway'}
+                          </option>
+                        ))}
+                    </optgroup>
                     {TABLE_CATEGORIES.map((c) => (
-                      <optgroup key={c} label={c === 'HUT' ? 'HUT (Outdoor)' : `Category ${c}`}>
+                      <optgroup key={c} label={c === 'HUT' ? '📍 HUT (Outdoor)' : `📍 Category ${c}`}>
                         {tables
                           .filter((tb) => tb.category === c)
                           .map((tb) => (
@@ -576,15 +586,6 @@ export default function POS() {
                           ))}
                       </optgroup>
                     ))}
-                    <optgroup label="Special">
-                      {tables
-                        .filter((tb) => tb.orderType)
-                        .map((tb) => (
-                          <option key={tb.id} value={tb.id}>
-                            {tb.orderType === 'delivery' ? '🚗 Delivery' : '🛍️ Takeaway'}
-                          </option>
-                        ))}
-                    </optgroup>
                   </select>
                 </div>
                 <div>
@@ -725,6 +726,24 @@ export default function POS() {
           </div>
         </div>
       </div>
+
+      {/* Mobile-only quick access to the order/checkout. The menu stays the main
+          view; this jumps to the Current Order panel without scrolling. */}
+      {items.length > 0 && (
+        <button
+          onClick={() =>
+            document.getElementById('pos-order')?.scrollIntoView({ behavior: 'smooth' })
+          }
+          className="fixed inset-x-4 bottom-4 z-40 flex items-center justify-between gap-3 rounded-2xl border border-gold/40 bg-ink-card/95 px-5 py-3 shadow-lift backdrop-blur lg:hidden"
+        >
+          <span className="flex items-center gap-2 text-sm font-semibold text-cream">
+            <IconReceipt size={18} className="text-gold" />
+            {items.reduce((s, it) => s + it.qty, 0)} in order
+          </span>
+          <span className="font-serif text-lg font-semibold text-gold">{money(total)}</span>
+          <span className="text-xs font-semibold text-gold">View ↓</span>
+        </button>
+      )}
 
       {variantPick && (
         <VariantModal

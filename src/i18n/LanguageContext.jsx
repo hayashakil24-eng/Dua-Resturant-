@@ -27,8 +27,19 @@ export function LanguageProvider({ children }) {
     localStorage.setItem('lang', lang)
   }, [lang, dir])
 
-  const setLang = useCallback((l) => setLangState(l in DICTS ? l : 'en'), [])
-  const toggleLang = useCallback(() => setLangState((l) => (l === 'ur' ? 'en' : 'ur')), [])
+  // Persist synchronously (not just in the effect) so non-hook readers like the
+  // number/date formatters in utils/format.js see the new language on the very
+  // next render instead of a frame late.
+  const persist = (l) => {
+    try {
+      localStorage.setItem('lang', l)
+    } catch {
+      /* ignore (private mode / SSR) */
+    }
+    return l
+  }
+  const setLang = useCallback((l) => setLangState(persist(l in DICTS ? l : 'en')), [])
+  const toggleLang = useCallback(() => setLangState((l) => persist(l === 'ur' ? 'en' : 'ur')), [])
 
   const t = useCallback(
     (key, fallback) => resolve(DICTS[lang], key) ?? resolve(DICTS.en, key) ?? fallback ?? key,

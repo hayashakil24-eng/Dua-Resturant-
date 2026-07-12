@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
+import { useT } from '../i18n/LanguageContext.jsx'
 import { IconClose, IconClock } from './Icons.jsx'
 
 const REASONS = [
@@ -31,6 +32,7 @@ const fromTimeInput = (hhmm) => {
 // machine and is read-only; this exists for machine failures. A reason is
 // mandatory and every save is written to the audit trail + tagged "Manual".
 export default function ManualOverrideModal({ staff, record, onSave, onClose }) {
+  const t = useT()
   const [checkInTime, setCheckInTime] = useState(toTimeInput(record?.checkIn))
   const [checkOutTime, setCheckOutTime] = useState(toTimeInput(record?.checkOut))
   const [reason, setReason] = useState('')
@@ -39,11 +41,11 @@ export default function ManualOverrideModal({ staff, record, onSave, onClose }) 
   useEscapeKey(onClose)
 
   const submit = () => {
-    if (!reason) return setError('A reason is mandatory for a manual entry.')
+    if (!reason) return setError(t('override.errReason'))
     if (!checkInTime && !checkOutTime)
-      return setError('Enter at least a check-in or check-out time.')
+      return setError(t('override.errTime'))
     if (checkInTime && checkOutTime && checkOutTime < checkInTime)
-      return setError('Check-out cannot be earlier than check-in.')
+      return setError(t('override.errOrder'))
     setError('')
     onSave({
       checkIn: fromTimeInput(checkInTime),
@@ -60,7 +62,7 @@ export default function ManualOverrideModal({ staff, record, onSave, onClose }) 
         <div className="card p-6">
           <div className="flex items-start justify-between">
             <div>
-              <h3 className="font-serif text-2xl text-cream">Manual Override</h3>
+              <h3 className="font-serif text-2xl text-cream">{t('override.title')}</h3>
               <p className="mt-0.5 text-xs text-cream-dim">
                 {staff?.name} · {staff?.id}
               </p>
@@ -72,15 +74,14 @@ export default function ManualOverrideModal({ staff, record, onSave, onClose }) 
 
           {/* Emergency-only warning */}
           <div className="mt-5 rounded-2xl border border-amber-500/30 bg-amber-500/[0.08] p-3 text-xs text-amber-200">
-            For emergency use only (e.g. machine malfunction). This entry is
-            logged to the audit trail and marked <strong>Manual Entry</strong>.
+            {t('override.emergencyNote')}
           </div>
 
           {/* Times */}
           <div className="mt-5 grid grid-cols-2 gap-3">
             <div>
               <label className="mb-2 block text-[11px] uppercase tracking-wider text-cream-dim">
-                Check-in
+                {t('override.checkIn')}
               </label>
               <input
                 type="time"
@@ -91,7 +92,7 @@ export default function ManualOverrideModal({ staff, record, onSave, onClose }) 
             </div>
             <div>
               <label className="mb-2 block text-[11px] uppercase tracking-wider text-cream-dim">
-                Check-out
+                {t('override.checkOut')}
               </label>
               <input
                 type="time"
@@ -105,17 +106,17 @@ export default function ManualOverrideModal({ staff, record, onSave, onClose }) 
           {/* Reason (mandatory) */}
           <div className="mt-4">
             <label className="mb-2 block text-[11px] uppercase tracking-wider text-cream-dim">
-              Reason <span className="text-rose-400">*</span>
+              {t('override.reason')} <span className="text-rose-400">*</span>
             </label>
             <select
               className="input py-2.5"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
             >
-              <option value="">Select a reason…</option>
+              <option value="">{t('override.selectReason')}</option>
               {REASONS.map((r) => (
                 <option key={r} value={r}>
-                  {r}
+                  {t(`override.reasons.${r}`, r)}
                 </option>
               ))}
             </select>
@@ -124,11 +125,11 @@ export default function ManualOverrideModal({ staff, record, onSave, onClose }) 
           {/* Notes */}
           <div className="mt-4">
             <label className="mb-2 block text-[11px] uppercase tracking-wider text-cream-dim">
-              Notes (optional)
+              {t('override.notesOptional')}
             </label>
             <textarea
               className="input h-20 resize-none"
-              placeholder="e.g. Biometric reader was offline all morning"
+              placeholder={t('override.notesPh')}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
             />
@@ -143,10 +144,10 @@ export default function ManualOverrideModal({ staff, record, onSave, onClose }) 
           {/* Actions */}
           <div className="mt-6 flex gap-3">
             <button onClick={onClose} className="btn-ghost flex-1 py-3">
-              Cancel
+              {t('common.cancel')}
             </button>
             <button onClick={submit} className="btn-gold flex-1 py-3">
-              <IconClock size={18} /> Save Manual Entry
+              <IconClock size={18} /> {t('override.save')}
             </button>
           </div>
         </div>

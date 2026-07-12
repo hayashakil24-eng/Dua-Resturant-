@@ -156,7 +156,7 @@ export default function Attendance() {
                 <div>
                   <p className="font-medium text-cream">{s.name}</p>
                   <p className="mt-0.5 text-sm text-cream-dim">
-                    {t('attendance.reason')}: {record.manualEntry.reason}
+                    {t('attendance.reason')}: {t(`override.reasons.${record.manualEntry.reason}`, record.manualEntry.reason)}
                   </p>
                   {record.manualEntry.notes && (
                     <p className="mt-1 text-xs text-cream-dim">{t('attendance.notes')}: {record.manualEntry.notes}</p>

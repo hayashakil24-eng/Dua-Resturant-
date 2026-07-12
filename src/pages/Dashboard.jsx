@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useApp } from '../context/AppContext.jsx'
 import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader, StatCard, PaymentBadge } from '../components/ui.jsx'
-import { money, time } from '../utils/format.js'
+import { money, time, dateShort, clock as fmtClock, dayShort, monthName as fmtMonthName } from '../utils/format.js'
 import { payrollTotal } from '../utils/payroll.js'
 import { Receipt } from './Billing.jsx'
 import { canModify } from '../config/permissions.js'
@@ -35,17 +35,8 @@ function LiveClock({ lastRefresh, onRefresh }) {
     return () => clearInterval(timer)
   }, [])
 
-  const clock = now.toLocaleTimeString('en-PK', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true,
-  })
-  const day = now.toLocaleDateString('en-PK', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  })
+  const clock = fmtClock(now)
+  const day = dayShort(now)
   const ago = Math.max(0, Math.round((now - lastRefresh) / 1000))
 
   return (
@@ -398,7 +389,7 @@ function IngredientRequestsPanel({ role }) {
               <div>
                 <h4 className="font-semibold text-cream text-base">{req.name}</h4>
                 <p className="text-xs text-cream-dim mt-0.5">
-                  {t('dashboard.category')}: <span className="text-gold">{req.category}</span> · {t('dashboard.requestedBy')}: {req.requestedBy} · {new Date(req.requestedAt).toLocaleDateString()}
+                  {t('dashboard.category')}: <span className="text-gold">{req.category}</span> · {t('dashboard.requestedBy')}: {req.requestedBy} · {dateShort(req.requestedAt)}
                 </p>
               </div>
 
@@ -582,7 +573,7 @@ function AdminDashboard({ stats, orders, orderTotal, attendance, lowStock }) {
   const now = new Date()
   const monthlyPayroll = payrollTotal(now.getFullYear(), now.getMonth(), now, staff)
   const activeStaffCount = staff.filter((s) => s.active !== false).length
-  const monthName = now.toLocaleDateString('en-PK', { month: 'long' })
+  const monthName = fmtMonthName(now)
 
   return (
     <div className="space-y-6">

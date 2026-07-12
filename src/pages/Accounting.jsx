@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader } from '../components/ui.jsx'
-import { money, dateShort } from '../utils/format.js'
+import { money, dateShort, monthYear, dateLong } from '../utils/format.js'
 import { safePrint } from '../utils/print.js'
 import { monthFigures } from '../utils/accounting.js'
 import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from '../data/mockData.js'
@@ -268,7 +268,7 @@ export default function Accounting() {
       const d = new Date(today.getFullYear(), today.getMonth() - i, 1)
       opts.push({
         key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
-        label: d.toLocaleDateString('en-PK', { month: 'long', year: 'numeric' }),
+        label: monthYear(d),
       })
     }
     return opts
@@ -305,16 +305,7 @@ export default function Accounting() {
     return { inDay, income, expense, profit, margin }
   }, [transactions, dayDate])
 
-  const dayLabel = useMemo(
-    () =>
-      new Date(`${dayDate}T00:00:00`).toLocaleDateString('en-PK', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      }),
-    [dayDate],
-  )
+  const dayLabel = useMemo(() => dateLong(`${dayDate}T00:00:00`), [dayDate])
 
   const chartData = useMemo(
     () =>
