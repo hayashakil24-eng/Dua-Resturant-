@@ -754,40 +754,53 @@ export default function POS() {
                   </div>
                 </div>
               ) : (
-                <ul className="space-y-3">
+                <ul className="space-y-2.5">
                   {items.map((it) => (
-                    <li key={it.key} className="flex items-center gap-3">
-                      {it.emoji && <span className="text-xl">{it.emoji}</span>}
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-cream">{it.name}</p>
-                        <p className="text-xs text-cream-dim">{money(it.price)}</p>
-                      </div>
-                      <div className="flex items-center gap-1.5">
+                    <li
+                      key={it.key}
+                      className="rounded-xl border border-ink-line bg-ink-soft/40 p-3"
+                    >
+                      {/* Name (full width, wraps) + remove */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex min-w-0 flex-1 items-start gap-2">
+                          {it.emoji && <span className="text-xl leading-none">{it.emoji}</span>}
+                          <div className="min-w-0">
+                            <p className="break-words text-sm font-medium text-cream">{it.name}</p>
+                            <p className="text-xs text-cream-dim">{money(it.price)}</p>
+                          </div>
+                        </div>
                         <button
-                          onClick={() => dec(it.key)}
-                          className="grid h-7 w-7 place-items-center rounded-lg border border-ink-line text-cream-dim hover:text-cream"
+                          onClick={() => removeItem(it.key)}
+                          className="shrink-0 text-cream-dim transition hover:text-rose-300"
+                          title="Remove item"
                         >
-                          <IconMinus size={14} />
+                          <IconTrash size={16} />
                         </button>
-                        <span className="w-6 text-center text-sm font-semibold text-cream">
-                          {it.qty}
+                      </div>
+
+                      {/* Qty stepper + line total */}
+                      <div className="mt-2 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => dec(it.key)}
+                            className="grid h-7 w-7 place-items-center rounded-lg border border-ink-line text-cream-dim hover:text-cream"
+                          >
+                            <IconMinus size={14} />
+                          </button>
+                          <span className="w-6 text-center text-sm font-semibold text-cream">
+                            {it.qty}
+                          </span>
+                          <button
+                            onClick={() => add(it.key)}
+                            className="grid h-7 w-7 place-items-center rounded-lg border border-ink-line text-cream-dim hover:text-cream"
+                          >
+                            <IconPlus size={14} />
+                          </button>
+                        </div>
+                        <span className="text-sm font-semibold text-cream">
+                          {money(it.price * it.qty)}
                         </span>
-                        <button
-                          onClick={() => add(it.key)}
-                          className="grid h-7 w-7 place-items-center rounded-lg border border-ink-line text-cream-dim hover:text-cream"
-                        >
-                          <IconPlus size={14} />
-                        </button>
                       </div>
-                      <span className="w-16 text-right text-sm font-semibold text-cream">
-                        {money(it.price * it.qty)}
-                      </span>
-                      <button
-                        onClick={() => removeItem(it.key)}
-                        className="text-cream-dim hover:text-rose-300"
-                      >
-                        <IconTrash size={16} />
-                      </button>
                     </li>
                   ))}
                 </ul>
