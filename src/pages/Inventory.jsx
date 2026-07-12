@@ -187,7 +187,7 @@ export default function Inventory() {
   // adjust existing quantities for corrections.
   const canAddStock = user && canModify(user.role, 'inventoryAdd')
   const canAdjust = user && canModify(user.role, 'inventoryDirectEdit')
-  // Only Admin may create a brand-new inventory item (Manager cannot).
+  // Admin & Manager may create a brand-new inventory item directly.
   const canCreate = user && canModify(user.role, 'inventoryCreate')
 
   // Existing categories seed the "Add Item" dropdown (canonical order preserved).

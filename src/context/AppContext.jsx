@@ -704,7 +704,7 @@ export function AppProvider({ children }) {
   // mints the next sequential INV## id following the seed data pattern.
   const addInventoryItem = ({ name, category, unit, stock = 0, threshold = 0 } = {}) => {
     if (!user || !canModify(user.role, 'inventoryCreate')) {
-      return { error: 'Only Admin can add new inventory items.' }
+      return { error: 'You are not allowed to add new inventory items.' }
     }
     const trimmed = (name || '').trim()
     if (!trimmed) return { error: 'Item name is required.' }

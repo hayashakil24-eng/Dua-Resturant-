@@ -10,9 +10,9 @@
 //   • inventoryAdd      — only Manager may add new stock / purchases.
 //   • inventoryDirectEdit — Admin & Manager may adjust existing quantities for
 //                         corrections (Cashier cannot).
-//   • inventoryCreate   — only Admin may create a brand-new inventory item
+//   • inventoryCreate   — Admin & Manager may create a brand-new inventory item
 //                         directly (proactively), independent of the Chef's
-//                         ingredient-request approval flow. Manager cannot.
+//                         ingredient-request approval flow. Cashier/Kitchen not.
 //   • wastageReport / wastageApproval — reporting is broad; approval stays with
 //                         Manager + Admin. (No wastage feature is built yet;
 //                         these are declarative policy for when it is.)
@@ -73,7 +73,7 @@ export const PERMISSIONS = {
     recipeCreate: 'none',
     inventoryAdd: 'full', // ONLY Manager adds new stock / purchases
     inventoryDirectEdit: 'full', // Manager may adjust existing stock too
-    inventoryCreate: 'none', // Manager does NOT create new items (Admin only)
+    inventoryCreate: 'full', // Manager may also create new inventory items
     wastageReport: 'full',
     wastageApproval: 'full',
   },
