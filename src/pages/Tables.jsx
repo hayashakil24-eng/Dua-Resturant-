@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext.jsx'
 import { useT } from '../i18n/LanguageContext.jsx'
@@ -305,6 +305,9 @@ export default function Tables() {
   const [detail, setDetail] = useState(null)
   const [manage, setManage] = useState(false)
   const [now, setNow] = useState(() => Date.now())
+  const catScrollRef = useRef(null)
+  const scrollCats = (dir) =>
+    catScrollRef.current?.scrollBy({ left: dir === 'left' ? -200 : 200, behavior: 'smooth' })
 
   // Live timers — refresh every 15s so "minutes in use" stays current.
   useEffect(() => {
@@ -380,9 +383,21 @@ export default function Tables() {
         })}
       </div>
 
-      {/* Category chips (A–H + Special) + search by table number */}
+      {/* Category chips (A–H + Special) + search by table number.
+          Left/right arrows scroll the pill row so no category is ever clipped. */}
       <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="scrollbar-hide flex gap-2 overflow-x-auto pb-1">
+        <div className="flex min-w-0 items-center gap-2 lg:flex-1">
+          <button
+            onClick={() => scrollCats('left')}
+            aria-label="Scroll categories left"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-ink-line bg-ink-soft text-lg leading-none text-gold transition hover:border-gold/50"
+          >
+            ‹
+          </button>
+          <div
+            ref={catScrollRef}
+            className="scrollbar-hide flex flex-1 touch-pan-x gap-2 overflow-x-auto overscroll-x-contain scroll-smooth pb-1"
+          >
           {catTabs.map((c) => (
             <button
               key={c}
@@ -400,6 +415,14 @@ export default function Tables() {
                   : `${t('tables.category')} ${c}`}
             </button>
           ))}
+          </div>
+          <button
+            onClick={() => scrollCats('right')}
+            aria-label="Scroll categories right"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-ink-line bg-ink-soft text-lg leading-none text-gold transition hover:border-gold/50"
+          >
+            ›
+          </button>
         </div>
         <input
           value={q}
