@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
+import { useT } from '../i18n/LanguageContext.jsx'
 import { IconClose, IconPlus, IconTrash, IconAlert } from './Icons.jsx'
 
 // Kitchen recipe builder: pick a menu item, then add ingredient rows drawn from
@@ -8,6 +9,7 @@ import { IconClose, IconPlus, IconTrash, IconAlert } from './Icons.jsx'
 // unit as a fixed label rather than letting it be mis-picked.
 export default function RecipeFormModal({ menu, inventory, existingRecipes = [], onSave, onClose }) {
   const { ingredientRequests, createIngredientRequest } = useApp()
+  const t = useT()
   const [menuItemId, setMenuItemId] = useState('')
   const [ingredients, setIngredients] = useState([])
   const [error, setError] = useState('')
@@ -68,7 +70,7 @@ export default function RecipeFormModal({ menu, inventory, existingRecipes = [],
 
   const save = () => {
     const menuItem = menuItems.find((m) => m.id === menuItemId)
-    if (!menuItem) return setError('Select a menu item.')
+    if (!menuItem) return setError(t('recipe.errSelectItem'))
     const clean = ingredients
       .filter((r) => r.inventoryItemId && Number(r.quantity) > 0)
       .map((r) => ({
@@ -79,11 +81,11 @@ export default function RecipeFormModal({ menu, inventory, existingRecipes = [],
         unit: r.unit,
       }))
     if (clean.length === 0)
-      return setError('Add at least one ingredient with a quantity greater than zero.')
+      return setError(t('recipe.errAddIngredient'))
     // Guard against two ingredient rows pointing at the same inventory item.
     const ids = clean.map((c) => c.inventoryItemId)
     if (new Set(ids).size !== ids.length)
-      return setError('Each ingredient must be a different inventory item.')
+      return setError(t('recipe.errDistinct'))
     setError('')
     onSave({ menuItemId, menuItemName: menuItem.name, ingredients: clean })
   }
@@ -95,9 +97,9 @@ export default function RecipeFormModal({ menu, inventory, existingRecipes = [],
         <div className="card max-h-[90vh] overflow-y-auto p-6">
           <div className="flex items-start justify-between">
             <div>
-              <h3 className="font-serif text-2xl text-cream">Create Recipe</h3>
+              <h3 className="font-serif text-2xl text-cream">{t('recipe.title')}</h3>
               <p className="mt-0.5 text-xs text-cream-dim">
-                Submitted for Admin approval before it affects inventory.
+                {t('recipe.subtitle')}
               </p>
             </div>
             <button onClick={onClose} className="text-cream-dim hover:text-cream">
@@ -107,18 +109,18 @@ export default function RecipeFormModal({ menu, inventory, existingRecipes = [],
 
           <div className="mt-6">
             <label className="mb-2 block text-xs uppercase tracking-widest text-cream-dim">
-              Menu item
+              {t('recipe.menuItem')}
             </label>
             <select
               value={menuItemId}
               onChange={(e) => setMenuItemId(e.target.value)}
               className="input"
             >
-              <option value="">Select menu item…</option>
+              <option value="">{t('recipe.selectMenuItem')}</option>
               {menuItems.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.name}
-                  {takenIds.has(m.id) ? ' — already has a recipe' : ''}
+                  {takenIds.has(m.id) ? t('recipe.alreadyHasRecipe') : ''}
                 </option>
               ))}
             </select>
@@ -126,18 +128,18 @@ export default function RecipeFormModal({ menu, inventory, existingRecipes = [],
 
           <div className="mt-5">
             <div className="mb-2 flex items-center justify-between">
-              <label className="text-xs uppercase tracking-widest text-cream-dim">Ingredients</label>
+              <label className="text-xs uppercase tracking-widest text-cream-dim">{t('recipe.ingredients')}</label>
               <button
                 onClick={addRow}
                 className="inline-flex items-center gap-1 rounded-lg border border-ink-line bg-ink-soft px-2.5 py-1 text-xs font-semibold text-cream-dim transition hover:text-cream"
               >
-                <IconPlus size={13} /> Add ingredient
+                <IconPlus size={13} /> {t('recipe.addIngredient')}
               </button>
             </div>
 
             {ingredients.length === 0 && (
               <p className="rounded-xl border border-dashed border-ink-line px-3 py-4 text-center text-xs text-cream-dim">
-                No ingredients yet — add at least one.
+                {t('recipe.noIngredients')}
               </p>
             )}
 
@@ -149,8 +151,8 @@ export default function RecipeFormModal({ menu, inventory, existingRecipes = [],
                     onChange={(e) => updateRow(idx, 'inventoryItemId', e.target.value)}
                     className="input flex-1"
                   >
-                    <option value="">Inventory item…</option>
-                    <option value="REQUEST_NEW_INGREDIENT" className="font-semibold text-gold">+ Request New Ingredient</option>
+                    <option value="">{t('recipe.inventoryItem')}</option>
+                    <option value="REQUEST_NEW_INGREDIENT" className="font-semibold text-gold">{t('recipe.requestNew')}</option>
                     {inventory.map((inv) => (
                       <option key={inv.id} value={inv.id}>
                         {inv.name}
@@ -158,7 +160,7 @@ export default function RecipeFormModal({ menu, inventory, existingRecipes = [],
                     ))}
                     {ingredientRequests.filter((r) => r.status === 'pending').map((r) => (
                       <option key={r.id} value={r.id}>
-                        {r.name} (Pending Request)
+                        {r.name} {t('recipe.pendingRequest')}
                       </option>
                     ))}
                   </select>
@@ -168,7 +170,7 @@ export default function RecipeFormModal({ menu, inventory, existingRecipes = [],
                     step="0.01"
                     value={row.quantity}
                     onChange={(e) => updateRow(idx, 'quantity', e.target.value)}
-                    placeholder="Qty"
+                    placeholder={t('recipe.qty')}
                     className="input w-20"
                   />
                   <span className="w-10 shrink-0 text-center text-xs text-cream-dim">
@@ -177,7 +179,7 @@ export default function RecipeFormModal({ menu, inventory, existingRecipes = [],
                   <button
                     onClick={() => removeRow(idx)}
                     className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-ink-line bg-ink-soft text-cream-dim transition hover:border-rose-500/40 hover:text-rose-300"
-                    title="Remove"
+                    title={t('common.delete')}
                   >
                     <IconTrash size={14} />
                   </button>
@@ -194,15 +196,15 @@ export default function RecipeFormModal({ menu, inventory, existingRecipes = [],
 
           <p className="mt-4 flex items-center gap-2 rounded-xl border border-ink-line bg-ink-soft px-3 py-2 text-xs text-cream-dim">
             <IconAlert size={14} className="shrink-0 text-gold" />
-            This recipe needs Admin approval before it affects inventory deduction.
+            {t('recipe.needsApproval')}
           </p>
 
           <div className="mt-6 flex gap-3">
             <button onClick={save} className="btn-gold flex-1">
-              Submit for Approval
+              {t('recipe.submitForApproval')}
             </button>
             <button onClick={onClose} className="btn-ghost flex-1">
-              Cancel
+              {t('common.cancel')}
             </button>
           </div>
         </div>
@@ -213,32 +215,32 @@ export default function RecipeFormModal({ menu, inventory, existingRecipes = [],
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setRequestingIngIdx(null)} />
           <div className="relative z-10 w-full max-w-sm animate-fade-up">
             <div className="card p-6 border border-ink-line">
-              <h4 className="font-serif text-xl text-cream font-semibold">Request New Ingredient</h4>
-              <p className="text-xs text-cream-dim mt-0.5">This will go to the Admin for approval.</p>
+              <h4 className="font-serif text-xl text-cream font-semibold">{t('recipe.reqTitle')}</h4>
+              <p className="text-xs text-cream-dim mt-0.5">{t('recipe.reqSubtitle')}</p>
 
               <div className="mt-4 space-y-3">
                 <div>
-                  <label className="mb-1 block text-[11px] uppercase tracking-wider text-cream-dim">Ingredient Name *</label>
+                  <label className="mb-1 block text-[11px] uppercase tracking-wider text-cream-dim">{t('recipe.ingName')} *</label>
                   <input
                     type="text"
                     className="input py-2"
-                    placeholder="e.g. Fresh Cream"
+                    placeholder={t('recipe.ingNamePh')}
                     value={newIngName}
                     onChange={(e) => setNewIngName(e.target.value)}
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-[11px] uppercase tracking-wider text-cream-dim">Category (optional)</label>
+                  <label className="mb-1 block text-[11px] uppercase tracking-wider text-cream-dim">{t('recipe.categoryOptional')}</label>
                   <input
                     type="text"
                     className="input py-2"
-                    placeholder="e.g. Dairy"
+                    placeholder={t('recipe.categoryPh')}
                     value={newIngCategory}
                     onChange={(e) => setNewIngCategory(e.target.value)}
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-[11px] uppercase tracking-wider text-cream-dim">Temporary Unit for Recipe *</label>
+                  <label className="mb-1 block text-[11px] uppercase tracking-wider text-cream-dim">{t('recipe.tempUnit')} *</label>
                   <select
                     className="input py-2"
                     value={newIngUnit}
@@ -264,7 +266,7 @@ export default function RecipeFormModal({ menu, inventory, existingRecipes = [],
                 <button
                   onClick={() => {
                     if (!newIngName.trim()) {
-                      return setReqError('Name is required.')
+                      return setReqError(t('recipe.errNameReq'))
                     }
                     const res = createIngredientRequest({
                       name: newIngName.trim(),
@@ -286,7 +288,7 @@ export default function RecipeFormModal({ menu, inventory, existingRecipes = [],
                   }}
                   className="btn-gold flex-1 py-2 text-sm"
                 >
-                  Submit Request
+                  {t('recipe.submitRequest')}
                 </button>
                 <button
                   onClick={() => {
@@ -295,7 +297,7 @@ export default function RecipeFormModal({ menu, inventory, existingRecipes = [],
                   }}
                   className="btn-ghost flex-1 py-2 text-sm"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
               </div>
             </div>
