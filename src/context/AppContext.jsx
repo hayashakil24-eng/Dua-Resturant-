@@ -778,7 +778,9 @@ export function AppProvider({ children }) {
   }
   const updateTable = (id, updates) =>
     setTables((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)))
-  const deleteTable = (id) => setTables((prev) => prev.filter((t) => t.id !== id))
+  // Locked tables (Delivery/Takeaway) are fixed order types and can't be removed.
+  const deleteTable = (id) =>
+    setTables((prev) => prev.filter((t) => t.id !== id || t.locked))
 
   // Employee management (Admin/Manager). Drives Payroll, Attendance, waiters.
   const waiters = useMemo(

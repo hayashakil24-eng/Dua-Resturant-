@@ -333,7 +333,15 @@
     "cancelEdit": "Cancel edit",
     "updateTable": "Update Table",
     "addTable": "Add Table",
-    "seatsWord": "seats"
+    "seatsWord": "seats",
+    "category": "Category",
+    "specialTypes": "Special",
+    "searchPlaceholder": "Search table number… e.g. B15",
+    "locked": "Locked",
+    "delivery": "Delivery",
+    "takeaway": "Takeaway",
+    "selectTable": "Select table or order type",
+    "noResults": "No tables match."
   },
   "app": {
     "menuHeading": "Menu",

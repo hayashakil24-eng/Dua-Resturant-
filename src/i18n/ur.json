@@ -333,7 +333,15 @@
     "cancelEdit": "ترمیم منسوخ کریں",
     "updateTable": "میز اپ ڈیٹ کریں",
     "addTable": "میز شامل کریں",
-    "seatsWord": "سیٹیں"
+    "seatsWord": "سیٹیں",
+    "category": "زمرہ",
+    "specialTypes": "خصوصی",
+    "searchPlaceholder": "میز نمبر تلاش کریں… مثلاً B15",
+    "locked": "مقفل",
+    "delivery": "ڈیلیوری",
+    "takeaway": "ٹیک اوے",
+    "selectTable": "میز یا آرڈر کی قسم منتخب کریں",
+    "noResults": "کوئی میز مطابقت نہیں رکھتی۔"
   },
   "app": {
     "menuHeading": "مینو",

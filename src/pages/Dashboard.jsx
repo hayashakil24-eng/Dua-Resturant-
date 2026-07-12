@@ -740,7 +740,7 @@ function FloorMap({ orders, orderTotal }) {
               }`}
             >
               <div className="flex justify-between items-start">
-                <span className="font-serif text-lg font-bold text-cream">T{tbl.id}</span>
+                <span className="font-serif text-lg font-bold text-cream">{tbl.number || `T${tbl.id}`}</span>
                 <span className="text-[9px] text-cream-dim font-bold uppercase bg-white/5 px-2 py-0.5 rounded-md">
                   {tbl.seats} {t('dashboard.seats')}
                 </span>

@@ -6,7 +6,7 @@ import { money, time } from '../utils/format.js'
 import { Receipt } from './Billing.jsx'
 import ManageMostOrderedModal from '../components/ManageMostOrderedModal.jsx'
 import { canModify } from '../config/permissions.js'
-import { TAX_RATE } from '../data/mockData.js'
+import { TAX_RATE, TABLE_CATEGORIES } from '../data/mockData.js'
 import {
   IconPlus,
   IconMinus,
@@ -382,6 +382,9 @@ export default function POS() {
     [orders],
   )
 
+  // Human label for a numeric table id (A1…H40, Delivery, Takeaway).
+  const tableLabel = (id) => tables.find((tb) => tb.id === Number(id))?.number || id
+
   // Once a table is chosen AND items are on the order, lock the table until
   // checkout. Locking only after a table is picked avoids stranding an
   // items-first order (the selector stays usable until a table is set).
@@ -511,7 +514,7 @@ export default function POS() {
         title={isContinuing ? `Add to Order · ${continuingOrder.id}` : 'New Order'}
         subtitle={
           isContinuing
-            ? `Table ${continuingOrder.table} · new items append to this running bill.`
+            ? `${tableLabel(continuingOrder.table)} · new items append to this running bill.`
             : 'Build the order, assign a table & waiter, then checkout.'
         }
       />
@@ -520,7 +523,7 @@ export default function POS() {
         <div className="mb-6 rounded-2xl border border-gold/25 bg-gold/[0.06] p-4">
           <div className="flex items-center justify-between">
             <p className="text-sm font-semibold text-gold">
-              🧾 Already on this order (Table {continuingOrder.table})
+              🧾 Already on this order ({tableLabel(continuingOrder.table)})
             </p>
             <p className="text-sm text-cream-dim">
               Running total <span className="font-semibold text-cream">{money(existingTotal)}</span>
@@ -690,11 +693,26 @@ export default function POS() {
                     onChange={(e) => setTable(e.target.value)}
                   >
                     <option value="">Select</option>
-                    {tables.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        Table {t.id} · {t.seats} seats{occupiedTables.has(t.id) ? ' (In Use)' : ''}
-                      </option>
+                    {TABLE_CATEGORIES.map((c) => (
+                      <optgroup key={c} label={`Category ${c}`}>
+                        {tables
+                          .filter((tb) => tb.category === c)
+                          .map((tb) => (
+                            <option key={tb.id} value={tb.id}>
+                              {tb.number} · {tb.seats} seats{occupiedTables.has(tb.id) ? ' (In Use)' : ''}
+                            </option>
+                          ))}
+                      </optgroup>
                     ))}
+                    <optgroup label="Special">
+                      {tables
+                        .filter((tb) => tb.orderType)
+                        .map((tb) => (
+                          <option key={tb.id} value={tb.id}>
+                            {tb.orderType === 'delivery' ? '🚗 Delivery' : '🛍️ Takeaway'}
+                          </option>
+                        ))}
+                    </optgroup>
                   </select>
                 </div>
                 <div>
@@ -717,7 +735,7 @@ export default function POS() {
               </div>
               {tableLocked && (
                 <p className="mt-3 flex items-center gap-2 rounded-lg border border-gold/25 bg-gold/[0.06] px-3 py-2 text-xs text-gold">
-                  🔒 Locked to Table {table} until checkout
+                  🔒 Locked to {tableLabel(table)} until checkout
                   {lockedAt ? ` · since ${time(lockedAt.toISOString())}` : ''}. Remove all items or
                   checkout to change tables.
                 </p>

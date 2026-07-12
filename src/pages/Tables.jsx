@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext.jsx'
 import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader, PaymentBadge } from '../components/ui.jsx'
+import { TABLE_CATEGORIES } from '../data/mockData.js'
 import { canModify, hasAccess } from '../config/permissions.js'
 import { money, time } from '../utils/format.js'
 import {
@@ -39,7 +40,9 @@ function TableCard({ info, now, onClick }) {
         </span>
       </div>
 
-      <p className="mt-2 font-serif text-2xl font-bold text-cream">{t('tables.table')} {info.id}</p>
+      <p className="mt-2 font-serif text-2xl font-bold text-cream">
+        {info.number || `${t('tables.table')} ${info.id}`}
+      </p>
 
       {inUse ? (
         <div className="mt-2 space-y-1">
@@ -61,6 +64,10 @@ function TableCard({ info, now, onClick }) {
             )}
           </div>
         </div>
+      ) : info.orderType ? (
+        <p className="mt-2 text-xs text-cream-dim">
+          {info.orderType === 'delivery' ? '🚗' : '🛍️'} {t('tables.tapToStart')}
+        </p>
       ) : (
         <p className="mt-2 text-xs text-cream-dim">{t('tables.seats')} {info.seats} · {t('tables.tapToStart')}</p>
       )}
@@ -68,7 +75,7 @@ function TableCard({ info, now, onClick }) {
   )
 }
 
-function OrderDetailsModal({ order, orderTotal, onClose, canAddItems, onAddItems }) {
+function OrderDetailsModal({ order, tableLabel, orderTotal, onClose, canAddItems, onAddItems }) {
   const t = useT()
   const { subtotal, tax, discount, total } = orderTotal(order.items, order.discount?.amount)
   return (
@@ -78,7 +85,7 @@ function OrderDetailsModal({ order, orderTotal, onClose, canAddItems, onAddItems
         <div className="card p-6">
           <div className="flex items-start justify-between">
             <div>
-              <h3 className="font-serif text-2xl text-cream">{t('tables.table')} {order.table}</h3>
+              <h3 className="font-serif text-2xl text-cream">{tableLabel || `${t('tables.table')} ${order.table}`}</h3>
               <p className="mt-0.5 text-xs text-cream-dim">
                 {order.id} · {order.waiter} · {time(order.createdAt)}
               </p>
@@ -242,29 +249,36 @@ function TablesManageModal({ tables, occupied, canDelete, onAdd, onUpdate, onDel
                 <div key={tbl.id} className="flex items-center justify-between py-2.5">
                   <div>
                     <p className="text-sm font-medium text-cream">
-                      {t('tables.table')} {tbl.id} <span className="text-cream-dim">· {tbl.seats} {t('tables.seatsWord')}</span>
+                      {tbl.number || `${t('tables.table')} ${tbl.id}`}
+                      {!tbl.locked && (
+                        <span className="text-cream-dim"> · {tbl.seats} {t('tables.seatsWord')}</span>
+                      )}
                     </p>
                     {tbl.section && <p className="text-xs text-cream-dim">{tbl.section}</p>}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => startEdit(tbl)}
-                      className="grid h-8 w-8 place-items-center rounded-lg border border-ink-line text-cream-dim transition hover:border-gold/40 hover:text-gold"
-                      title={t('common.edit')}
-                    >
-                      <IconEdit size={15} />
-                    </button>
-                    {canDelete && (
+                  {tbl.locked ? (
+                    <span className="text-xs text-cream-dim">🔒 {t('tables.locked')}</span>
+                  ) : (
+                    <div className="flex items-center gap-2">
                       <button
-                        onClick={() => onDelete(tbl.id)}
-                        disabled={inUse}
-                        title={inUse ? t('tables.inUse') : t('common.delete')}
-                        className="grid h-8 w-8 place-items-center rounded-lg border border-ink-line text-cream-dim transition hover:border-rose-500/40 hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-30"
+                        onClick={() => startEdit(tbl)}
+                        className="grid h-8 w-8 place-items-center rounded-lg border border-ink-line text-cream-dim transition hover:border-gold/40 hover:text-gold"
+                        title={t('common.edit')}
                       >
-                        <IconTrash size={15} />
+                        <IconEdit size={15} />
                       </button>
-                    )}
-                  </div>
+                      {canDelete && (
+                        <button
+                          onClick={() => onDelete(tbl.id)}
+                          disabled={inUse}
+                          title={inUse ? t('tables.inUse') : t('common.delete')}
+                          className="grid h-8 w-8 place-items-center rounded-lg border border-ink-line text-cream-dim transition hover:border-rose-500/40 hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-30"
+                        >
+                          <IconTrash size={15} />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -286,6 +300,8 @@ export default function Tables() {
   const t = useT()
   const navigate = useNavigate()
   const [tab, setTab] = useState('all')
+  const [cat, setCat] = useState('All') // 'All' | 'A'…'H' | 'Special'
+  const [q, setQ] = useState('')
   const [detail, setDetail] = useState(null)
   const [manage, setManage] = useState(false)
   const [now, setNow] = useState(() => Date.now())
@@ -312,7 +328,13 @@ export default function Tables() {
   const available = tableInfo.filter((tbl) => tbl.status === 'available')
   const occupied = new Set(running.map((tbl) => tbl.id))
   const groups = { running, available, all: tableInfo }
-  const shown = groups[tab]
+
+  // Apply the status tab, then the category filter (A–H / Special), then search.
+  const catTabs = ['All', ...TABLE_CATEGORIES, 'Special']
+  let shown = groups[tab]
+  if (cat !== 'All') shown = shown.filter((i) => i.category === cat)
+  const query = q.trim().toLowerCase()
+  if (query) shown = shown.filter((i) => (i.number || '').toLowerCase().includes(query))
 
   // Add/manage tables is Admin+Manager only; adding items to a running order
   // needs POS access (Cashier + Admin — Manager has no POS).
@@ -358,12 +380,45 @@ export default function Tables() {
         })}
       </div>
 
+      {/* Category chips (A–H + Special) + search by table number */}
+      <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="scrollbar-hide flex gap-2 overflow-x-auto pb-1">
+          {catTabs.map((c) => (
+            <button
+              key={c}
+              onClick={() => setCat(c)}
+              className={`shrink-0 whitespace-nowrap rounded-full border px-4 py-1.5 text-sm font-medium transition ${
+                cat === c
+                  ? 'border-gold/60 bg-gold/12 text-gold'
+                  : 'border-ink-line bg-ink-soft text-cream-dim hover:text-cream'
+              }`}
+            >
+              {c === 'All'
+                ? t('tables.allTables')
+                : c === 'Special'
+                  ? t('tables.specialTypes')
+                  : `${t('tables.category')} ${c}`}
+            </button>
+          ))}
+        </div>
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder={t('tables.searchPlaceholder')}
+          className="input w-full py-2 lg:w-56"
+        />
+      </div>
+
       {/* Grid */}
       {shown.length === 0 ? (
         <div className="card grid place-items-center p-12 text-center text-sm text-cream-dim">
-          {tab === 'running' && t('tables.noneRunning')}
-          {tab === 'available' && t('tables.allOccupied')}
-          {tab === 'all' && t('tables.noneConfigured')}
+          {query || cat !== 'All'
+            ? t('tables.noResults')
+            : tab === 'running'
+              ? t('tables.noneRunning')
+              : tab === 'available'
+                ? t('tables.allOccupied')
+                : t('tables.noneConfigured')}
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
@@ -395,6 +450,7 @@ export default function Tables() {
       {detail && (
         <OrderDetailsModal
           order={detail}
+          tableLabel={tables.find((tb) => tb.id === detail.table)?.number}
           orderTotal={orderTotal}
           canAddItems={canAddItems}
           onAddItems={() => continueOrder(detail)}
