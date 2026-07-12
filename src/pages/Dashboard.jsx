@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext.jsx'
 import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader, StatCard, PaymentBadge } from '../components/ui.jsx'
 import { money, time, dateShort, clock as fmtClock, dayShort, monthName as fmtMonthName } from '../utils/format.js'
+import { tableLabel } from '../data/mockData.js'
 import { payrollTotal } from '../utils/payroll.js'
 import { Receipt } from './Billing.jsx'
 import { canModify } from '../config/permissions.js'
@@ -286,8 +287,8 @@ function RecentOrders({ orders, orderTotal }) {
       <div className="divide-y divide-ink-line">
         {orders.slice(0, 5).map((o) => (
           <div key={o.id} className="flex items-center gap-4 p-4 hover:bg-white/[0.02]">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gold/10 font-serif text-sm font-semibold text-gold ring-1 ring-gold/20">
-              T{o.table}
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gold/10 font-serif text-xs font-semibold text-gold ring-1 ring-gold/20">
+              {tableLabel(o.table)}
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-cream">
@@ -807,8 +808,8 @@ function CashierDashboard({ stats, orders, orderTotal, unpaidTotal, onProcessBil
               <div className="divide-y divide-ink-line">
                 {paidOrders.slice(0, 5).map((o) => (
                   <div key={o.id} className="flex items-center gap-4 p-4 hover:bg-white/[0.02]">
-                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-500/10 font-serif text-sm font-semibold text-emerald-300 ring-1 ring-emerald-500/20">
-                      T{o.table}
+                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-500/10 font-serif text-xs font-semibold text-emerald-300 ring-1 ring-emerald-500/20">
+                      {tableLabel(o.table)}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-cream">
@@ -895,7 +896,7 @@ function PendingBillsQueue({ orders, orderTotal, onProcessBill }) {
             <div key={o.id} className="flex flex-col gap-3 p-4 hover:bg-white/[0.01] sm:flex-row sm:items-center sm:justify-between sm:gap-4">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="font-serif font-bold text-gold text-lg">{t('dashboard.table')} {o.table}</span>
+                  <span className="font-serif font-bold text-gold text-lg">{tableLabel(o.table)}</span>
                   <span className="text-cream-dim">·</span>
                   <span className="text-sm font-semibold text-cream">{o.id}</span>
                   <span className="text-xs text-cream-dim">({o.waiter})</span>

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { PageHeader, PaymentBadge, EmptyState } from '../components/ui.jsx'
 import { money, time } from '../utils/format.js'
+import { tableLabel } from '../data/mockData.js'
 import { IconOrders, IconSearch, IconCheck, IconClose } from '../components/Icons.jsx'
 import { canModify } from '../config/permissions.js'
 import PaymentModal from '../components/PaymentModal.jsx'
@@ -43,7 +44,7 @@ function CancelModal({ order, orderTotal, onConfirm, onClose }) {
           <div className="mt-5 rounded-xl border border-ink-line bg-ink-soft p-4">
             <div className="flex items-center justify-between">
               <span className="font-semibold text-gold">{order.id}</span>
-              <span className="text-sm text-cream-dim">Table {order.table}</span>
+              <span className="text-sm text-cream-dim">{tableLabel(order.table)}</span>
             </div>
             <p className="mt-2 text-xs text-cream-dim">
               {order.items.map((i) => `${i.qty}× ${i.name}`).join(', ')}
@@ -120,7 +121,8 @@ export default function Orders() {
           !q ||
           o.id.toLowerCase().includes(q) ||
           o.waiter.toLowerCase().includes(q) ||
-          String(o.table).includes(q)
+          String(o.table).includes(q) ||
+          tableLabel(o.table).toLowerCase().includes(q)
         return matchFilter && matchQuery
       }),
     [orders, filter, query],
@@ -216,7 +218,7 @@ export default function Orders() {
                       <td className="px-5 py-4 font-semibold text-gold">{o.id}</td>
                       <td className="px-5 py-4">
                         <span className="rounded-lg bg-white/5 px-2 py-1 text-xs font-medium text-cream ring-1 ring-ink-line">
-                          T{o.table}
+                          {tableLabel(o.table)}
                         </span>
                       </td>
                       <td className="px-5 py-4 text-cream">{o.waiter}</td>
@@ -252,7 +254,7 @@ export default function Orders() {
                 </div>
                 <div className="mt-2 flex items-center gap-2 text-xs text-cream-dim">
                   <span className="rounded bg-white/5 px-2 py-0.5 ring-1 ring-ink-line">
-                    Table {o.table}
+                    {tableLabel(o.table)}
                   </span>
                   <span>{o.waiter}</span>
                   <span>· {time(o.createdAt)}</span>

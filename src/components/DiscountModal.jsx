@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { money } from '../utils/format.js'
+import { tableLabel } from '../data/mockData.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import { IconClose, IconWallet } from './Icons.jsx'
 
@@ -42,7 +43,7 @@ export default function DiscountModal({ order, gross, onApply, onClose }) {
             <div>
               <h3 className="font-serif text-2xl text-cream">Apply Discount</h3>
               <p className="mt-0.5 text-xs text-cream-dim">
-                Order {order.id} · Table {order.table}
+                Order {order.id} · {tableLabel(order.table)}
               </p>
             </div>
             <button onClick={onClose} className="text-cream-dim hover:text-cream">

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useApp } from '../context/AppContext.jsx'
+import { tableLabel } from '../data/mockData.js'
 import { IconClose, IconCheck, IconClock } from '../components/Icons.jsx'
 
 const elapsedMin = (iso, now) =>
@@ -22,7 +23,7 @@ function OrderCard({ order, now, onReady, onClear }) {
       <div className="flex items-start justify-between">
         <div>
           <p className="font-serif text-3xl font-bold leading-none text-cream">
-            Table {order.table}
+            {tableLabel(order.table)}
           </p>
           <p className="mt-1 text-lg text-cream-dim">{order.waiter}</p>
         </div>
