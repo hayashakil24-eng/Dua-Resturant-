@@ -19,12 +19,16 @@ function Row({ label, value, strong }) {
 // cash sales) and asks the cashier for the physical count; the live preview
 // flags any shortage/excess before they commit. `onComplete(shiftId, actual)`.
 export default function ShiftEndModal({ shift, onClose, onComplete }) {
-  const { calculateShiftSales } = useApp()
+  const { calculateShiftSales, staff } = useApp()
   const [actual, setActual] = useState('')
+  const [handoverTo, setHandoverTo] = useState('Admin') // 'Admin' | 'Manager' | 'Other'
+  const [handoverPerson, setHandoverPerson] = useState('') // staff id when 'Other'
+  const [reason, setReason] = useState('')
   const [error, setError] = useState('')
   useEscapeKey(onClose)
 
   const sales = useMemo(() => calculateShiftSales(shift.id), [calculateShiftSales, shift.id])
+  const others = useMemo(() => staff.filter((s) => s.active !== false), [staff])
 
   if (!sales) return null
 
@@ -35,8 +39,14 @@ export default function ShiftEndModal({ shift, onClose, onComplete }) {
 
   const submit = () => {
     if (!hasCount || counted < 0) return setError('Enter the actual cash counted.')
+    if (handoverTo === 'Other' && !handoverPerson)
+      return setError('Select the person receiving the cash.')
     setError('')
-    onComplete(shift.id, counted)
+    const name =
+      handoverTo === 'Other'
+        ? others.find((s) => s.id === handoverPerson)?.name || 'Other'
+        : handoverTo
+    onComplete(shift.id, counted, { to: handoverTo, name, reason: reason.trim() })
   }
 
   return (
@@ -50,8 +60,8 @@ export default function ShiftEndModal({ shift, onClose, onComplete }) {
                 <IconCash size={22} />
               </span>
               <div>
-                <h3 className="font-serif text-2xl text-cream">End Shift · Cash Count</h3>
-                <p className="text-xs text-cream-dim">Count the physical cash in the drawer.</p>
+                <h3 className="font-serif text-2xl text-cream">End Shift · Cash Handover</h3>
+                <p className="text-xs text-cream-dim">Count the drawer and record who you hand the cash to.</p>
               </div>
             </div>
             <button onClick={onClose} className="text-cream-dim hover:text-cream">
@@ -89,7 +99,56 @@ export default function ShiftEndModal({ shift, onClose, onComplete }) {
                 placeholder="Count the drawer and enter"
                 value={actual}
                 onChange={(e) => setActual(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && submit()}
+              />
+            </div>
+
+            {/* Hand cash over to */}
+            <div className="mt-5">
+              <label className="mb-2 block text-[11px] uppercase tracking-wider text-cream-dim">
+                Hand over cash to
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {['Admin', 'Manager', 'Other'].map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => setHandoverTo(opt)}
+                    className={`rounded-xl border py-2.5 text-sm font-semibold transition ${
+                      handoverTo === opt
+                        ? 'border-gold/50 bg-gold/12 text-gold'
+                        : 'border-ink-line bg-ink-soft text-cream-dim hover:text-cream'
+                    }`}
+                  >
+                    {opt === 'Other' ? 'Other person' : opt}
+                  </button>
+                ))}
+              </div>
+              {handoverTo === 'Other' && (
+                <select
+                  className="input mt-2 py-2.5"
+                  value={handoverPerson}
+                  onChange={(e) => setHandoverPerson(e.target.value)}
+                >
+                  <option value="">Select person…</option>
+                  {others.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.role})
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {/* Reason (optional) */}
+            <div className="mt-4">
+              <label className="mb-2 block text-[11px] uppercase tracking-wider text-cream-dim">
+                Reason (optional)
+              </label>
+              <textarea
+                className="input h-16 resize-none"
+                placeholder="e.g. handed to manager after count…"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
               />
             </div>
 

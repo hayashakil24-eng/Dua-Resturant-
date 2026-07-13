@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import {
   INITIAL_ORDERS,
   INITIAL_ATTENDANCE,
@@ -38,9 +38,47 @@ export function AppProvider({ children }) {
   const [orderSeq, setOrderSeq] = useState(1046)
   const [txnSeq, setTxnSeq] = useState(500)
   // Cash drawer reconciliation: the cashier's open shift plus the closed
-  // shifts (kept for the Admin/Manager dashboard).
-  const [shiftReconciliations, setShiftReconciliations] = useState([])
-  const [activeShift, setActiveShift] = useState(null)
+  // shifts (kept for the Admin/Manager dashboard). Persisted to localStorage so
+  // a cashier can PAUSE (log out without reconciling) and later resume the same
+  // open drawer, and so the audit trail survives a page reload. (No backend —
+  // this is the app's only persistence layer.)
+  const loadJSON = (key, fallback) => {
+    try {
+      const raw = localStorage.getItem(key)
+      return raw ? JSON.parse(raw) : fallback
+    } catch {
+      return fallback
+    }
+  }
+  const [shiftReconciliations, setShiftReconciliations] = useState(() =>
+    loadJSON('shiftReconciliations', []),
+  )
+  const [activeShift, setActiveShift] = useState(() => loadJSON('activeShift', null))
+  // Mid-shift partial cash handovers awaiting a Manager/Admin decision.
+  const [pendingHandovers, setPendingHandovers] = useState(() => loadJSON('pendingHandovers', []))
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('shiftReconciliations', JSON.stringify(shiftReconciliations))
+    } catch {
+      /* ignore (private mode / quota) */
+    }
+  }, [shiftReconciliations])
+  useEffect(() => {
+    try {
+      localStorage.setItem('pendingHandovers', JSON.stringify(pendingHandovers))
+    } catch {
+      /* ignore */
+    }
+  }, [pendingHandovers])
+  useEffect(() => {
+    try {
+      if (activeShift) localStorage.setItem('activeShift', JSON.stringify(activeShift))
+      else localStorage.removeItem('activeShift')
+    } catch {
+      /* ignore */
+    }
+  }, [activeShift])
 
   const login = ({ role, name }) => setUser({ role, name: name || `${role} User` })
   const logout = () => setUser(null)
@@ -547,10 +585,14 @@ export function AppProvider({ children }) {
         : shiftReconciliations.find((s) => s.id === shiftId)
     if (!shift) return null
     const { totalCashSales, totalCardSales } = shiftSalesSince(shift.shiftStartTime)
+    // Cash handed over mid-shift (accepted partial handovers) leaves the drawer,
+    // so it reduces the cash the cashier is accountable for at reconciliation.
+    const handedOver = (shift.partialHandovers || []).reduce((s, h) => s + h.amount, 0)
     return {
       totalCashSales,
       totalCardSales,
-      expectedCash: shift.openingCash + totalCashSales,
+      handedOver,
+      expectedCash: shift.openingCash + totalCashSales - handedOver,
     }
   }
 
@@ -575,15 +617,38 @@ export function AppProvider({ children }) {
     return shift
   }
 
+  // Pause: the cashier logs out but the open drawer stays (persisted), so it can
+  // be resumed on the next login without re-entering opening cash.
+  const pauseShift = () =>
+    setActiveShift((s) => (s ? { ...s, status: 'paused', pausedAt: new Date().toISOString() } : s))
+
+  // Resume a paused drawer — back to active, counting resumes for the audit.
+  const resumeShift = () =>
+    setActiveShift((s) =>
+      s
+        ? {
+            ...s,
+            status: 'active',
+            resumedAt: new Date().toISOString(),
+            resumeCount: (s.resumeCount || 0) + 1,
+          }
+        : s,
+    )
+
   // Close a shift against a physical cash count. difference = expected − actual
   // (positive → shortage, negative → excess). Within Rs. 10 counts as matched.
-  const endShift = (shiftId, actualCash) => {
+  // `handover` records who the drawer cash was handed to (Admin/Manager/staff)
+  // and an optional note, for the audit trail.
+  const endShift = (shiftId, actualCash, handover = {}) => {
     const sales = calculateShiftSales(shiftId)
     if (!sales) return null
     const actual = Math.max(0, Number(actualCash) || 0)
     const difference = sales.expectedCash - actual
     const status =
       Math.abs(difference) < 10 ? 'matched' : difference > 0 ? 'shortage' : 'excess'
+    const handedTo = handover.to || null
+    const handedToName = handover.name || handover.to || null
+    const handoverReason = handover.reason || ''
 
     let closed = null
     setShiftReconciliations((prev) =>
@@ -598,6 +663,9 @@ export function AppProvider({ children }) {
           actualCash: actual,
           difference,
           status,
+          handedTo,
+          handedToName,
+          handoverReason,
         }
         return closed
       }),
@@ -615,12 +683,80 @@ export function AppProvider({ children }) {
           actualCash: actual,
           difference,
           status,
+          handedTo,
+          handedToName,
+          handoverReason,
           at: closed.shiftEndTime,
         },
         ...prev,
       ])
     }
     return closed
+  }
+
+  // --- Partial handover with approval ------------------------------------
+  // A cashier hands part of the drawer to a Manager/Admin mid-shift. It stays
+  // PENDING until the recipient (any logged-in Manager/Admin) accepts — only
+  // then does the cash leave the drawer (reduces expected at reconciliation).
+  const initiateHandover = ({ amount, toName, toRole, reason = '' } = {}) => {
+    if (!activeShift) return { error: 'No active shift.' }
+    const amt = Math.max(0, Number(amount) || 0)
+    const current = calculateShiftSales(activeShift.id)?.expectedCash ?? activeShift.openingCash
+    if (amt <= 0 || amt > current) return { error: 'Enter a valid amount within the drawer balance.' }
+    const at = new Date().toISOString()
+    const ho = {
+      id: `HO-${Date.now()}`,
+      shiftId: activeShift.id,
+      fromName: activeShift.cashierName,
+      toName: toName || 'Manager',
+      toRole: toRole || 'Manager',
+      amount: amt,
+      reason,
+      status: 'pending',
+      initiatedAt: at,
+    }
+    setPendingHandovers((prev) => [ho, ...prev])
+    setAuditLog((prev) => [
+      { id: `AUD-${Date.now()}`, action: 'HANDOVER_INITIATED', amount: amt, from: ho.fromName, to: ho.toName, by: ho.fromName, role: 'Cashier', at },
+      ...prev,
+    ])
+    return { success: true, id: ho.id }
+  }
+
+  const acceptHandover = (id) => {
+    if (!user || !['Manager', 'Admin'].includes(user.role)) return { error: 'Not authorised.' }
+    const ho = pendingHandovers.find((h) => h.id === id)
+    if (!ho || ho.status !== 'pending') return { error: 'Handover not found.' }
+    const at = new Date().toISOString()
+    setPendingHandovers((prev) =>
+      prev.map((h) => (h.id === id ? { ...h, status: 'accepted', resolvedAt: at, resolvedBy: user.name } : h)),
+    )
+    // Record on the shift so reconciliation subtracts it from expected cash.
+    setActiveShift((s) =>
+      s && s.id === ho.shiftId
+        ? { ...s, partialHandovers: [...(s.partialHandovers || []), { id: ho.id, amount: ho.amount, to: ho.toName, at }] }
+        : s,
+    )
+    setAuditLog((prev) => [
+      { id: `AUD-${Date.now()}`, action: 'HANDOVER_ACCEPTED', amount: ho.amount, from: ho.fromName, to: ho.toName, by: user.name, role: user.role, at },
+      ...prev,
+    ])
+    return { success: true }
+  }
+
+  const rejectHandover = (id, reason = '') => {
+    if (!user || !['Manager', 'Admin'].includes(user.role)) return { error: 'Not authorised.' }
+    const ho = pendingHandovers.find((h) => h.id === id)
+    if (!ho || ho.status !== 'pending') return { error: 'Handover not found.' }
+    const at = new Date().toISOString()
+    setPendingHandovers((prev) =>
+      prev.map((h) => (h.id === id ? { ...h, status: 'rejected', rejectReason: reason, resolvedAt: at, resolvedBy: user.name } : h)),
+    )
+    setAuditLog((prev) => [
+      { id: `AUD-${Date.now()}`, action: 'HANDOVER_REJECTED', amount: ho.amount, from: ho.fromName, to: ho.toName, reason, by: user.name, role: user.role, at },
+      ...prev,
+    ])
+    return { success: true }
   }
 
   // Kitchen Display: Pending → Ready → Served (Served drops off the board)
@@ -693,7 +829,7 @@ export function AppProvider({ children }) {
   // mints the next sequential INV## id following the seed data pattern.
   const addInventoryItem = ({ name, category, unit, stock = 0, threshold = 0 } = {}) => {
     if (!user || !canModify(user.role, 'inventoryCreate')) {
-      return { error: 'Only Admin can add new inventory items.' }
+      return { error: 'You are not allowed to add new inventory items.' }
     }
     const trimmed = (name || '').trim()
     if (!trimmed) return { error: 'Item name is required.' }
@@ -1033,8 +1169,14 @@ export function AppProvider({ children }) {
     shiftReconciliations,
     activeShift,
     startShift,
+    pauseShift,
+    resumeShift,
     endShift,
     calculateShiftSales,
+    pendingHandovers,
+    initiateHandover,
+    acceptHandover,
+    rejectHandover,
     stats,
   }
 

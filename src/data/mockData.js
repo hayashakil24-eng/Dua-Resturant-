@@ -72,6 +72,13 @@ function generateTables() {
 
 export const TABLES = generateTables()
 
+// Numeric table id → human label (A1, HUT1, Delivery…). Orders store the
+// numeric id; use this wherever a table is shown so every page reads the same
+// (Orders/Dashboard used to print the raw id, e.g. "T281" instead of "HUT1").
+// Falls back to "T<id>" for any id not in the current table set.
+const TABLE_LABELS = new Map(TABLES.map((t) => [t.id, t.number]))
+export const tableLabel = (id) => TABLE_LABELS.get(Number(id)) || `T${id}`
+
 // Ordered category list for the Cafe Ali menu (POS prepends "All").
 export const MENU_CATEGORIES = [
   'Coladas',

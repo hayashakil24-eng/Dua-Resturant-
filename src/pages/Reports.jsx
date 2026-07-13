@@ -75,7 +75,7 @@ export default function Reports() {
   }, [today])
 
   const [type, setType] = useState('daily')
-  const [view, setView] = useState('summary') // 'summary' | 'itemwise'
+  const [view, setView] = useState('overview') // 'overview' | 'summary' | 'itemwise'
   const [dailyDate, setDailyDate] = useState(() => toDayStr(new Date()))
   const [monthKey, setMonthKey] = useState(monthOptions[0].key)
 
@@ -106,12 +106,16 @@ export default function Reports() {
       (s, o) => s + orderTotal(o.items, o.discount?.amount).total,
       0,
     )
-    // Cash vs card split — collected (paid) orders only, by payment method.
+    // Payment-method split — collected (paid) orders only. Cash + Card + Online
+    // always equals the collected total.
     const cash = paidOrders
       .filter((o) => o.method === 'Cash')
       .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount).total, 0)
     const card = paidOrders
       .filter((o) => o.method === 'Card')
+      .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount).total, 0)
+    const online = paidOrders
+      .filter((o) => o.method === 'Online')
       .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount).total, 0)
     const top = topSelling(scopeOrders)
     const stock = estimateStockUsed(scopeOrders)
@@ -172,7 +176,7 @@ export default function Reports() {
       titleKey: 'reports.dailyReport',
       rangeLabel: dateLong(`${dailyDate}T00:00:00`),
       // Total Sale = collected (paid) orders only, so it always equals
-      // Cash + Card. Unpaid/running tabs are excluded until they're paid.
+      // Cash + Card + Online. Unpaid/running tabs are excluded until paid.
       revenueLabelKey: 'reports.totalSaleCollected',
       revenue: collected,
       expenses: dailyExpenses,
@@ -182,6 +186,7 @@ export default function Reports() {
       collected,
       cash,
       card,
+      online,
       top,
       stock,
       items,
@@ -256,6 +261,7 @@ export default function Reports() {
       {/* View tabs — Summary (totals) vs Item-Wise (per-item breakdown) */}
       <div className="mx-auto mb-4 flex max-w-2xl gap-2 border-b border-ink-line no-print">
         {[
+          ['overview', 'reports.dailyReport'],
           ['summary', 'reports.summary'],
           ['itemwise', 'reports.itemWise'],
         ].map(([key, labelKey]) => (
@@ -273,8 +279,61 @@ export default function Reports() {
         ))}
       </div>
 
-      {/* Printable report (light "paper" — matches print output) */}
       <div className="mx-auto max-w-2xl">
+        {/* Daily Report — a clean, at-a-glance overview (screen view, not the
+            printable paper). Uses the app's real figures incl. net profit. */}
+        {view === 'overview' && (
+          <div className="space-y-4">
+            <div className="card flex items-center justify-between p-5">
+              <span className="text-sm text-cream-dim">{t('reports.date')}</span>
+              <span className="font-serif text-lg font-semibold text-gold">{report.rangeLabel}</span>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="card p-6">
+                <p className="text-xs uppercase tracking-widest text-cream-dim">{t('reports.totalOrders')}</p>
+                <p className="mt-2 font-serif text-4xl font-semibold text-cream">{report.totalOrders}</p>
+              </div>
+              <div className="card p-6">
+                <p className="text-xs uppercase tracking-widest text-cream-dim">{t(report.revenueLabelKey)}</p>
+                <p className="mt-2 font-serif text-4xl font-semibold text-gold">{money(report.revenue)}</p>
+              </div>
+              <div className="card border border-emerald-500/25 bg-emerald-500/[0.06] p-6">
+                <p className="text-xs uppercase tracking-widest text-emerald-300/80">💵 {t('reports.cashPayment')}</p>
+                <p className="mt-2 font-serif text-3xl font-semibold text-emerald-300">{money(report.cash)}</p>
+              </div>
+              <div className="card border border-sky-500/25 bg-sky-500/[0.06] p-6">
+                <p className="text-xs uppercase tracking-widest text-sky-300/80">💳 {t('reports.cardPayment')}</p>
+                <p className="mt-2 font-serif text-3xl font-semibold text-sky-300">{money(report.card)}</p>
+              </div>
+              <div className="card border border-indigo-500/25 bg-indigo-500/[0.06] p-6">
+                <p className="text-xs uppercase tracking-widest text-indigo-300/80">🌐 {t('reports.onlinePayment')}</p>
+                <p className="mt-2 font-serif text-3xl font-semibold text-indigo-300">{money(report.online)}</p>
+              </div>
+            </div>
+
+            <div className="card border border-gold/30 bg-gold/[0.06] p-6">
+              <p className="text-xs uppercase tracking-widest text-gold/80">{t('reports.totalProfit')}</p>
+              <p
+                className={`mt-2 font-serif text-4xl font-semibold ${
+                  report.netProfit >= 0 ? 'text-gold' : 'text-rose-300'
+                }`}
+              >
+                {money(report.netProfit)}
+              </p>
+            </div>
+
+            {report.totalOrders === 0 && (
+              <div className="card p-8 text-center text-sm text-cream-dim">
+                {t('reports.noOrdersPeriod')}
+              </div>
+            )}
+          </div>
+        )}
+
+        {view !== 'overview' && (
+        <>
+        {/* Printable report (light "paper" — matches print output) */}
         <div id="printable-report" className="rounded-2xl bg-white p-8 text-[#3E2723] shadow-lift border border-[#E8DCC4]">
           {/* Brand header */}
           <div className="text-center">
@@ -304,6 +363,7 @@ export default function Reports() {
               <>
                 <Row label={t('reports.cash')} value={money(report.cash)} tone="text-[#3498DB]" />
                 <Row label={t('reports.card')} value={money(report.card)} tone="text-[#3498DB]" />
+                <Row label={t('reports.online')} value={money(report.online)} tone="text-[#3498DB]" />
               </>
             )}
             {type === 'monthly' && report.payroll > 0 && (
@@ -446,6 +506,8 @@ export default function Reports() {
             <IconWhatsApp size={18} /> {t('reports.shareWhatsApp')}
           </button>
         </div>
+        </>
+        )}
       </div>
     </div>
   )

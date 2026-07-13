@@ -4,7 +4,7 @@ import { PageHeader, PaymentBadge, EmptyState } from '../components/ui.jsx'
 import { money, time, dateLong } from '../utils/format.js'
 import { safePrint } from '../utils/print.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
-import { TAX_RATE } from '../data/mockData.js'
+import { TAX_RATE, tableLabel } from '../data/mockData.js'
 import DiscountModal from '../components/DiscountModal.jsx'
 import Logo from '../components/Logo.jsx'
 import { IconReceipt, IconPrint, IconCheck, IconClose, IconWallet } from '../components/Icons.jsx'
@@ -66,7 +66,7 @@ export function Receipt({
               <span>Time</span>
               <span className="text-right">{time(order.createdAt)}</span>
               <span>Table</span>
-              <span className="text-right">#{order.table}</span>
+              <span className="text-right">{tableLabel(order.table)}</span>
               <span>Waiter</span>
               <span className="text-right">{order.waiter}</span>
             </div>
@@ -261,7 +261,7 @@ export default function Billing() {
               </div>
               <p className="mt-4 font-semibold text-gold">{o.id}</p>
               <p className="text-xs text-cream-dim">
-                Table {o.table} · {o.waiter} · {time(o.createdAt)}
+                {tableLabel(o.table)} · {o.waiter} · {time(o.createdAt)}
               </p>
               <div className="mt-4 flex items-center justify-between border-t border-ink-line pt-3">
                 <span className="font-serif text-xl font-semibold text-cream">

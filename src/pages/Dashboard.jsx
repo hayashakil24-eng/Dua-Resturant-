@@ -4,6 +4,8 @@ import { useApp } from '../context/AppContext.jsx'
 import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader, StatCard, PaymentBadge } from '../components/ui.jsx'
 import { money, time, dateShort, clock as fmtClock, dayShort, monthName as fmtMonthName } from '../utils/format.js'
+import { tableLabel } from '../data/mockData.js'
+import HandoverApprovalModal from '../components/HandoverApprovalModal.jsx'
 import { payrollTotal } from '../utils/payroll.js'
 import { Receipt } from './Billing.jsx'
 import { canModify } from '../config/permissions.js'
@@ -197,22 +199,30 @@ function CashReconciliation() {
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
-                    <div>
-                      <p className="text-[11px] text-cream-dim">{t('dashboard.expected')}</p>
-                      <p className="font-semibold text-cream">{money(s.expectedCash)}</p>
+                  <>
+                    <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
+                      <div>
+                        <p className="text-[11px] text-cream-dim">{t('dashboard.expected')}</p>
+                        <p className="font-semibold text-cream">{money(s.expectedCash)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] text-cream-dim">{t('dashboard.actual')}</p>
+                        <p className="font-semibold text-cream">{money(s.actualCash)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] text-cream-dim">{t('dashboard.difference')}</p>
+                        <p className={`font-semibold ${meta.diff}`}>
+                          {s.status === 'matched' ? money(0) : money(Math.abs(s.difference))}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-[11px] text-cream-dim">{t('dashboard.actual')}</p>
-                      <p className="font-semibold text-cream">{money(s.actualCash)}</p>
-                    </div>
-                    <div>
-                      <p className="text-[11px] text-cream-dim">{t('dashboard.difference')}</p>
-                      <p className={`font-semibold ${meta.diff}`}>
-                        {s.status === 'matched' ? money(0) : money(Math.abs(s.difference))}
+                    {s.handedToName && (
+                      <p className="mt-2 border-t border-ink-line pt-2 text-[11px] text-cream-dim">
+                        {t('dashboard.handedTo')}: <span className="text-cream">{s.handedToName}</span>
+                        {s.handoverReason ? ` · ${s.handoverReason}` : ''}
                       </p>
-                    </div>
-                  </div>
+                    )}
+                  </>
                 )}
               </div>
             )
@@ -286,8 +296,8 @@ function RecentOrders({ orders, orderTotal }) {
       <div className="divide-y divide-ink-line">
         {orders.slice(0, 5).map((o) => (
           <div key={o.id} className="flex items-center gap-4 p-4 hover:bg-white/[0.02]">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gold/10 font-serif text-sm font-semibold text-gold ring-1 ring-gold/20">
-              T{o.table}
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gold/10 font-serif text-xs font-semibold text-gold ring-1 ring-gold/20">
+              {tableLabel(o.table)}
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-cream">
@@ -545,6 +555,63 @@ function IngredientRequestsPanel({ role }) {
 }
 
 // ============================================================================
+// PENDING HANDOVERS PANEL (Manager / Admin)
+// ============================================================================
+
+// Cashier partial handovers awaiting a decision. Manager/Admin accepts (cash
+// leaves the drawer) or rejects (with reason). Hidden when nothing is pending.
+function PendingHandoversPanel() {
+  const { pendingHandovers, acceptHandover, rejectHandover } = useApp()
+  const t = useT()
+  const [selected, setSelected] = useState(null)
+  const pending = pendingHandovers.filter((h) => h.status === 'pending')
+  if (pending.length === 0) return null
+
+  return (
+    <div className="card p-6">
+      <div className="mb-4 flex items-center justify-between border-b border-ink-line pb-4">
+        <h3 className="font-serif text-xl text-cream">⏳ {t('handover.pending')}</h3>
+        <span className="badge bg-gold/15 font-semibold text-gold">{pending.length}</span>
+      </div>
+      <div className="space-y-3">
+        {pending.map((h) => (
+          <div
+            key={h.id}
+            className="flex items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-4"
+          >
+            <div className="min-w-0">
+              <p className="truncate text-sm text-cream">
+                <span className="font-semibold">{h.fromName}</span> {t('handover.wantsToHandOver')}
+              </p>
+              <p className="font-serif text-2xl font-semibold text-gold">{money(h.amount)}</p>
+              <p className="text-xs text-cream-dim">{time(h.initiatedAt)}</p>
+            </div>
+            <button onClick={() => setSelected(h)} className="btn-gold shrink-0 px-4 py-2 text-sm">
+              {t('handover.review')}
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {selected && (
+        <HandoverApprovalModal
+          handover={selected}
+          onAccept={(id) => {
+            acceptHandover(id)
+            setSelected(null)
+          }}
+          onReject={(id, reason) => {
+            rejectHandover(id, reason)
+            setSelected(null)
+          }}
+          onClose={() => setSelected(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ============================================================================
 // 1. ADMIN DASHBOARD VIEW
 // ============================================================================
 
@@ -586,6 +653,8 @@ function AdminDashboard({ stats, orders, orderTotal, attendance, lowStock }) {
       </div>
 
       <LowStockAlert items={lowStock} />
+
+      <PendingHandoversPanel />
 
       <IngredientRequestsPanel role="Admin" />
 
@@ -676,6 +745,8 @@ function ManagerDashboard({ stats, orders, orderTotal, attendance, unpaidTotal, 
       </div>
 
       <LowStockAlert items={lowStock} />
+
+      <PendingHandoversPanel />
 
       <IngredientRequestsPanel role="Manager" />
 
@@ -807,8 +878,8 @@ function CashierDashboard({ stats, orders, orderTotal, unpaidTotal, onProcessBil
               <div className="divide-y divide-ink-line">
                 {paidOrders.slice(0, 5).map((o) => (
                   <div key={o.id} className="flex items-center gap-4 p-4 hover:bg-white/[0.02]">
-                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-500/10 font-serif text-sm font-semibold text-emerald-300 ring-1 ring-emerald-500/20">
-                      T{o.table}
+                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-500/10 font-serif text-xs font-semibold text-emerald-300 ring-1 ring-emerald-500/20">
+                      {tableLabel(o.table)}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-cream">
@@ -895,7 +966,7 @@ function PendingBillsQueue({ orders, orderTotal, onProcessBill }) {
             <div key={o.id} className="flex flex-col gap-3 p-4 hover:bg-white/[0.01] sm:flex-row sm:items-center sm:justify-between sm:gap-4">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="font-serif font-bold text-gold text-lg">{t('dashboard.table')} {o.table}</span>
+                  <span className="font-serif font-bold text-gold text-lg">{tableLabel(o.table)}</span>
                   <span className="text-cream-dim">·</span>
                   <span className="text-sm font-semibold text-cream">{o.id}</span>
                   <span className="text-xs text-cream-dim">({o.waiter})</span>

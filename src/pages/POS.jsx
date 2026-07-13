@@ -7,7 +7,7 @@ import { Receipt } from './Billing.jsx'
 import PaymentModal from '../components/PaymentModal.jsx'
 import ManageMostOrderedModal from '../components/ManageMostOrderedModal.jsx'
 import { canModify } from '../config/permissions.js'
-import { TAX_RATE, TABLE_CATEGORIES } from '../data/mockData.js'
+import { TAX_RATE, TABLE_CATEGORIES, tableLabel } from '../data/mockData.js'
 import {
   IconPlus,
   IconMinus,
@@ -29,7 +29,7 @@ function Toast({ order, onClose }) {
         <div>
           <p className="text-sm font-semibold text-cream">Order {order.id} placed</p>
           <p className="text-xs text-cream-dim">
-            Table {order.table} · {order.waiter} · {order.payment}
+            {tableLabel(order.table)} · {order.waiter} · {order.payment}
           </p>
         </div>
         <button onClick={onClose} className="ml-3 text-xs text-gold hover:underline">
@@ -253,9 +253,6 @@ export default function POS() {
       new Set(orders.filter((o) => o.payment === 'Unpaid' && !o.cancelled).map((o) => o.table)),
     [orders],
   )
-
-  // Human label for a numeric table id (A1…H40, Delivery, Takeaway).
-  const tableLabel = (id) => tables.find((tb) => tb.id === Number(id))?.number || id
 
   // Once a table is chosen AND items are on the order, lock the table until
   // checkout. Locking only after a table is picked avoids stranding an
