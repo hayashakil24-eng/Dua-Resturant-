@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import {
   INITIAL_ORDERS,
   INITIAL_ATTENDANCE,
@@ -38,9 +38,38 @@ export function AppProvider({ children }) {
   const [orderSeq, setOrderSeq] = useState(1046)
   const [txnSeq, setTxnSeq] = useState(500)
   // Cash drawer reconciliation: the cashier's open shift plus the closed
-  // shifts (kept for the Admin/Manager dashboard).
-  const [shiftReconciliations, setShiftReconciliations] = useState([])
-  const [activeShift, setActiveShift] = useState(null)
+  // shifts (kept for the Admin/Manager dashboard). Persisted to localStorage so
+  // a cashier can PAUSE (log out without reconciling) and later resume the same
+  // open drawer, and so the audit trail survives a page reload. (No backend —
+  // this is the app's only persistence layer.)
+  const loadJSON = (key, fallback) => {
+    try {
+      const raw = localStorage.getItem(key)
+      return raw ? JSON.parse(raw) : fallback
+    } catch {
+      return fallback
+    }
+  }
+  const [shiftReconciliations, setShiftReconciliations] = useState(() =>
+    loadJSON('shiftReconciliations', []),
+  )
+  const [activeShift, setActiveShift] = useState(() => loadJSON('activeShift', null))
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('shiftReconciliations', JSON.stringify(shiftReconciliations))
+    } catch {
+      /* ignore (private mode / quota) */
+    }
+  }, [shiftReconciliations])
+  useEffect(() => {
+    try {
+      if (activeShift) localStorage.setItem('activeShift', JSON.stringify(activeShift))
+      else localStorage.removeItem('activeShift')
+    } catch {
+      /* ignore */
+    }
+  }, [activeShift])
 
   const login = ({ role, name }) => setUser({ role, name: name || `${role} User` })
   const logout = () => setUser(null)
@@ -575,6 +604,24 @@ export function AppProvider({ children }) {
     return shift
   }
 
+  // Pause: the cashier logs out but the open drawer stays (persisted), so it can
+  // be resumed on the next login without re-entering opening cash.
+  const pauseShift = () =>
+    setActiveShift((s) => (s ? { ...s, status: 'paused', pausedAt: new Date().toISOString() } : s))
+
+  // Resume a paused drawer — back to active, counting resumes for the audit.
+  const resumeShift = () =>
+    setActiveShift((s) =>
+      s
+        ? {
+            ...s,
+            status: 'active',
+            resumedAt: new Date().toISOString(),
+            resumeCount: (s.resumeCount || 0) + 1,
+          }
+        : s,
+    )
+
   // Close a shift against a physical cash count. difference = expected − actual
   // (positive → shortage, negative → excess). Within Rs. 10 counts as matched.
   // `handover` records who the drawer cash was handed to (Admin/Manager/staff)
@@ -1044,6 +1091,8 @@ export function AppProvider({ children }) {
     shiftReconciliations,
     activeShift,
     startShift,
+    pauseShift,
+    resumeShift,
     endShift,
     calculateShiftSales,
     stats,
