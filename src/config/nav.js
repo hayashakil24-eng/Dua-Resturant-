@@ -31,6 +31,8 @@ export const NAV = [
   { to: '/accounting', label: 'Accounting', labelKey: 'nav.accounting', icon: IconChart, pageKey: 'accounting' },
   { to: '/receivables', label: 'Receivables', labelKey: 'nav.receivables', icon: IconWallet, pageKey: 'receivables' },
   { to: '/reports', label: 'Reports', labelKey: 'nav.reports', icon: IconReport, pageKey: 'reports' },
+  { to: '/daily-closing', label: 'Daily Closing', labelKey: 'nav.dailyClosing', icon: IconChart, pageKey: 'reports' },
+  { to: '/kot', label: 'KOT Report', labelKey: 'nav.kot', icon: IconReport, pageKey: 'reports' },
   { to: '/kitchen', label: 'Kitchen', labelKey: 'nav.kitchen', icon: IconKitchen, pageKey: 'kitchen' },
   { to: '/kds', label: 'Kitchen (KDS)', labelKey: 'nav.kds', icon: IconKitchen, pageKey: 'kds' },
   { to: '/billing', label: 'Billing', labelKey: 'nav.billing', icon: IconReceipt, pageKey: 'billing' },
