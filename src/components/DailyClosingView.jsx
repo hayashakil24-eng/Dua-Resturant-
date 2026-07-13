@@ -171,7 +171,7 @@ export default function DailyClosingView({ dayStr }) {
               </span>
             </div>
             <div className="mt-3 rounded-xl border border-gold/25 bg-gold/[0.06] p-4">
-              <p className="text-[11px] uppercase tracking-widest text-gold/80">{t('dailyClosing.remainingToHandover')}</p>
+              <p className="text-[11px] uppercase tracking-widest text-gold">{t('dailyClosing.remainingToHandover')}</p>
               <p className="mt-1 font-serif text-3xl font-semibold text-gold">{money(data.remainingToHandover)}</p>
             </div>
           </div>

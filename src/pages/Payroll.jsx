@@ -20,8 +20,8 @@ import {
 const DAY_STYLES = {
   present: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/25',
   absent: 'bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/25',
-  off: 'bg-white/[0.03] text-cream-dim/50',
-  upcoming: 'border border-dashed border-ink-line text-cream-dim/40',
+  off: 'bg-white/[0.03] text-cream-dim',
+  upcoming: 'border border-dashed border-ink-line text-cream-dim',
 }
 
 function DetailsModal({ staff, att, year, month, monthLabel, onClose }) {

@@ -108,7 +108,7 @@ export default function Login() {
 
             <div>
               <label className="mb-2 block text-xs uppercase tracking-widest text-cream-dim">
-                Display name <span className="text-cream-dim/50">(optional)</span>
+                Display name <span className="text-cream-dim">(optional)</span>
               </label>
               <input
                 className="input"
@@ -123,7 +123,7 @@ export default function Login() {
                 Password
               </label>
               <input className="input" type="password" placeholder="••••••••" defaultValue="demo" />
-              <p className="mt-2 text-[11px] text-cream-dim/70">
+              <p className="mt-2 text-[11px] text-cream-dim">
                 Demo build — any password works.
               </p>
             </div>

@@ -53,7 +53,7 @@ export default function PartialHandoverModal({ current, onClose, onSubmit }) {
           <div className="mt-5 min-h-0 flex-1 overflow-y-auto">
             {/* Current drawer */}
             <div className="rounded-2xl border border-gold/25 bg-gold/[0.06] p-4 text-center">
-              <p className="text-[11px] uppercase tracking-widest text-gold/80">Current drawer</p>
+              <p className="text-[11px] uppercase tracking-widest text-gold">Current drawer</p>
               <p className="mt-1 font-serif text-3xl font-semibold text-gold">{money(current)}</p>
             </div>
 

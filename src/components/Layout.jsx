@@ -172,7 +172,7 @@ export default function Layout({ children }) {
           <Logo />
         </div>
         <div className="mt-6 min-h-0 flex-1 overflow-y-auto">
-          <p className="mb-2 px-3 text-[10px] uppercase tracking-[0.25em] text-cream-dim/70">
+          <p className="mb-2 px-3 text-[10px] uppercase tracking-[0.25em] text-cream-dim">
             {t('app.menuHeading')}
           </p>
           <SidebarLinks role={user.role} />

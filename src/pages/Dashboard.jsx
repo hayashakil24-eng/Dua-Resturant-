@@ -812,7 +812,7 @@ function FloorMap({ orders, orderTotal }) {
                 {occupied ? (
                   <div className="space-y-1">
                     <div>
-                      <p className="text-[9px] uppercase tracking-wider text-gold/75">{t('dashboard.waiter')}</p>
+                      <p className="text-[9px] uppercase tracking-wider text-gold">{t('dashboard.waiter')}</p>
                       <p className="text-xs font-semibold text-cream truncate">{activeOrder.waiter}</p>
                     </div>
                     <div>
@@ -828,7 +828,7 @@ function FloorMap({ orders, orderTotal }) {
                   </div>
                 ) : (
                   <div className="py-2.5">
-                    <span className="text-xs text-cream-dim/50 italic font-medium">{t('dashboard.available')}</span>
+                    <span className="text-xs text-cream-dim italic font-medium">{t('dashboard.available')}</span>
                   </div>
                 )}
               </div>

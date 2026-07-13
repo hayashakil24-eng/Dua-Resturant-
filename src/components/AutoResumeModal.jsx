@@ -31,7 +31,7 @@ export default function AutoResumeModal({ shift, onResume, onEndInstead }) {
 
           {/* Running balance */}
           <div className="mt-5 rounded-2xl border border-gold/25 bg-gold/[0.06] p-5 text-center">
-            <p className="text-[11px] uppercase tracking-widest text-gold/80">Expected cash so far</p>
+            <p className="text-[11px] uppercase tracking-widest text-gold">Expected cash so far</p>
             <p className="mt-1 font-serif text-4xl font-semibold text-gold">{money(expected)}</p>
             <p className="mt-2 text-[11px] text-cream-dim">
               Opening {money(shift.openingCash)}

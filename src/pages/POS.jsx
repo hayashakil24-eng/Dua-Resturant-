@@ -405,7 +405,7 @@ export default function POS() {
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-xs text-cream-dim/70">
+          <p className="mt-2 text-xs text-cream-dim">
             New items you add below are charged onto the same bill — no second order is created.
           </p>
         </div>
@@ -618,7 +618,7 @@ export default function POS() {
                 <div className="grid h-40 place-items-center text-center">
                   <div>
                     <p className="text-sm text-cream-dim">Cart is empty</p>
-                    <p className="mt-1 text-xs text-cream-dim/60">
+                    <p className="mt-1 text-xs text-cream-dim">
                       Tap menu items to add them.
                     </p>
                   </div>

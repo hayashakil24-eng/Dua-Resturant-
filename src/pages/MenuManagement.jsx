@@ -199,7 +199,7 @@ function ItemModal({ item, categories, onSave, onClose }) {
               {imageError ? (
                 <p className="mt-1.5 text-xs text-rose-300">{imageError}</p>
               ) : (
-                <p className="mt-1.5 text-xs text-cream-dim/60">
+                <p className="mt-1.5 text-xs text-cream-dim">
                   {t('menu.noImageHint')}
                 </p>
               )}
@@ -471,7 +471,7 @@ export default function MenuManagement() {
                   className="badge bg-gold/10 text-gold ring-1 ring-gold/25"
                 >
                   {c}
-                  <span className="text-[10px] text-gold/60">({count})</span>
+                  <span className="text-[10px] text-gold">({count})</span>
                   <button
                     onClick={() => requestDeleteCategory(c)}
                     title={
@@ -480,7 +480,7 @@ export default function MenuManagement() {
                         : `Cannot delete — ${count} item${count > 1 ? 's' : ''} in use`
                     }
                     className={`ms-0.5 transition ${
-                      empty ? 'hover:text-rose-300' : 'text-gold/40 hover:text-rose-300'
+                      empty ? 'hover:text-rose-300' : 'text-gold hover:text-rose-300'
                     }`}
                   >
                     <IconClose size={12} />

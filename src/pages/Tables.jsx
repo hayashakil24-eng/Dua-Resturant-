@@ -60,7 +60,7 @@ function TableCard({ info, now, onClick }) {
               </p>
             ))}
             {info.order.items.length > 2 && (
-              <p className="text-[11px] text-cream-dim/70">• +{info.order.items.length - 2} {t('tables.more')}</p>
+              <p className="text-[11px] text-cream-dim">• +{info.order.items.length - 2} {t('tables.more')}</p>
             )}
           </div>
         </div>

@@ -327,7 +327,7 @@ export default function Reports() {
             </div>
 
             <div className="card border border-gold/30 bg-gold/[0.06] p-6">
-              <p className="text-xs uppercase tracking-widest text-gold/80">{t('reports.totalProfit')}</p>
+              <p className="text-xs uppercase tracking-widest text-gold">{t('reports.totalProfit')}</p>
               <p
                 className={`mt-2 font-serif text-4xl font-semibold ${
                   report.netProfit >= 0 ? 'text-gold' : 'text-rose-300'
