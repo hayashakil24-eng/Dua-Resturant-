@@ -65,7 +65,7 @@ function SidebarLinks({ role, onNavigate }) {
           className={({ isActive }) =>
             `group flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
               isActive
-                ? 'bg-gold/12 text-gold ring-1 ring-gold/25'
+                ? 'bg-gold/12 text-gold-deep ring-1 ring-gold/25'
                 : 'text-cream-dim hover:bg-white/5 hover:text-cream'
             }`
           }
@@ -73,7 +73,7 @@ function SidebarLinks({ role, onNavigate }) {
           {({ isActive }) => (
             <>
               <span
-                className={`shrink-0 transition ${isActive ? 'text-gold' : 'text-cream-dim group-hover:text-cream'}`}
+                className={`shrink-0 transition ${isActive ? 'text-gold-deep' : 'text-cream-dim group-hover:text-cream'}`}
               >
                 <Icon size={20} />
               </span>
