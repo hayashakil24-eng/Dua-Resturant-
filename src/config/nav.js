@@ -13,6 +13,7 @@ import {
   IconKitchen,
   IconReceipt,
   IconDepartments,
+  IconCash,
 } from '../components/Icons.jsx'
 
 import { hasAccess } from './permissions.js'
@@ -32,6 +33,7 @@ export const NAV = [
   { to: '/payroll', label: 'Payroll', labelKey: 'nav.payroll', icon: IconWallet, pageKey: 'payroll' },
   { to: '/accounting', label: 'Accounting', labelKey: 'nav.accounting', icon: IconChart, pageKey: 'accounting' },
   { to: '/receivables', label: 'Receivables', labelKey: 'nav.receivables', icon: IconWallet, pageKey: 'receivables' },
+  { to: '/handovers', label: 'Handover Approvals', labelKey: 'nav.handovers', icon: IconCash, pageKey: 'handovers' },
   { to: '/reports', label: 'Reports', labelKey: 'nav.reports', icon: IconReport, pageKey: 'reports' },
   { to: '/kitchen', label: 'Kitchen', labelKey: 'nav.kitchen', icon: IconKitchen, pageKey: 'kitchen' },
   { to: '/kds', label: 'Kitchen (KDS)', labelKey: 'nav.kds', icon: IconKitchen, pageKey: 'kds' },

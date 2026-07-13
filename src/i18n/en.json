@@ -91,7 +91,18 @@
     "reject": "Reject",
     "rejectReasonPh": "Reason for rejection…",
     "confirmReject": "Confirm Reject",
-    "back": "Back"
+    "back": "Back",
+    "pageTitle": "Cash Handover Approvals",
+    "subtitle": "Review, accept or reject cashier cash handovers. Every action is timestamped and logged.",
+    "tabPending": "Pending",
+    "tabProcessed": "Processed",
+    "to": "To",
+    "status": "Status",
+    "statusAccepted": "Accepted",
+    "statusRejected": "Rejected",
+    "resolvedBy": "By",
+    "noPending": "No pending handovers.",
+    "noProcessed": "No processed handovers yet."
   },
   "recipe": {
     "title": "Create Recipe",
@@ -551,6 +562,7 @@
     "payroll": "Payroll",
     "accounting": "Accounting",
     "receivables": "Receivables",
+    "handovers": "Handover Approvals",
     "reports": "Reports",
     "dailyClosing": "Daily Closing",
     "kot": "KOT Report",

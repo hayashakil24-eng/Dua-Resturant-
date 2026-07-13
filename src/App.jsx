@@ -15,6 +15,7 @@ import Employees from './pages/Employees.jsx'
 import Payroll from './pages/Payroll.jsx'
 import Accounting from './pages/Accounting.jsx'
 import ReceivablesManagement from './pages/ReceivablesManagement.jsx'
+import HandoverApprovals from './pages/HandoverApprovals.jsx'
 import Reports from './pages/Reports.jsx'
 import KitchenDisplay from './pages/KitchenDisplay.jsx'
 import Kitchen from './pages/Kitchen.jsx'
@@ -59,6 +60,7 @@ export default function App() {
       <Route path="/payroll" element={<Protected path="/payroll"><Payroll /></Protected>} />
       <Route path="/accounting" element={<Protected path="/accounting"><Accounting /></Protected>} />
       <Route path="/receivables" element={<Protected path="/receivables"><ReceivablesManagement /></Protected>} />
+      <Route path="/handovers" element={<Protected path="/handovers"><HandoverApprovals /></Protected>} />
       <Route path="/reports" element={<Protected path="/reports"><Reports /></Protected>} />
       <Route path="/kitchen" element={<Protected path="/kitchen"><Kitchen /></Protected>} />
       <Route path="/kds" element={<Protected path="/kds" fullscreen><KitchenDisplay /></Protected>} />

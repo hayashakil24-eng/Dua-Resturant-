@@ -91,7 +91,18 @@
     "reject": "مسترد کریں",
     "rejectReasonPh": "مسترد کرنے کی وجہ…",
     "confirmReject": "مسترد کی تصدیق",
-    "back": "واپس"
+    "back": "واپس",
+    "pageTitle": "نقد حوالہ منظوریاں",
+    "subtitle": "کیشیئر کے نقد حوالوں کا جائزہ لیں، منظور یا مسترد کریں۔ ہر عمل وقت کے ساتھ محفوظ ہوتا ہے۔",
+    "tabPending": "زیرِ التوا",
+    "tabProcessed": "طے شدہ",
+    "to": "بنام",
+    "status": "حالت",
+    "statusAccepted": "منظور شدہ",
+    "statusRejected": "مسترد شدہ",
+    "resolvedBy": "بذریعہ",
+    "noPending": "کوئی زیرِ التوا حوالہ نہیں۔",
+    "noProcessed": "ابھی کوئی طے شدہ حوالہ نہیں۔"
   },
   "recipe": {
     "title": "ریسپی بنائیں",
@@ -551,6 +562,7 @@
     "payroll": "تنخواہیں",
     "accounting": "اکاؤنٹنگ",
     "receivables": "وصولیاں",
+    "handovers": "حوالہ منظوریاں",
     "reports": "رپورٹس",
     "dailyClosing": "روزانہ اختتام",
     "kot": "KOT رپورٹ",

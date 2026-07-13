@@ -20,6 +20,7 @@ const RTL_ROUTES = new Set([
   '/accounting',
   '/reports',
   '/receivables',
+  '/handovers',
   '/kitchen',
 ])
 import { dateLong } from '../utils/format.js'
