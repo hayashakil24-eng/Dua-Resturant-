@@ -8,6 +8,7 @@ import {
   MENU_CATEGORIES,
   INITIAL_ADVANCES,
   INITIAL_RECIPES,
+  INITIAL_RECEIVABLES,
   TABLES,
   STAFF,
   TAX_RATE,
@@ -71,6 +72,15 @@ export function AppProvider({ children }) {
       /* ignore */
     }
   }, [pendingHandovers])
+  // Account receivables (credit accounts) + their settlement history.
+  const [receivables, setReceivables] = useState(() => loadJSON('receivables', INITIAL_RECEIVABLES))
+  useEffect(() => {
+    try {
+      localStorage.setItem('receivables', JSON.stringify(receivables))
+    } catch {
+      /* ignore */
+    }
+  }, [receivables])
   useEffect(() => {
     try {
       if (activeShift) localStorage.setItem('activeShift', JSON.stringify(activeShift))
@@ -1105,6 +1115,70 @@ export function AppProvider({ children }) {
     }
   }, [orders, attendance, lowStock, staff])
 
+  // --- Account receivables -------------------------------------------------
+  const canSettleReceivables = () => Boolean(user && canModify(user.role, 'receivables'))
+
+  // Add a new credit account (or record a fresh "on account" balance).
+  const addReceivable = ({ name, amount, type = 'customer', notes = '' } = {}) => {
+    if (!canSettleReceivables()) return { error: 'Not authorised.' }
+    const trimmed = (name || '').trim()
+    const amt = Math.max(0, Number(amount) || 0)
+    if (!trimmed) return { error: 'Account name is required.' }
+    const rcv = {
+      id: `RCV-${Date.now()}`,
+      name: trimmed,
+      type,
+      balance: amt,
+      status: amt > 0 ? 'open' : 'settled',
+      notes,
+      createdAt: new Date().toISOString(),
+      payments: [],
+    }
+    setReceivables((prev) => [...prev, rcv])
+    setAuditLog((prev) => [
+      { id: `AUD-${Date.now()}`, action: 'RECEIVABLE_ADDED', account: trimmed, amount: amt, by: user.name, role: user.role, at: rcv.createdAt },
+      ...prev,
+    ])
+    return { success: true, id: rcv.id }
+  }
+
+  // Record a payment against an account. If it clears the balance the account
+  // is marked settled. `amount` omitted ⇒ settle the whole balance.
+  const recordReceivablePayment = (id, amount, { method = 'Cash', notes = '' } = {}) => {
+    if (!canSettleReceivables()) return { error: 'Not authorised.' }
+    const rcv = receivables.find((r) => r.id === id)
+    if (!rcv || rcv.status === 'settled') return { error: 'Account not found or already settled.' }
+    const pay = amount == null ? rcv.balance : Math.max(0, Number(amount) || 0)
+    if (pay <= 0 || pay > rcv.balance) return { error: 'Enter a valid amount up to the outstanding balance.' }
+    const at = new Date().toISOString()
+    const remaining = rcv.balance - pay
+    const settled = remaining <= 0
+    const entry = { id: `PAY-${Date.now()}`, amount: pay, method, notes, by: user.name, role: user.role, at }
+    setReceivables((prev) =>
+      prev.map((r) =>
+        r.id === id
+          ? { ...r, balance: settled ? 0 : remaining, status: settled ? 'settled' : 'open', payments: [entry, ...(r.payments || [])] }
+          : r,
+      ),
+    )
+    setAuditLog((prev) => [
+      {
+        id: `AUD-${Date.now()}`,
+        action: settled ? 'RECEIVABLE_SETTLED' : 'RECEIVABLE_PAYMENT',
+        account: rcv.name,
+        amount: pay,
+        remaining: settled ? 0 : remaining,
+        method,
+        notes,
+        by: user.name,
+        role: user.role,
+        at,
+      },
+      ...prev,
+    ])
+    return { success: true, settled }
+  }
+
   const value = {
     user,
     login,
@@ -1177,6 +1251,9 @@ export function AppProvider({ children }) {
     initiateHandover,
     acceptHandover,
     rejectHandover,
+    receivables,
+    addReceivable,
+    recordReceivablePayment,
     stats,
   }
 

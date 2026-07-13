@@ -31,6 +31,7 @@ export const PERMISSIONS = {
     payroll: 'full',
     accounting: 'full',
     reports: 'full',
+    receivables: 'full', // credit accounts — view & settle
     kds: 'full',
     billing: 'full',
     attendanceOverride: 'full',
@@ -61,6 +62,7 @@ export const PERMISSIONS = {
     payroll: 'full',
     accounting: 'full',
     reports: 'full',
+    receivables: 'full', // Manager may view & settle credit accounts
     kds: 'full',
     billing: 'view',
     attendanceOverride: 'none',
@@ -94,6 +96,7 @@ export const PERMISSIONS = {
     payroll: 'hidden',
     accounting: 'hidden',
     reports: 'hidden',
+    receivables: 'hidden',
     kds: 'full', // kitchen staff can watch the live order display too
     billing: 'hidden',
     attendanceOverride: 'none',
@@ -124,6 +127,7 @@ export const PERMISSIONS = {
     payroll: 'hidden',
     accounting: 'hidden',
     reports: 'hidden',
+    receivables: 'hidden',
     kds: 'hidden',
     billing: 'create',
     attendanceOverride: 'none',
