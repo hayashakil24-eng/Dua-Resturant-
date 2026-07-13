@@ -9,6 +9,7 @@ import {
   INITIAL_ADVANCES,
   INITIAL_RECIPES,
   INITIAL_RECEIVABLES,
+  INITIAL_DEPARTMENTS,
   TABLES,
   STAFF,
   TAX_RATE,
@@ -81,6 +82,17 @@ export function AppProvider({ children }) {
       /* ignore */
     }
   }, [receivables])
+  // Department / counter routing map. Persisted so a re-org of counters
+  // survives reloads. Menu item ids are stable constants, so stored item
+  // assignments stay valid even though the menu itself isn't persisted.
+  const [departments, setDepartments] = useState(() => loadJSON('departments', INITIAL_DEPARTMENTS))
+  useEffect(() => {
+    try {
+      localStorage.setItem('departments', JSON.stringify(departments))
+    } catch {
+      /* ignore */
+    }
+  }, [departments])
   useEffect(() => {
     try {
       if (activeShift) localStorage.setItem('activeShift', JSON.stringify(activeShift))
@@ -1179,6 +1191,69 @@ export function AppProvider({ children }) {
     return { success: true, settled }
   }
 
+  // ---- Department / counter routing --------------------------------------
+  // Only Admin/Manager may reconfigure counters (defense-in-depth; the route
+  // is already permission-gated). `getDepartmentForItem` is read-only and
+  // ungated so the KDS/POS can resolve routing for any role.
+  const canManageDepartments = () => Boolean(user && canModify(user.role, 'departments'))
+
+  const addDepartment = ({ name, nameUrdu = '', description = '', manager = '', managerId = '' } = {}) => {
+    if (!canManageDepartments()) return { error: 'Not authorised.' }
+    const trimmed = (name || '').trim()
+    if (!trimmed) return { error: 'Department name is required.' }
+    const dept = {
+      id: `DEPT-${Date.now()}`,
+      name: trimmed,
+      nameUrdu: (nameUrdu || '').trim(),
+      description: (description || '').trim(),
+      manager: (manager || '').trim(),
+      managerId,
+      status: 'active',
+      createdBy: user.name,
+      createdAt: new Date().toISOString(),
+      items: [],
+    }
+    setDepartments((prev) => [...prev, dept])
+    return { success: true, id: dept.id }
+  }
+
+  const deleteDepartment = (id) => {
+    if (!canManageDepartments()) return { error: 'Not authorised.' }
+    setDepartments((prev) => prev.filter((d) => d.id !== id))
+    return { success: true }
+  }
+
+  // Assigning an item MOVES it: it is removed from every other counter first so
+  // each item routes to exactly one department (no ambiguous KOT routing).
+  const assignItemToDepartment = (itemId, departmentId) => {
+    if (!canManageDepartments()) return { error: 'Not authorised.' }
+    setDepartments((prev) =>
+      prev.map((d) => {
+        if (d.id === departmentId) {
+          return d.items.includes(itemId) ? d : { ...d, items: [...d.items, itemId] }
+        }
+        return d.items.includes(itemId) ? { ...d, items: d.items.filter((i) => i !== itemId) } : d
+      }),
+    )
+    return { success: true }
+  }
+
+  const removeItemFromDepartment = (itemId, departmentId) => {
+    if (!canManageDepartments()) return { error: 'Not authorised.' }
+    setDepartments((prev) =>
+      prev.map((d) => (d.id === departmentId ? { ...d, items: d.items.filter((i) => i !== itemId) } : d)),
+    )
+    return { success: true }
+  }
+
+  // Resolve the counter that owns a menu item. Order lines use a cart key of
+  // `id` or `id::variant`, so match on the base id before the "::".
+  const getDepartmentForItem = (itemId) => {
+    if (itemId == null) return null
+    const baseId = String(itemId).split('::')[0]
+    return departments.find((d) => d.items.includes(baseId)) || null
+  }
+
   const value = {
     user,
     login,
@@ -1254,6 +1329,12 @@ export function AppProvider({ children }) {
     receivables,
     addReceivable,
     recordReceivablePayment,
+    departments,
+    addDepartment,
+    deleteDepartment,
+    assignItemToDepartment,
+    removeItemFromDepartment,
+    getDepartmentForItem,
     stats,
   }
 

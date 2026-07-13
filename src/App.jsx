@@ -8,6 +8,7 @@ import POS from './pages/POS.jsx'
 import Orders from './pages/Orders.jsx'
 import Tables from './pages/Tables.jsx'
 import MenuManagement from './pages/MenuManagement.jsx'
+import DepartmentManagement from './pages/DepartmentManagement.jsx'
 import Inventory from './pages/Inventory.jsx'
 import Attendance from './pages/Attendance.jsx'
 import Employees from './pages/Employees.jsx'
@@ -48,6 +49,7 @@ export default function App() {
       <Route path="/orders" element={<Protected path="/orders"><Orders /></Protected>} />
       <Route path="/tables" element={<Protected path="/tables"><Tables /></Protected>} />
       <Route path="/menu" element={<Protected path="/menu"><MenuManagement /></Protected>} />
+      <Route path="/departments" element={<Protected path="/departments"><DepartmentManagement /></Protected>} />
       <Route path="/inventory" element={<Protected path="/inventory"><Inventory /></Protected>} />
       <Route
         path="/attendance"

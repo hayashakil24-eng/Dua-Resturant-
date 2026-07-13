@@ -12,6 +12,7 @@ const RTL_ROUTES = new Set([
   '/',
   '/tables',
   '/menu',
+  '/departments',
   '/inventory',
   '/attendance',
   '/employees',
