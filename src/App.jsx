@@ -15,8 +15,6 @@ import Payroll from './pages/Payroll.jsx'
 import Accounting from './pages/Accounting.jsx'
 import ReceivablesManagement from './pages/ReceivablesManagement.jsx'
 import Reports from './pages/Reports.jsx'
-import DailyClosingReport from './pages/DailyClosingReport.jsx'
-import KOTReport from './pages/KOTReport.jsx'
 import KitchenDisplay from './pages/KitchenDisplay.jsx'
 import Kitchen from './pages/Kitchen.jsx'
 import Billing from './pages/Billing.jsx'
@@ -60,8 +58,6 @@ export default function App() {
       <Route path="/accounting" element={<Protected path="/accounting"><Accounting /></Protected>} />
       <Route path="/receivables" element={<Protected path="/receivables"><ReceivablesManagement /></Protected>} />
       <Route path="/reports" element={<Protected path="/reports"><Reports /></Protected>} />
-      <Route path="/daily-closing" element={<Protected path="/daily-closing"><DailyClosingReport /></Protected>} />
-      <Route path="/kot" element={<Protected path="/kot"><KOTReport /></Protected>} />
       <Route path="/kitchen" element={<Protected path="/kitchen"><Kitchen /></Protected>} />
       <Route path="/kds" element={<Protected path="/kds" fullscreen><KitchenDisplay /></Protected>} />
       <Route path="/billing" element={<Protected path="/billing"><Billing /></Protected>} />

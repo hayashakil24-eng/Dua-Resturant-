@@ -1,24 +1,26 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { useT } from '../i18n/LanguageContext.jsx'
-import { PageHeader, StatCard } from '../components/ui.jsx'
+import { StatCard } from './ui.jsx'
 import { money, time, dateLong } from '../utils/format.js'
 import { tableLabel } from '../data/mockData.js'
 import { safePrint } from '../utils/print.js'
-import { IconPrint, IconOrders, IconCash } from '../components/Icons.jsx'
+import { IconPrint, IconOrders, IconCash } from './Icons.jsx'
 
-const toDayStr = (d) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+// KOT (table-wise order list) body — rendered as a tab inside Reports.
+const toDayStr = (iso) => {
+  const d = new Date(iso)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
-export default function KOTReport() {
+export default function KOTView({ dayStr }) {
   const { orders, orderTotal } = useApp()
   const t = useT()
-  const [dayStr, setDayStr] = useState(() => toDayStr(new Date()))
 
   const rows = useMemo(
     () =>
       orders
-        .filter((o) => !o.cancelled && toDayStr(new Date(o.createdAt)) === dayStr)
+        .filter((o) => !o.cancelled && toDayStr(o.createdAt) === dayStr)
         .map((o) => ({
           ...o,
           amount: orderTotal(o.items, o.discount?.amount).total,
@@ -51,20 +53,11 @@ export default function KOTReport() {
 
   return (
     <div>
-      <PageHeader title={t('kot.title')} subtitle={t('kot.subtitle')}>
-        <div className="flex flex-wrap items-center gap-2 no-print">
-          <input
-            type="date"
-            className="input w-44 py-2"
-            value={dayStr}
-            max={toDayStr(new Date())}
-            onChange={(e) => setDayStr(e.target.value)}
-          />
-          <button onClick={safePrint} className="btn-gold px-4 py-2 text-sm">
-            <IconPrint size={16} /> {t('dailyClosing.print')}
-          </button>
-        </div>
-      </PageHeader>
+      <div className="mb-4 flex justify-end no-print">
+        <button onClick={safePrint} className="btn-gold px-4 py-2 text-sm">
+          <IconPrint size={16} /> {t('dailyClosing.print')}
+        </button>
+      </div>
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard icon={IconOrders} label={t('kot.totalOrders')} value={summary.totalOrders} sub={dateLong(`${dayStr}T00:00:00`)} />
@@ -74,7 +67,7 @@ export default function KOTReport() {
       </div>
 
       <div id="printable-report" className="card overflow-hidden">
-        <div className="mb-0 border-b border-ink-line p-4 text-center">
+        <div className="border-b border-ink-line p-4 text-center">
           <p className="font-serif text-xl font-bold text-gold">Café Ali — {t('kot.title')}</p>
           <p className="text-xs text-cream-dim">{dateLong(`${dayStr}T00:00:00`)}</p>
         </div>
@@ -94,9 +87,7 @@ export default function KOTReport() {
               {rows.map((o) => (
                 <tr key={o.id} className="transition hover:bg-white/[0.02]">
                   <td className="px-5 py-3 font-semibold text-cream">{tableLabel(o.table)}</td>
-                  <td className="px-5 py-3 text-cream-dim">
-                    {o.items.map((i) => `${i.name} ×${i.qty}`).join(', ')}
-                  </td>
+                  <td className="px-5 py-3 text-cream-dim">{o.items.map((i) => `${i.name} ×${i.qty}`).join(', ')}</td>
                   <td className="px-5 py-3 text-center text-cream-dim">{o.qty}</td>
                   <td className="px-5 py-3 text-right font-semibold text-gold">{money(o.amount)}</td>
                   <td className="px-5 py-3 text-center">
@@ -111,9 +102,7 @@ export default function KOTReport() {
             {rows.length > 0 && (
               <tfoot>
                 <tr className="border-t-2 border-ink-line font-bold">
-                  <td className="px-5 py-3 text-cream" colSpan={3}>
-                    {t('kot.grandTotal')}
-                  </td>
+                  <td className="px-5 py-3 text-cream" colSpan={3}>{t('kot.grandTotal')}</td>
                   <td className="px-5 py-3 text-right text-gold">{money(summary.totalAmount)}</td>
                   <td colSpan={2} />
                 </tr>
@@ -121,9 +110,7 @@ export default function KOTReport() {
             )}
           </table>
         </div>
-        {rows.length === 0 && (
-          <div className="p-10 text-center text-sm text-cream-dim">{t('kot.noOrders')}</div>
-        )}
+        {rows.length === 0 && <div className="p-10 text-center text-sm text-cream-dim">{t('kot.noOrders')}</div>}
       </div>
     </div>
   )

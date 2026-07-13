@@ -18,8 +18,6 @@ const RTL_ROUTES = new Set([
   '/payroll',
   '/accounting',
   '/reports',
-  '/daily-closing',
-  '/kot',
   '/receivables',
   '/kitchen',
 ])
