@@ -3,6 +3,8 @@ import { useApp } from '../context/AppContext.jsx'
 import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader } from '../components/ui.jsx'
 import { money, monthYear, dateLong, time } from '../utils/format.js'
+import DailyClosingView from '../components/DailyClosingView.jsx'
+import KOTView from '../components/KOTView.jsx'
 import { monthFigures } from '../utils/accounting.js'
 import { safePrint } from '../utils/print.js'
 import { RECIPE_MAP } from '../data/mockData.js'
@@ -216,24 +218,30 @@ export default function Reports() {
     window.open(`https://wa.me/?text=${encodeURIComponent(lines.join('\n'))}`, '_blank')
   }
 
+  // Daily Closing & KOT are inherently daily reports — they use `dailyDate` and
+  // don't apply the daily/monthly period toggle.
+  const isDailyView = view === 'dailyclosing' || view === 'kot'
+
   return (
     <div>
       <PageHeader title={t('reports.title')} subtitle={t('reports.subtitle')}>
         <div className="flex flex-wrap items-center gap-2 no-print">
-          <div className="flex overflow-hidden rounded-xl border border-ink-line">
-            {['daily', 'monthly'].map((p) => (
-              <button
-                key={p}
-                onClick={() => setType(p)}
-                className={`px-4 py-2 text-sm font-semibold transition ${
-                  type === p ? 'bg-gold/15 text-gold' : 'bg-ink-soft text-cream-dim hover:text-cream'
-                }`}
-              >
-                {t(`reports.${p}`)}
-              </button>
-            ))}
-          </div>
-          {type === 'daily' ? (
+          {!isDailyView && (
+            <div className="flex overflow-hidden rounded-xl border border-ink-line">
+              {['daily', 'monthly'].map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setType(p)}
+                  className={`px-4 py-2 text-sm font-semibold transition ${
+                    type === p ? 'bg-gold/15 text-gold' : 'bg-ink-soft text-cream-dim hover:text-cream'
+                  }`}
+                >
+                  {t(`reports.${p}`)}
+                </button>
+              ))}
+            </div>
+          )}
+          {isDailyView || type === 'daily' ? (
             <input
               type="date"
               className="input w-44 py-2"
@@ -258,12 +266,14 @@ export default function Reports() {
         </div>
       </PageHeader>
 
-      {/* View tabs — Summary (totals) vs Item-Wise (per-item breakdown) */}
-      <div className="mx-auto mb-4 flex max-w-2xl gap-2 border-b border-ink-line no-print">
+      {/* View tabs */}
+      <div className="mb-4 flex flex-wrap gap-2 border-b border-ink-line no-print">
         {[
           ['overview', 'reports.dailyReport'],
           ['summary', 'reports.summary'],
           ['itemwise', 'reports.itemWise'],
+          ['dailyclosing', 'nav.dailyClosing'],
+          ['kot', 'nav.kot'],
         ].map(([key, labelKey]) => (
           <button
             key={key}
@@ -279,6 +289,10 @@ export default function Reports() {
         ))}
       </div>
 
+      {view === 'dailyclosing' && <DailyClosingView dayStr={dailyDate} />}
+      {view === 'kot' && <KOTView dayStr={dailyDate} />}
+
+      {!isDailyView && (
       <div className="mx-auto max-w-2xl">
         {/* Daily Report — a clean, at-a-glance overview (screen view, not the
             printable paper). Uses the app's real figures incl. net profit. */}
@@ -313,7 +327,7 @@ export default function Reports() {
             </div>
 
             <div className="card border border-gold/30 bg-gold/[0.06] p-6">
-              <p className="text-xs uppercase tracking-widest text-gold/80">{t('reports.totalProfit')}</p>
+              <p className="text-xs uppercase tracking-widest text-gold">{t('reports.totalProfit')}</p>
               <p
                 className={`mt-2 font-serif text-4xl font-semibold ${
                   report.netProfit >= 0 ? 'text-gold' : 'text-rose-300'
@@ -509,6 +523,7 @@ export default function Reports() {
         </>
         )}
       </div>
+      )}
     </div>
   )
 }

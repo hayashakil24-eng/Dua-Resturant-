@@ -480,7 +480,7 @@ export default function Accounting() {
                       </td>
                       <td className="px-5 py-3 text-right no-print">
                         {tx.auto ? (
-                          <span className="text-xs text-cream-dim/50">—</span>
+                          <span className="text-xs text-cream-dim">—</span>
                         ) : (
                           <button
                             onClick={() => deleteTransaction(tx.id)}

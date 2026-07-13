@@ -18,6 +18,7 @@ const RTL_ROUTES = new Set([
   '/payroll',
   '/accounting',
   '/reports',
+  '/receivables',
   '/kitchen',
 ])
 import { dateLong } from '../utils/format.js'
@@ -64,7 +65,7 @@ function SidebarLinks({ role, onNavigate }) {
           className={({ isActive }) =>
             `group flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
               isActive
-                ? 'bg-gold/12 text-gold ring-1 ring-gold/25'
+                ? 'bg-gold/12 text-gold-deep ring-1 ring-gold/25'
                 : 'text-cream-dim hover:bg-white/5 hover:text-cream'
             }`
           }
@@ -72,7 +73,7 @@ function SidebarLinks({ role, onNavigate }) {
           {({ isActive }) => (
             <>
               <span
-                className={`shrink-0 transition ${isActive ? 'text-gold' : 'text-cream-dim group-hover:text-cream'}`}
+                className={`shrink-0 transition ${isActive ? 'text-gold-deep' : 'text-cream-dim group-hover:text-cream'}`}
               >
                 <Icon size={20} />
               </span>
@@ -171,7 +172,7 @@ export default function Layout({ children }) {
           <Logo />
         </div>
         <div className="mt-6 min-h-0 flex-1 overflow-y-auto">
-          <p className="mb-2 px-3 text-[10px] uppercase tracking-[0.25em] text-cream-dim/70">
+          <p className="mb-2 px-3 text-[10px] uppercase tracking-[0.25em] text-cream-dim">
             {t('app.menuHeading')}
           </p>
           <SidebarLinks role={user.role} />

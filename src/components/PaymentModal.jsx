@@ -47,7 +47,7 @@ export default function PaymentModal({ total, onClose, onConfirm }) {
 
           {/* Amount due */}
           <div className="mt-5 rounded-2xl border border-gold/25 bg-gold/[0.06] p-5 text-center">
-            <p className="text-[11px] uppercase tracking-widest text-gold/80">Amount due</p>
+            <p className="text-[11px] uppercase tracking-widest text-gold">Amount due</p>
             <p className="mt-1 font-serif text-4xl font-semibold text-gold">{money(total)}</p>
           </div>
 

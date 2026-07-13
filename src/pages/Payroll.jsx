@@ -20,8 +20,8 @@ import {
 const DAY_STYLES = {
   present: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/25',
   absent: 'bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/25',
-  off: 'bg-white/[0.03] text-cream-dim/50',
-  upcoming: 'border border-dashed border-ink-line text-cream-dim/40',
+  off: 'bg-white/[0.03] text-cream-dim',
+  upcoming: 'border border-dashed border-ink-line text-cream-dim',
 }
 
 function DetailsModal({ staff, att, year, month, monthLabel, onClose }) {
@@ -36,7 +36,7 @@ function DetailsModal({ staff, att, year, month, monthLabel, onClose }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-md animate-fade-up">
-        <div className="card p-6">
+        <div className="card p-4 sm:p-6">
           <div className="flex items-start justify-between">
             <div>
               <h3 className="font-serif text-2xl text-cream">{staff.name}</h3>
@@ -49,24 +49,30 @@ function DetailsModal({ staff, att, year, month, monthLabel, onClose }) {
             </button>
           </div>
 
-          <div className="mt-5 grid grid-cols-7 gap-1 text-center text-[10px] uppercase text-cream-dim">
-            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
-              <span key={d}>{d}</span>
-            ))}
-          </div>
-          <div className="mt-1.5 grid grid-cols-7 gap-1">
-            {cells.map((day, i) =>
-              day === null ? (
-                <span key={`e${i}`} />
-              ) : (
-                <span
-                  key={day}
-                  className={`grid aspect-square place-items-center rounded-lg text-xs font-medium ${DAY_STYLES[att.statusByDay[day]]}`}
-                >
-                  {day}
-                </span>
-              ),
-            )}
+          {/* Calendar scrolls horizontally on very small screens so day cells
+              stay a readable/tappable size instead of squishing (grid-cols-7). */}
+          <div className="mt-5 overflow-x-auto">
+            <div className="min-w-[19rem]">
+              <div className="grid grid-cols-7 gap-1 text-center text-[11px] uppercase text-cream-dim">
+                {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                  <span key={d}>{d}</span>
+                ))}
+              </div>
+              <div className="mt-1.5 grid grid-cols-7 gap-1">
+                {cells.map((day, i) =>
+                  day === null ? (
+                    <span key={`e${i}`} />
+                  ) : (
+                    <span
+                      key={day}
+                      className={`grid aspect-square place-items-center rounded-lg text-xs font-medium ${DAY_STYLES[att.statusByDay[day]]}`}
+                    >
+                      {day}
+                    </span>
+                  ),
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="mt-5 flex flex-wrap gap-3 text-[11px] text-cream-dim">

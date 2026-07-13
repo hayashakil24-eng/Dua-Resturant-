@@ -79,6 +79,41 @@ export const TABLES = generateTables()
 const TABLE_LABELS = new Map(TABLES.map((t) => [t.id, t.number]))
 export const tableLabel = (id) => TABLE_LABELS.get(Number(id)) || `T${id}`
 
+// Account receivables — regular credit customers whose bills accumulate ("on
+// account") and are settled later. `balance` is the outstanding amount (بقایا).
+export const INITIAL_RECEIVABLES = [
+  {
+    id: 'RCV-AK',
+    name: 'Ali Kakar Sahab',
+    type: 'customer',
+    balance: 29028,
+    status: 'open', // open | settled
+    notes: 'Regular customer',
+    createdAt: '2026-07-01T10:00:00.000Z',
+    payments: [], // settlement / partial-payment history
+  },
+  {
+    id: 'RCV-HM',
+    name: 'Hotel Mobile Account',
+    type: 'hotel',
+    balance: 53886,
+    status: 'open',
+    notes: 'Regular hotel orders',
+    createdAt: '2026-07-01T10:00:00.000Z',
+    payments: [],
+  },
+  {
+    id: 'RCV-ZM',
+    name: 'Zamaan Account',
+    type: 'business',
+    balance: 0,
+    status: 'settled',
+    notes: 'Settled daily',
+    createdAt: '2026-07-01T10:00:00.000Z',
+    payments: [],
+  },
+]
+
 // Ordered category list for the Cafe Ali menu (POS prepends "All").
 export const MENU_CATEGORIES = [
   'Coladas',

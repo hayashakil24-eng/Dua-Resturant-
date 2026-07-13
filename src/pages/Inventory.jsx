@@ -224,7 +224,7 @@ export default function Inventory() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={t('inventory.searchItems')}
-              className="w-56 rounded-xl border border-ink-line bg-ink-soft py-2 ps-9 pe-3 text-sm text-cream placeholder:text-cream-dim/60 focus:border-gold/40 focus:outline-none"
+              className="w-56 rounded-xl border border-ink-line bg-ink-soft py-2 ps-9 pe-3 text-sm text-cream placeholder:text-cream-dim focus:border-gold/40 focus:outline-none"
             />
           </div>
           {canCreate && (
