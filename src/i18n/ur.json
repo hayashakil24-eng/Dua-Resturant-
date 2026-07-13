@@ -1,4 +1,19 @@
 {
+  "handover": {
+    "pending": "زیرِ التوا حوالے",
+    "wantsToHandOver": "حوالہ کرنا چاہتا ہے",
+    "review": "جائزہ لیں",
+    "approvalTitle": "حوالہ منظوری",
+    "from": "منجانب",
+    "amount": "رقم",
+    "reason": "وجہ",
+    "time": "وقت",
+    "accept": "منظور کریں",
+    "reject": "مسترد کریں",
+    "rejectReasonPh": "مسترد کرنے کی وجہ…",
+    "confirmReject": "مسترد کی تصدیق",
+    "back": "واپس"
+  },
   "recipe": {
     "title": "ریسپی بنائیں",
     "subtitle": "اسٹاک پر اثر سے پہلے ایڈمن کی منظوری کے لیے جمع۔",

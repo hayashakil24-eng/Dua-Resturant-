@@ -1,4 +1,19 @@
 {
+  "handover": {
+    "pending": "Pending Handovers",
+    "wantsToHandOver": "wants to hand over",
+    "review": "Review",
+    "approvalTitle": "Handover Approval",
+    "from": "From",
+    "amount": "Amount",
+    "reason": "Reason",
+    "time": "Time",
+    "accept": "Accept",
+    "reject": "Reject",
+    "rejectReasonPh": "Reason for rejection…",
+    "confirmReject": "Confirm Reject",
+    "back": "Back"
+  },
   "recipe": {
     "title": "Create Recipe",
     "subtitle": "Submitted for Admin approval before it affects inventory.",
