@@ -134,9 +134,10 @@
 }
 
 /* Print styles for receipts and reports */
-/* Kitchen slips live in a body-level portal but must never show on screen —
-   they only become visible inside the print media query below. */
-#printable-kots {
+/* Portaled print surfaces (kitchen slips + minimal daily-report slip) live on
+   <body> but must never show on screen — only inside the print media query. */
+#printable-kots,
+#printable-daily {
   display: none;
 }
 
@@ -161,8 +162,25 @@
   #printable-report,
   #printable-report *,
   #printable-kots,
-  #printable-kots * {
+  #printable-kots *,
+  #printable-daily,
+  #printable-daily * {
     visibility: visible;
+  }
+
+  /* Minimal daily-report slip — same portal trick as the kitchen slips: on a
+     daily-report print hide the app entirely and show just the slip. */
+  body.print-daily #root {
+    display: none !important;
+  }
+  body.print-daily #printable-daily {
+    display: block !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm;
+    background: #fff !important;
+    color: #000 !important;
   }
 
   /* Department kitchen slips (KOT). The slips are portaled to <body>, so on a

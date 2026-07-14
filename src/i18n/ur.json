@@ -298,6 +298,8 @@
     "cardPayment": "کارڈ ادائیگی",
     "onlinePayment": "آن لائن ادائیگی",
     "dailyReport": "روزانہ رپورٹ",
+    "printSlip": "پرنٹ",
+    "generated": "تیار شدہ",
     "monthlyReport": "ماہانہ رپورٹ",
     "salesIncomeLedger": "فروخت آمدنی (لیجر)",
     "totalSaleCollected": "کل فروخت (وصول شدہ)",

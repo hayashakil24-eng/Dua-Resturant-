@@ -5,6 +5,7 @@ import { PageHeader } from '../components/ui.jsx'
 import { money, monthYear, dateLong, time } from '../utils/format.js'
 import DailyClosingView from '../components/DailyClosingView.jsx'
 import KOTView from '../components/KOTView.jsx'
+import DailyReportSlip from '../components/DailyReportSlip.jsx'
 import { monthFigures } from '../utils/accounting.js'
 import { safePrint } from '../utils/print.js'
 import { RECIPE_MAP } from '../data/mockData.js'
@@ -298,6 +299,14 @@ export default function Reports() {
             printable paper). Uses the app's real figures incl. net profit. */}
         {view === 'overview' && (
           <div className="space-y-4">
+            <div className="flex justify-end no-print">
+              <button onClick={() => safePrint('print-daily')} className="btn-gold px-4 py-2 text-sm">
+                <IconPrint size={16} /> {t('reports.printSlip', 'Print')}
+              </button>
+            </div>
+
+            <DailyReportSlip report={report} />
+
             <div className="card flex items-center justify-between p-5">
               <span className="text-sm text-cream-dim">{t('reports.date')}</span>
               <span className="font-serif text-lg font-semibold text-gold">{report.rangeLabel}</span>

@@ -298,6 +298,8 @@
     "cardPayment": "Card Payment",
     "onlinePayment": "Online Payment",
     "dailyReport": "Daily Report",
+    "printSlip": "Print",
+    "generated": "Generated",
     "monthlyReport": "Monthly Report",
     "salesIncomeLedger": "Sales income (ledger)",
     "totalSaleCollected": "Total Sale (collected)",
