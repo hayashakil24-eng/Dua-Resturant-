@@ -523,7 +523,7 @@ export default function Reports() {
 
         {/* Actions */}
         <div className="mt-5 flex flex-wrap justify-center gap-3 no-print">
-          <button onClick={safePrint} className="btn-gold px-5 py-2.5">
+          <button onClick={() => safePrint('print-report')} className="btn-gold px-5 py-2.5">
             <IconPrint size={18} /> {t('reports.printPdf')}
           </button>
           <button onClick={shareWhatsApp} className="btn-ghost px-5 py-2.5">

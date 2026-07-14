@@ -157,14 +157,17 @@
   body * {
     visibility: hidden;
   }
-  #printable-receipt,
-  #printable-receipt *,
-  #printable-report,
-  #printable-report *,
-  #printable-kots,
-  #printable-kots *,
-  #printable-daily,
-  #printable-daily * {
+  /* Reveal ONLY the surface being printed (scoped to its body.print-* class) so
+     the receipt, report, KOT slips and daily slip can never overlap each other
+     — several are portaled to <body>, so an unscoped reveal showed all at once. */
+  body.print-receipt #printable-receipt,
+  body.print-receipt #printable-receipt *,
+  body.print-report #printable-report,
+  body.print-report #printable-report *,
+  body.print-kot #printable-kots,
+  body.print-kot #printable-kots *,
+  body.print-daily #printable-daily,
+  body.print-daily #printable-daily * {
     visibility: visible;
   }
 
@@ -264,7 +267,7 @@
   /* Pin the receipt to the physical top-left of the page. `fixed` positions it
      relative to the page box, escaping the centered modal ancestor that would
      otherwise push its footer onto page 2. Kept as one unbreakable block. */
-  #printable-receipt {
+  body.print-receipt #printable-receipt {
     position: fixed;
     left: 0;
     top: 0;
@@ -276,7 +279,7 @@
   }
 
   /* Reports fill the sheet width and may legitimately run multiple pages. */
-  #printable-report {
+  body.print-report #printable-report {
     position: absolute;
     left: 0;
     top: 0;

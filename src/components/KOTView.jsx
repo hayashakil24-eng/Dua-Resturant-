@@ -54,7 +54,7 @@ export default function KOTView({ dayStr }) {
   return (
     <div>
       <div className="mb-4 flex justify-end no-print">
-        <button onClick={safePrint} className="btn-gold px-4 py-2 text-sm">
+        <button onClick={() => safePrint('print-report')} className="btn-gold px-4 py-2 text-sm">
           <IconPrint size={16} /> {t('dailyClosing.print')}
         </button>
       </div>
