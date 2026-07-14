@@ -60,8 +60,8 @@ export default function ShiftEndModal({ shift, onClose, onComplete }) {
                 <IconCash size={22} />
               </span>
               <div>
-                <h3 className="font-serif text-2xl text-cream">End Shift · Cash Handover</h3>
-                <p className="text-xs text-cream-dim">Count the drawer and record who you hand the cash to.</p>
+                <h3 className="font-serif text-2xl text-cream">End Shift · Cash Count</h3>
+                <p className="text-xs text-cream-dim">Count the drawer at close and record who receives the closing cash. No approval needed.</p>
               </div>
             </div>
             <button onClick={onClose} className="text-cream-dim hover:text-cream">
@@ -105,7 +105,7 @@ export default function ShiftEndModal({ shift, onClose, onComplete }) {
             {/* Hand cash over to */}
             <div className="mt-5">
               <label className="mb-2 block text-[11px] uppercase tracking-wider text-cream-dim">
-                Hand over cash to
+                Closing cash handed to
               </label>
               <div className="grid grid-cols-3 gap-2">
                 {['Admin', 'Manager', 'Other'].map((opt) => (

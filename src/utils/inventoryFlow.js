@@ -50,6 +50,58 @@ export function calculateDeductions(orderItems = [], inventory = [], recipes = [
   return deductions
 }
 
+// Stock status for a single menu item, derived from its APPROVED recipe and
+// current inventory. Items without a recipe (or whose ingredients aren't
+// tracked) are unconstrained → { status: 'none', maxServings: Infinity }.
+//   out    — can't make even one (an ingredient is short)
+//   low    — can make ≥1, but making one takes an ingredient to/below threshold
+//   normal — comfortably in stock
+export function getRecipeStock(menuItemId, inventory = [], recipes = []) {
+  const baseId = String(menuItemId).split('::')[0]
+  const recipe = recipes.find((r) => r.menuItemId === baseId && r.status === 'approved')
+  if (!recipe || !recipe.ingredients?.length) return { status: 'none', maxServings: Infinity }
+
+  let maxServings = Infinity
+  let low = false
+  for (const ing of recipe.ingredients) {
+    const inv = inventory.find((x) => x.id === ing.inventoryItemId)
+    if (!inv) continue // ingredient not tracked in inventory → don't constrain
+    let need
+    try {
+      need = convertUnit(Number(ing.quantity) || 0, ing.unit, inv.unit)
+    } catch {
+      continue // no known unit conversion → skip this constraint
+    }
+    if (need <= 0) continue
+    const servings = Math.floor((Number(inv.stock) || 0) / need)
+    if (servings < maxServings) maxServings = servings
+    if ((Number(inv.stock) || 0) - need <= (Number(inv.threshold) || 0)) low = true
+  }
+
+  if (maxServings === Infinity) return { status: 'none', maxServings: Infinity }
+  if (maxServings < 1) return { status: 'out', maxServings: 0 }
+  return { status: low ? 'low' : 'normal', maxServings }
+}
+
+// Returns the first ingredient a cart can't fully cover, or null if the whole
+// cart is fulfillable. Used to block checkout on out-of-stock. Safe against
+// unit-conversion errors (treats them as "can't determine" → no block).
+export function getStockShortfall(orderItems = [], inventory = [], recipes = []) {
+  let deductions
+  try {
+    deductions = calculateDeductions(orderItems, inventory, recipes)
+  } catch {
+    return null
+  }
+  for (const [invId, d] of Object.entries(deductions)) {
+    const inv = inventory.find((x) => x.id === invId)
+    if (inv && d.amount > (Number(inv.stock) || 0) + 1e-6) {
+      return { itemName: d.itemName || inv.name, need: d.amount, have: Number(inv.stock) || 0, unit: d.unit || inv.unit }
+    }
+  }
+  return null
+}
+
 export function calculateRestocks(orderItems = [], inventory = [], recipes = []) {
   const restocks = {} // inventoryItemId -> { amount, itemName, unit }
   

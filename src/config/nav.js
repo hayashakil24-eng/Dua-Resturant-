@@ -12,6 +12,8 @@ import {
   IconReport,
   IconKitchen,
   IconReceipt,
+  IconDepartments,
+  IconCash,
 } from '../components/Icons.jsx'
 
 import { hasAccess } from './permissions.js'
@@ -24,12 +26,14 @@ export const NAV = [
   { to: '/orders', label: 'Orders', labelKey: 'nav.orders', icon: IconOrders, pageKey: 'orders' },
   { to: '/tables', label: 'Tables', labelKey: 'nav.tables', icon: IconTable, pageKey: 'tables' },
   { to: '/menu', label: 'Menu', labelKey: 'nav.menu', icon: IconMenuBook, pageKey: 'menu' },
+  { to: '/departments', label: 'Departments', labelKey: 'nav.departments', icon: IconDepartments, pageKey: 'departments' },
   { to: '/inventory', label: 'Inventory', labelKey: 'nav.inventory', icon: IconInventory, pageKey: 'inventory' },
   { to: '/attendance', label: 'Attendance', labelKey: 'nav.attendance', icon: IconAttendance, pageKey: 'attendance' },
   { to: '/employees', label: 'Employees', labelKey: 'nav.employees', icon: IconUsers, pageKey: 'employees' },
   { to: '/payroll', label: 'Payroll', labelKey: 'nav.payroll', icon: IconWallet, pageKey: 'payroll' },
   { to: '/accounting', label: 'Accounting', labelKey: 'nav.accounting', icon: IconChart, pageKey: 'accounting' },
   { to: '/receivables', label: 'Receivables', labelKey: 'nav.receivables', icon: IconWallet, pageKey: 'receivables' },
+  { to: '/handovers', label: 'Handover Approvals', labelKey: 'nav.handovers', icon: IconCash, pageKey: 'handovers' },
   { to: '/reports', label: 'Reports', labelKey: 'nav.reports', icon: IconReport, pageKey: 'reports' },
   { to: '/kitchen', label: 'Kitchen', labelKey: 'nav.kitchen', icon: IconKitchen, pageKey: 'kitchen' },
   { to: '/kds', label: 'Kitchen (KDS)', labelKey: 'nav.kds', icon: IconKitchen, pageKey: 'kds' },

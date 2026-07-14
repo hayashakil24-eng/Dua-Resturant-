@@ -7,6 +7,7 @@ export const ROLES = ['Admin', 'Manager', 'Cashier', 'Kitchen']
 // shiftStartTime ("HH:MM", 24h) drives the automatic Late calculation in
 // src/utils/attendanceHelpers.js — check-in after start + grace period = Late.
 export const STAFF = [
+  { id: 'S00', name: 'Malik Sahab', role: 'Admin', shift: 'Morning', shiftStartTime: '09:00', phone: '0300-0000000', baseSalary: 0, active: true },
   { id: 'S01', name: 'Ali Raza', role: 'Manager', shift: 'Morning', shiftStartTime: '09:00', phone: '0300-1122334', baseSalary: 60000, active: true },
   { id: 'S02', name: 'Hamza Khan', role: 'Cashier', shift: 'Morning', shiftStartTime: '09:00', phone: '0301-2233445', baseSalary: 38000, active: true },
   { id: 'S03', name: 'Bilal Ahmed', role: 'Waiter', shift: 'Evening', shiftStartTime: '16:00', phone: '0302-3344556', baseSalary: 28000, active: true },
@@ -401,6 +402,58 @@ export const INITIAL_MENU = [
   { id: 'rl2', name: 'Mayo Garlic Roll', category: 'Rolls', price: 349, image: '/Mayo Garlic Roll.jfif', active: true },
   { id: 'rl3', name: 'Zinger Cheesy Roll', category: 'Rolls', price: 399, active: true },
   { id: 'rl4', name: 'Vegetable Roll', category: 'Rolls', price: 249, image: '/Vegetable Roll.jfif', active: true },
+]
+
+// ---------------------------------------------------------------------------
+// Department / counter routing. Each department "owns" a set of menu item ids;
+// an order line is routed to whichever department owns its item id (see
+// getDepartmentForItem in AppContext). Items are kept 1-department-per-item so
+// each KOT line goes to exactly one counter. The default seed maps the whole
+// menu by category group so routing works out of the box; Admin/Manager can
+// re-assign live from Department Management. `items` is derived from real menu
+// ids at seed time so it can never reference a non-existent dish.
+// ---------------------------------------------------------------------------
+const menuIdsInCategories = (cats) =>
+  INITIAL_MENU.filter((m) => cats.includes(m.category)).map((m) => m.id)
+
+export const INITIAL_DEPARTMENTS = [
+  {
+    id: 'DEPT-BEV',
+    name: 'Beverages Counter',
+    nameUrdu: 'مشروبات کاؤنٹر',
+    description: 'Coladas, slush, juices, shakes, mocktails & ice cream',
+    manager: '',
+    managerId: '',
+    status: 'active',
+    items: menuIdsInCategories([
+      'Coladas', 'Slush', 'Fresh Juice', 'Shakes', 'Mocktails', 'Ice Cream',
+    ]),
+  },
+  {
+    id: 'DEPT-BBQ',
+    name: 'BBQ Counter',
+    nameUrdu: 'بی بی کیو کاؤنٹر',
+    description: 'Grilled BBQ — beef, chicken & specials',
+    manager: '',
+    managerId: '',
+    status: 'active',
+    items: menuIdsInCategories(['BBQ Special', 'Beef BBQ', 'Chicken BBQ']),
+  },
+  {
+    id: 'DEPT-KITCHEN',
+    name: 'Main Kitchen',
+    nameUrdu: 'مرکزی باورچی خانہ',
+    description: 'Karahi, handi, rice, Pakistani & continental cuisine',
+    manager: '',
+    managerId: '',
+    status: 'active',
+    items: menuIdsInCategories([
+      'Mutton Karahi', 'Chicken Karahi', 'Handi', 'Pulao', 'Chef Special',
+      'Pakistani Cuisine', 'Breads', 'Salads & Raita', 'Starters', 'Soups',
+      'Kids Special', 'Steaks', 'Pizza', 'Seafood', 'Chinese', 'Rice',
+      'Pasta', 'Burgers & Sandwiches', 'Broast', 'Rolls',
+    ]),
+  },
 ]
 
 // ---------------------------------------------------------------------------

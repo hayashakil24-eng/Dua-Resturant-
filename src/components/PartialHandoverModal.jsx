@@ -16,12 +16,13 @@ export default function PartialHandoverModal({ current, onClose, onSubmit }) {
   const [error, setError] = useState('')
   useEscapeKey(onClose)
 
-  // Recipients: active Managers (cash is handed up the chain). Fallback to all
-  // active staff if none are Managers so the picker is never empty.
+  // Recipients: active Managers & Admins (cash is handed up the chain, and both
+  // roles can approve it). Fallback to all active staff if none exist so the
+  // picker is never empty.
   const recipients = useMemo(() => {
     const active = staff.filter((s) => s.active !== false)
-    const managers = active.filter((s) => s.role === 'Manager')
-    return managers.length ? managers : active
+    const seniors = active.filter((s) => s.role === 'Manager' || s.role === 'Admin')
+    return seniors.length ? seniors : active
   }, [staff])
 
   const amt = Number(amount) || 0
@@ -42,8 +43,8 @@ export default function PartialHandoverModal({ current, onClose, onSubmit }) {
         <div className="card flex min-h-0 flex-col p-6">
           <div className="flex items-start justify-between">
             <div>
-              <h3 className="font-serif text-2xl text-cream">Partial Handover</h3>
-              <p className="text-xs text-cream-dim">Hand part of the drawer to a manager (needs approval).</p>
+              <h3 className="font-serif text-2xl text-cream">Partial Handover · Mid-shift</h3>
+              <p className="text-xs text-cream-dim">Hand part of the drawer to a manager now — needs their approval. Your shift stays open.</p>
             </div>
             <button onClick={onClose} className="text-cream-dim hover:text-cream">
               <IconClose size={20} />

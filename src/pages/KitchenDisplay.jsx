@@ -7,10 +7,11 @@ import { IconClose, IconCheck, IconClock } from '../components/Icons.jsx'
 const elapsedMin = (iso, now) =>
   Math.max(0, Math.floor((now - new Date(iso).getTime()) / 60000))
 
-function OrderCard({ order, now, onReady, onClear }) {
+function OrderCard({ order, items, now, onReady, onClear, deptFor, showDeptTag }) {
   const ready = order.kitchen === 'Ready'
   const mins = elapsedMin(order.createdAt, now)
   const urgent = !ready && mins >= 15
+  const lines = items || order.items
 
   const border = ready
     ? 'border-emerald-500/70 bg-emerald-500/10'
@@ -39,12 +40,22 @@ function OrderCard({ order, now, onReady, onClear }) {
       <div className="my-4 border-t border-ink-line" />
 
       <ul className="flex-1 space-y-2.5">
-        {order.items.map((it) => (
-          <li key={it.id} className="flex items-baseline justify-between gap-3 text-cream">
-            <span className="text-lg leading-tight">{it.name}</span>
-            <span className="shrink-0 text-lg font-bold text-gold">×{it.qty}</span>
-          </li>
-        ))}
+        {lines.map((it) => {
+          const dept = showDeptTag && deptFor ? deptFor(it.id) : null
+          return (
+            <li key={it.id} className="flex items-baseline justify-between gap-3 text-cream">
+              <span className="min-w-0 text-lg leading-tight">
+                {it.name}
+                {dept && (
+                  <span className="ms-2 rounded bg-white/5 px-1.5 py-0.5 align-middle text-[11px] font-medium text-cream-dim ring-1 ring-ink-line">
+                    {dept.name}
+                  </span>
+                )}
+              </span>
+              <span className="shrink-0 text-lg font-bold text-gold">×{it.qty}</span>
+            </li>
+          )
+        })}
       </ul>
 
       <div className="mt-4 flex items-center justify-between border-t border-ink-line pt-4">
@@ -76,8 +87,9 @@ function OrderCard({ order, now, onReady, onClear }) {
 }
 
 export default function KitchenDisplay() {
-  const { orders, markReady, clearKitchen } = useApp()
+  const { orders, markReady, clearKitchen, departments, getDepartmentForItem } = useApp()
   const [now, setNow] = useState(() => Date.now())
+  const [dept, setDept] = useState('all') // 'all' | department id
 
   // Auto-refresh every 2 seconds (keeps elapsed timers + clock current).
   useEffect(() => {
@@ -93,6 +105,17 @@ export default function KitchenDisplay() {
     [orders],
   )
   const cooking = active.filter((o) => o.kitchen === 'Pending').length
+
+  // When a counter is selected, show only its items (and drop orders that have
+  // none). "All" shows every order with a small counter tag per line.
+  const visible = useMemo(() => {
+    if (dept === 'all') return active.map((o) => ({ order: o, items: o.items }))
+    return active
+      .map((o) => ({ order: o, items: o.items.filter((it) => getDepartmentForItem(it.id)?.id === dept) }))
+      .filter((v) => v.items.length > 0)
+  }, [active, dept, getDepartmentForItem])
+
+  const counters = departments.filter((d) => d.status !== 'inactive')
 
   const clock = new Date(now).toLocaleTimeString('en-PK', {
     hour: '2-digit',
@@ -130,23 +153,53 @@ export default function KitchenDisplay() {
         </div>
       </header>
 
+      {/* Counter filter — routes orders to the right kitchen/counter */}
+      {counters.length > 0 && (
+        <div className="scrollbar-hide flex gap-2 overflow-x-auto border-b border-ink-line bg-ink/70 px-6 py-3">
+          <button
+            onClick={() => setDept('all')}
+            className={`shrink-0 whitespace-nowrap rounded-full border px-4 py-1.5 text-sm font-semibold transition ${
+              dept === 'all' ? 'border-gold/60 bg-gold/15 text-gold' : 'border-ink-line text-cream-dim hover:text-cream'
+            }`}
+          >
+            All Counters
+          </button>
+          {counters.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => setDept(c.id)}
+              className={`shrink-0 whitespace-nowrap rounded-full border px-4 py-1.5 text-sm font-semibold transition ${
+                dept === c.id ? 'border-gold/60 bg-gold/15 text-gold' : 'border-ink-line text-cream-dim hover:text-cream'
+              }`}
+            >
+              {c.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       <main className="p-6">
-        {active.length === 0 ? (
+        {visible.length === 0 ? (
           <div className="grid h-[70vh] place-items-center text-center">
             <div>
               <p className="font-serif text-3xl text-cream">All caught up 🎉</p>
-              <p className="mt-2 text-cream-dim">No active kitchen orders right now.</p>
+              <p className="mt-2 text-cream-dim">
+                {dept === 'all' ? 'No active kitchen orders right now.' : 'No pending items for this counter.'}
+              </p>
             </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {active.map((o) => (
+            {visible.map(({ order, items }) => (
               <OrderCard
-                key={o.id}
-                order={o}
+                key={order.id}
+                order={order}
+                items={items}
                 now={now}
                 onReady={markReady}
                 onClear={clearKitchen}
+                deptFor={getDepartmentForItem}
+                showDeptTag={dept === 'all'}
               />
             ))}
           </div>

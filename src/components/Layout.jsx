@@ -12,6 +12,7 @@ const RTL_ROUTES = new Set([
   '/',
   '/tables',
   '/menu',
+  '/departments',
   '/inventory',
   '/attendance',
   '/employees',
@@ -19,6 +20,7 @@ const RTL_ROUTES = new Set([
   '/accounting',
   '/reports',
   '/receivables',
+  '/handovers',
   '/kitchen',
 ])
 import { dateLong } from '../utils/format.js'
@@ -229,7 +231,7 @@ export default function Layout({ children }) {
                   onClick={() => setHandoverOpen(true)}
                   className="hidden items-center gap-1.5 rounded-full border border-ink-line bg-ink-soft px-3 py-1.5 text-xs font-semibold text-cream-dim transition hover:text-cream sm:inline-flex"
                 >
-                  💸 Hand over
+                  💸 Partial handover
                 </button>
                 <button
                   onClick={handleExit}

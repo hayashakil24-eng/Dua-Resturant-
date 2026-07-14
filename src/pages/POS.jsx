@@ -6,6 +6,9 @@ import { money, time } from '../utils/format.js'
 import { Receipt } from './Billing.jsx'
 import PaymentModal from '../components/PaymentModal.jsx'
 import ManageMostOrderedModal from '../components/ManageMostOrderedModal.jsx'
+import KitchenSlips from '../components/KitchenSlips.jsx'
+import { safePrint } from '../utils/print.js'
+import { getRecipeStock, getStockShortfall } from '../utils/inventoryFlow.js'
 import { canModify } from '../config/permissions.js'
 import { TAX_RATE, TABLE_CATEGORIES, tableLabel } from '../data/mockData.js'
 import {
@@ -178,8 +181,21 @@ export default function POS() {
     tables,
     waiters,
     user,
+    inventory,
+    recipes,
     getMostOrderedItems,
   } = useApp()
+
+  // Recipe-based stock status per menu item (only items with an approved recipe
+  // are constrained; everything else is unconstrained). Recomputed as inventory
+  // is auto-deducted by orders.
+  const stockByItem = useMemo(() => {
+    const map = {}
+    menu.forEach((m) => {
+      map[m.id] = getRecipeStock(m.id, inventory, recipes)
+    })
+    return map
+  }, [menu, inventory, recipes])
   const location = useLocation()
   const navigate = useNavigate()
   const [cat, setCat] = useState('All')
@@ -212,6 +228,7 @@ export default function POS() {
   const [showPayment, setShowPayment] = useState(false)
   const [activeReceipt, setActiveReceipt] = useState(null)
   const [toast, setToast] = useState(null)
+  const [kotOrder, setKotOrder] = useState(null) // just-placed order → department kitchen slips
   const [error, setError] = useState('')
 
   const activeMenu = useMemo(() => menu.filter((m) => m.active !== false), [menu])
@@ -317,6 +334,16 @@ export default function POS() {
     if (items.length === 0) return 'Add at least one item to the order.'
     if (!table) return 'Please select a table number.'
     if (!waiter) return 'Please assign a waiter.'
+    // Prevent out-of-stock orders: the cart's recipes must not exceed stock.
+    const short = getStockShortfall(
+      items.map(({ key, qty }) => ({ id: key, qty })),
+      inventory,
+      recipes,
+    )
+    if (short) {
+      const r = (n) => Math.round(n * 1000) / 1000
+      return `Out of stock: ${short.itemName} — need ${r(short.need)}${short.unit}, have ${r(short.have)}${short.unit}.`
+    }
     return null
   }
 
@@ -338,6 +365,14 @@ export default function POS() {
     return order
   }
 
+  // Print department-wise kitchen slips (one per counter) for an order that was
+  // just sent to the kitchen. Renders the slips, then prints on the next tick.
+  const printKitchenSlips = (order) => {
+    if (!order?.items?.length) return
+    setKotOrder(order)
+    setTimeout(() => safePrint('print-kot'), 80)
+  }
+
   // "Pay Now" — validate, then open the payment modal.
   const openPayment = () => {
     const err = validate()
@@ -350,6 +385,7 @@ export default function POS() {
   const confirmPayment = (method) => {
     const order = placeOrder({ payment: 'Paid', method })
     setShowPayment(false)
+    printKitchenSlips(order)
     setActiveReceipt(order)
   }
 
@@ -359,6 +395,7 @@ export default function POS() {
     if (err) return setError(err)
     setError('')
     const order = placeOrder({ payment: 'Unpaid', method: '—' })
+    printKitchenSlips(order)
     setToast(order)
     setTimeout(() => setToast(null), 4000)
   }
@@ -368,11 +405,18 @@ export default function POS() {
   const addToOrder = () => {
     if (items.length === 0) return setError('Add at least one new item to append.')
     setError('')
-    appendOrderItems(
-      continuingOrder.id,
-      items.map(({ key, name, price, qty }) => ({ id: key, name, price, qty })),
-    )
-    navigate('/tables')
+    const newItems = items.map(({ key, name, price, qty }) => ({ id: key, name, price, qty }))
+    appendOrderItems(continuingOrder.id, newItems)
+    // Fire kitchen slips for the appended items only (a fresh KOT per counter).
+    // Delay the navigate so the slips render + print before POS unmounts.
+    printKitchenSlips({
+      id: continuingOrder.id,
+      table: continuingOrder.table,
+      waiter: continuingOrder.waiter,
+      items: newItems,
+      createdAt: new Date().toISOString(),
+    })
+    setTimeout(() => navigate('/tables'), 600)
   }
 
   const existingTotal = isContinuing ? orderTotal(continuingOrder.items).total : 0
@@ -490,11 +534,21 @@ export default function POS() {
             {filtered.map((m) => {
               const count = qtyFor(m)
               const hasVariants = m.variants && m.variants.length
+              const stock = stockByItem[m.id] || { status: 'none', maxServings: Infinity }
+              // Disable when the recipe can't be made at all, or the cart has
+              // already claimed every available serving.
+              const reachedMax = Number.isFinite(stock.maxServings) && count >= stock.maxServings
+              const disabled = stock.status === 'out' || reachedMax
               return (
                 <button
                   key={m.id}
                   onClick={() => onItemClick(m)}
-                  className="card group relative flex flex-col p-3 text-left transition hover:border-gold/40 hover:shadow-gold"
+                  disabled={disabled}
+                  className={`card group relative flex flex-col p-3 text-left transition ${
+                    disabled
+                      ? 'cursor-not-allowed opacity-45'
+                      : 'hover:border-gold/40 hover:shadow-gold'
+                  }`}
                 >
                   <MenuImage item={m} />
 
@@ -510,7 +564,11 @@ export default function POS() {
                       {hasVariants && 'from '}
                       {money(m.price)}
                     </span>
-                    <span className="grid h-7 w-7 place-items-center rounded-lg bg-gold/10 text-gold ring-1 ring-gold/20 transition group-hover:bg-gold-grad group-hover:text-ink">
+                    <span className={`grid h-7 w-7 place-items-center rounded-lg ring-1 transition ${
+                      disabled
+                        ? 'bg-white/5 text-cream-dim ring-ink-line'
+                        : 'bg-gold/10 text-gold ring-gold/20 group-hover:bg-gold-grad group-hover:text-ink'
+                    }`}>
                       <IconPlus size={16} />
                     </span>
                   </div>
@@ -519,6 +577,16 @@ export default function POS() {
                       {count}
                     </span>
                   )}
+                  {/* Stock status chip (recipe-backed items only) */}
+                  {(stock.status === 'out' || reachedMax) ? (
+                    <span className="absolute left-2 top-2 rounded-full bg-rose-500/90 px-2 py-0.5 text-[10px] font-bold text-white">
+                      Out of stock
+                    </span>
+                  ) : stock.status === 'low' ? (
+                    <span className="absolute left-2 top-2 rounded-full bg-amber-500/90 px-2 py-0.5 text-[10px] font-bold text-white">
+                      Low stock
+                    </span>
+                  ) : null}
                 </button>
               )
             })}
@@ -769,6 +837,10 @@ export default function POS() {
       )}
 
       {toast && <Toast order={toast} onClose={() => setToast(null)} />}
+
+      {/* Department-wise kitchen slips — hidden on screen, printed via
+          safePrint('print-kot') when an order is sent to the kitchen. */}
+      <KitchenSlips order={kotOrder} />
 
       {showManageMostOrdered && (
         <ManageMostOrderedModal onClose={() => setShowManageMostOrdered(false)} />

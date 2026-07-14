@@ -32,6 +32,8 @@ export const PERMISSIONS = {
     accounting: 'full',
     reports: 'full',
     receivables: 'full', // credit accounts — view & settle
+    departments: 'full', // create/edit counters + assign items to them
+    handovers: 'full', // review/accept/reject cashier cash handovers
     kds: 'full',
     billing: 'full',
     attendanceOverride: 'full',
@@ -63,6 +65,8 @@ export const PERMISSIONS = {
     accounting: 'full',
     reports: 'full',
     receivables: 'full', // Manager may view & settle credit accounts
+    departments: 'full', // Manager may create counters + assign items too
+    handovers: 'full', // Manager may review/accept/reject cash handovers
     kds: 'full',
     billing: 'view',
     attendanceOverride: 'none',
@@ -97,6 +101,8 @@ export const PERMISSIONS = {
     accounting: 'hidden',
     reports: 'hidden',
     receivables: 'hidden',
+    departments: 'hidden', // Kitchen doesn't configure counters
+    handovers: 'hidden',
     kds: 'full', // kitchen staff can watch the live order display too
     billing: 'hidden',
     attendanceOverride: 'none',
@@ -128,6 +134,8 @@ export const PERMISSIONS = {
     accounting: 'hidden',
     reports: 'hidden',
     receivables: 'hidden',
+    departments: 'hidden', // Cashier only places orders (auto-routed)
+    handovers: 'hidden', // Cashier initiates handovers but doesn't approve them
     kds: 'hidden',
     billing: 'create',
     attendanceOverride: 'none',

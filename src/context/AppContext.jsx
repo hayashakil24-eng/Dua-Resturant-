@@ -9,6 +9,7 @@ import {
   INITIAL_ADVANCES,
   INITIAL_RECIPES,
   INITIAL_RECEIVABLES,
+  INITIAL_DEPARTMENTS,
   TABLES,
   STAFF,
   TAX_RATE,
@@ -19,17 +20,30 @@ import { convertUnit, calculateDeductions, calculateRestocks } from '../utils/in
 const AppContext = createContext(null)
 
 export function AppProvider({ children }) {
+  // Frontend-only persistence: JSON in localStorage is this app's only store.
+  // Defined first so the state initialisers below can hydrate from it.
+  const loadJSON = (key, fallback) => {
+    try {
+      const raw = localStorage.getItem(key)
+      return raw ? JSON.parse(raw) : fallback
+    } catch {
+      return fallback
+    }
+  }
   const [user, setUser] = useState(null) // { name, role }
   const [orders, setOrders] = useState(INITIAL_ORDERS)
   const [attendance, setAttendance] = useState(INITIAL_ATTENDANCE)
-  const [inventory, setInventory] = useState(INVENTORY)
+  // Inventory & recipes are actively edited at runtime (add stock, create/
+  // approve recipes) so they persist — otherwise a reload wiped approvals and
+  // added stock back to the seed.
+  const [inventory, setInventory] = useState(() => loadJSON('inventory', INVENTORY))
   const [menu, setMenu] = useState(INITIAL_MENU)
   const [customCategories, setCustomCategories] = useState([]) // free-text categories with no items yet
   const [tables, setTables] = useState(TABLES)
   const [staff, setStaff] = useState(STAFF)
   const [advances, setAdvances] = useState(INITIAL_ADVANCES)
   const [transactions, setTransactions] = useState(INITIAL_TRANSACTIONS)
-  const [recipes, setRecipes] = useState(INITIAL_RECIPES)
+  const [recipes, setRecipes] = useState(() => loadJSON('recipes', INITIAL_RECIPES))
   const [ingredientRequests, setIngredientRequests] = useState([])
   const [auditLog, setAuditLog] = useState([])
   // Most Ordered is a manually-curated, shared list of menu item ids (NOT
@@ -43,14 +57,6 @@ export function AppProvider({ children }) {
   // a cashier can PAUSE (log out without reconciling) and later resume the same
   // open drawer, and so the audit trail survives a page reload. (No backend —
   // this is the app's only persistence layer.)
-  const loadJSON = (key, fallback) => {
-    try {
-      const raw = localStorage.getItem(key)
-      return raw ? JSON.parse(raw) : fallback
-    } catch {
-      return fallback
-    }
-  }
   const [shiftReconciliations, setShiftReconciliations] = useState(() =>
     loadJSON('shiftReconciliations', []),
   )
@@ -81,6 +87,33 @@ export function AppProvider({ children }) {
       /* ignore */
     }
   }, [receivables])
+  // Department / counter routing map. Persisted so a re-org of counters
+  // survives reloads. Menu item ids are stable constants, so stored item
+  // assignments stay valid even though the menu itself isn't persisted.
+  const [departments, setDepartments] = useState(() => loadJSON('departments', INITIAL_DEPARTMENTS))
+  useEffect(() => {
+    try {
+      localStorage.setItem('departments', JSON.stringify(departments))
+    } catch {
+      /* ignore */
+    }
+  }, [departments])
+  // Persist inventory + recipes so added stock and recipe approvals survive a
+  // page reload (they were resetting to the seed before).
+  useEffect(() => {
+    try {
+      localStorage.setItem('inventory', JSON.stringify(inventory))
+    } catch {
+      /* ignore */
+    }
+  }, [inventory])
+  useEffect(() => {
+    try {
+      localStorage.setItem('recipes', JSON.stringify(recipes))
+    } catch {
+      /* ignore */
+    }
+  }, [recipes])
   useEffect(() => {
     try {
       if (activeShift) localStorage.setItem('activeShift', JSON.stringify(activeShift))
@@ -837,7 +870,7 @@ export function AppProvider({ children }) {
   // proactive path from the Chef's ingredient-request → approveIngredientRequest
   // flow; both coexist. Rejects blank/duplicate names (case-insensitive) and
   // mints the next sequential INV## id following the seed data pattern.
-  const addInventoryItem = ({ name, category, unit, stock = 0, threshold = 0 } = {}) => {
+  const addInventoryItem = ({ name, nameUr = '', category, unit, stock = 0, threshold = 0 } = {}) => {
     if (!user || !canModify(user.role, 'inventoryCreate')) {
       return { error: 'You are not allowed to add new inventory items.' }
     }
@@ -858,6 +891,7 @@ export function AppProvider({ children }) {
     const item = {
       id,
       name: trimmed,
+      nameUr: (nameUr || '').trim(), // optional Urdu name shown in Urdu mode
       category: (category || 'Other').trim() || 'Other',
       stock: Math.max(0, Number(stock) || 0),
       unit: unit || 'kg',
@@ -1179,6 +1213,124 @@ export function AppProvider({ children }) {
     return { success: true, settled }
   }
 
+  // Convert an unpaid order into an on-account (udhaar) credit sale. The order
+  // is flagged Udhaar and its total is added to a customer's Receivable — an
+  // existing open account or a new one. This reuses the single receivables
+  // ledger (no separate udhaar store). Manager/Admin only.
+  const markOrderUdhaar = (orderId, { accountId = '', customerName = '' } = {}) => {
+    if (!user || !canModify(user.role, 'receivables')) return { error: 'Not authorised.' }
+    const order = orders.find((o) => o.id === orderId)
+    if (!order || order.cancelled) return { error: 'Order not found.' }
+    if (order.payment !== 'Unpaid') return { error: 'Only unpaid orders can be put on account.' }
+    const amount = orderTotal(order.items, order.discount?.amount).total
+    if (amount <= 0) return { error: 'Order total is zero.' }
+    const at = new Date().toISOString()
+
+    let account = accountId ? receivables.find((r) => r.id === accountId && r.status !== 'settled') : null
+    const name = account ? account.name : (customerName || '').trim()
+    if (!account && !name) return { error: 'Customer name is required.' }
+    const charge = { orderId, amount, at, by: user.name }
+
+    if (account) {
+      setReceivables((prev) =>
+        prev.map((r) =>
+          r.id === account.id
+            ? { ...r, balance: r.balance + amount, status: 'open', charges: [charge, ...(r.charges || [])] }
+            : r,
+        ),
+      )
+    } else {
+      account = {
+        id: `RCV-${Date.now()}`,
+        name,
+        type: 'customer',
+        balance: amount,
+        status: 'open',
+        notes: 'On-account from order',
+        createdAt: at,
+        payments: [],
+        charges: [charge],
+      }
+      setReceivables((prev) => [...prev, account])
+    }
+
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.id === orderId
+          ? { ...o, payment: 'Udhaar', method: 'Udhaar', udhaarCustomerName: name, udhaarAccountId: account.id, udhaarAt: at, udhaarBy: user.name }
+          : o,
+      ),
+    )
+    setAuditLog((prev) => [
+      { id: `AUD-${Date.now()}`, action: 'ORDER_UDHAAR', orderId, amount, account: name, by: user.name, role: user.role, at },
+      ...prev,
+    ])
+    return { success: true, accountId: account.id }
+  }
+
+  // ---- Department / counter routing --------------------------------------
+  // Only Admin/Manager may reconfigure counters (defense-in-depth; the route
+  // is already permission-gated). `getDepartmentForItem` is read-only and
+  // ungated so the KDS/POS can resolve routing for any role.
+  const canManageDepartments = () => Boolean(user && canModify(user.role, 'departments'))
+
+  const addDepartment = ({ name, nameUrdu = '', description = '', manager = '', managerId = '' } = {}) => {
+    if (!canManageDepartments()) return { error: 'Not authorised.' }
+    const trimmed = (name || '').trim()
+    if (!trimmed) return { error: 'Department name is required.' }
+    const dept = {
+      id: `DEPT-${Date.now()}`,
+      name: trimmed,
+      nameUrdu: (nameUrdu || '').trim(),
+      description: (description || '').trim(),
+      manager: (manager || '').trim(),
+      managerId,
+      status: 'active',
+      createdBy: user.name,
+      createdAt: new Date().toISOString(),
+      items: [],
+    }
+    setDepartments((prev) => [...prev, dept])
+    return { success: true, id: dept.id }
+  }
+
+  const deleteDepartment = (id) => {
+    if (!canManageDepartments()) return { error: 'Not authorised.' }
+    setDepartments((prev) => prev.filter((d) => d.id !== id))
+    return { success: true }
+  }
+
+  // Assigning an item MOVES it: it is removed from every other counter first so
+  // each item routes to exactly one department (no ambiguous KOT routing).
+  const assignItemToDepartment = (itemId, departmentId) => {
+    if (!canManageDepartments()) return { error: 'Not authorised.' }
+    setDepartments((prev) =>
+      prev.map((d) => {
+        if (d.id === departmentId) {
+          return d.items.includes(itemId) ? d : { ...d, items: [...d.items, itemId] }
+        }
+        return d.items.includes(itemId) ? { ...d, items: d.items.filter((i) => i !== itemId) } : d
+      }),
+    )
+    return { success: true }
+  }
+
+  const removeItemFromDepartment = (itemId, departmentId) => {
+    if (!canManageDepartments()) return { error: 'Not authorised.' }
+    setDepartments((prev) =>
+      prev.map((d) => (d.id === departmentId ? { ...d, items: d.items.filter((i) => i !== itemId) } : d)),
+    )
+    return { success: true }
+  }
+
+  // Resolve the counter that owns a menu item. Order lines use a cart key of
+  // `id` or `id::variant`, so match on the base id before the "::".
+  const getDepartmentForItem = (itemId) => {
+    if (itemId == null) return null
+    const baseId = String(itemId).split('::')[0]
+    return departments.find((d) => d.items.includes(baseId)) || null
+  }
+
   const value = {
     user,
     login,
@@ -1254,6 +1406,13 @@ export function AppProvider({ children }) {
     receivables,
     addReceivable,
     recordReceivablePayment,
+    markOrderUdhaar,
+    departments,
+    addDepartment,
+    deleteDepartment,
+    assignItemToDepartment,
+    removeItemFromDepartment,
+    getDepartmentForItem,
     stats,
   }
 

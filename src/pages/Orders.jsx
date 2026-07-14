@@ -3,11 +3,12 @@ import { useApp } from '../context/AppContext.jsx'
 import { PageHeader, PaymentBadge, EmptyState } from '../components/ui.jsx'
 import { money, time } from '../utils/format.js'
 import { tableLabel } from '../data/mockData.js'
-import { IconOrders, IconSearch, IconCheck, IconClose } from '../components/Icons.jsx'
+import { IconOrders, IconSearch, IconCheck, IconClose, IconWallet } from '../components/Icons.jsx'
 import { canModify } from '../config/permissions.js'
 import PaymentModal from '../components/PaymentModal.jsx'
+import MarkAsUdhaarModal from '../components/MarkAsUdhaarModal.jsx'
 
-const FILTERS = ['All', 'Paid', 'Unpaid', 'Cancelled']
+const FILTERS = ['All', 'Paid', 'Unpaid', 'Udhaar', 'Cancelled']
 const CANCEL_REASONS = ['Customer Request', 'Wrong Order', 'Out of Stock', 'Other']
 
 function CancelledBadge() {
@@ -99,13 +100,15 @@ function CancelModal({ order, orderTotal, onConfirm, onClose }) {
 }
 
 export default function Orders() {
-  const { orders, orderTotal, markPaid, cancelOrder, auditLog, user } = useApp()
+  const { orders, orderTotal, markPaid, cancelOrder, markOrderUdhaar, auditLog, user } = useApp()
   const canMarkPaid = user && canModify(user.role, 'orders')
   const canCancel = user && canModify(user.role, 'orderCancel')
+  const canUdhaar = user && canModify(user.role, 'receivables') // Manager/Admin: put a bill on account
   const [filter, setFilter] = useState('All')
   const [query, setQuery] = useState('')
   const [cancelTarget, setCancelTarget] = useState(null)
   const [payTarget, setPayTarget] = useState(null) // unpaid order awaiting payment
+  const [udhaarTarget, setUdhaarTarget] = useState(null) // unpaid order → on-account
 
   const rows = useMemo(
     () =>
@@ -134,6 +137,8 @@ export default function Orders() {
     return orders.filter((o) => o.payment === f && !o.cancelled).length
   }
 
+  const cancelLog = useMemo(() => auditLog.filter((a) => a.action === 'CANCELLED'), [auditLog])
+
   // Actions shared by desktop rows and mobile cards.
   const OrderActions = ({ o }) => {
     if (o.cancelled) return null
@@ -146,6 +151,14 @@ export default function Orders() {
             className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-500/20"
           >
             <IconCheck size={14} /> Mark as Paid
+          </button>
+        )}
+        {isUnpaid && canUdhaar && (
+          <button
+            onClick={() => setUdhaarTarget(o)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-xs font-semibold text-sky-300 transition hover:bg-sky-500/20"
+          >
+            <IconWallet size={14} /> Udhaar
           </button>
         )}
         {isUnpaid && canCancel && (
@@ -232,6 +245,9 @@ export default function Orders() {
                       </td>
                       <td className="px-5 py-4">
                         {o.cancelled ? <CancelledBadge /> : <PaymentBadge status={o.payment} />}
+                        {o.payment === 'Udhaar' && o.udhaarCustomerName && (
+                          <span className="mt-1 block text-xs text-cream-dim">📋 {o.udhaarCustomerName}</span>
+                        )}
                       </td>
                       <td className="px-5 py-4 text-cream-dim">{time(o.createdAt)}</td>
                       <td className="px-5 py-4 text-right">
@@ -250,7 +266,12 @@ export default function Orders() {
               <div key={o.id} className={`card p-4 ${o.cancelled ? 'opacity-60' : ''}`}>
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-gold">{o.id}</span>
-                  {o.cancelled ? <CancelledBadge /> : <PaymentBadge status={o.payment} />}
+                  <div className="text-right">
+                    {o.cancelled ? <CancelledBadge /> : <PaymentBadge status={o.payment} />}
+                    {o.payment === 'Udhaar' && o.udhaarCustomerName && (
+                      <span className="mt-1 block text-xs text-cream-dim">📋 {o.udhaarCustomerName}</span>
+                    )}
+                  </div>
                 </div>
                 <div className="mt-2 flex items-center gap-2 text-xs text-cream-dim">
                   <span className="rounded bg-white/5 px-2 py-0.5 ring-1 ring-ink-line">
@@ -274,15 +295,16 @@ export default function Orders() {
         </>
       )}
 
-      {/* Cancellation log — Admin only */}
-      {canCancel && auditLog.length > 0 && (
+      {/* Cancellation log — Admin only. Filter to cancellations; the shared
+          audit log also carries discount/receivable/handover/udhaar entries. */}
+      {canCancel && cancelLog.length > 0 && (
         <div className="card mt-6 overflow-hidden">
           <div className="border-b border-ink-line p-5">
             <h3 className="font-serif text-xl text-cream">Cancellation Log</h3>
-            <p className="text-xs text-cream-dim">{auditLog.length} cancellation(s) recorded this session.</p>
+            <p className="text-xs text-cream-dim">{cancelLog.length} cancellation(s) recorded this session.</p>
           </div>
           <div className="divide-y divide-ink-line">
-            {auditLog.map((a) => (
+            {cancelLog.map((a) => (
               <div key={a.id} className="flex flex-col gap-1 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <p className="text-sm text-cream">
@@ -320,6 +342,19 @@ export default function Orders() {
             setPayTarget(null)
           }}
           onClose={() => setPayTarget(null)}
+        />
+      )}
+
+      {/* Mark as Udhaar → adds the bill to a customer's Receivable (credit ledger). */}
+      {udhaarTarget && (
+        <MarkAsUdhaarModal
+          order={udhaarTarget}
+          onConfirm={(data) => {
+            const res = markOrderUdhaar(udhaarTarget.id, data)
+            if (res?.error) return
+            setUdhaarTarget(null)
+          }}
+          onClose={() => setUdhaarTarget(null)}
         />
       )}
     </div>

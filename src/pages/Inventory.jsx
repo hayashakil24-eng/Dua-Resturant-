@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
-import { useT } from '../i18n/LanguageContext.jsx'
+import { useT, useLang } from '../i18n/LanguageContext.jsx'
 import { PageHeader, StatCard } from '../components/ui.jsx'
 import { dateLong } from '../utils/format.js'
+import { unitLabel, categoryLabel, itemNameLabel } from '../i18n/dataDict.js'
 import { canModify } from '../config/permissions.js'
 import {
   IconInventory,
@@ -38,6 +39,7 @@ const LEVEL_LABEL_KEY = { critical: 'inventory.levelCritical', low: 'inventory.l
 function AddItemModal({ categories, onClose, onSave }) {
   const t = useT()
   const [name, setName] = useState('')
+  const [nameUr, setNameUr] = useState('')
   const [category, setCategory] = useState(categories[0] || 'Other')
   const [unit, setUnit] = useState(UNITS[0])
   const [stock, setStock] = useState('0')
@@ -49,6 +51,7 @@ function AddItemModal({ categories, onClose, onSave }) {
   const submit = () => {
     const res = onSave({
       name: name.trim(),
+      nameUr: nameUr.trim(),
       category,
       unit,
       stock: Number(stock) || 0,
@@ -90,6 +93,19 @@ function AddItemModal({ categories, onClose, onSave }) {
                   setName(e.target.value)
                   if (error) setError('')
                 }}
+              />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+                {t('inventory.itemNameUr')}
+              </label>
+              <input
+                className="input"
+                dir="rtl"
+                placeholder={t('inventory.itemNameUrPh')}
+                value={nameUr}
+                onChange={(e) => setNameUr(e.target.value)}
               />
             </div>
 
@@ -178,7 +194,7 @@ function AddItemModal({ categories, onClose, onSave }) {
 
 export default function Inventory() {
   const { inventory, lowStock, adjustStock, restock, addInventoryItem, user } = useApp()
-  const t = useT()
+  const { t, lang } = useLang()
   const [query, setQuery] = useState('')
   const [showAdd, setShowAdd] = useState(false)
   // Page access (also gates whether the Adjust column shows at all).
@@ -268,13 +284,15 @@ export default function Inventory() {
                 return (
                   <tr key={item.id} className="transition hover:bg-white/[0.02]">
                     <td className="px-5 py-4">
-                      <p className="font-medium text-cream">{item.name}</p>
+                      <p className="font-medium text-cream">
+                        {lang === 'ur' && item.nameUr ? item.nameUr : itemNameLabel(item.name, lang)}
+                      </p>
                       <p className="text-xs text-cream-dim">{item.id}</p>
                     </td>
-                    <td className="px-5 py-4 text-cream-dim">{item.category}</td>
+                    <td className="px-5 py-4 text-cream-dim">{categoryLabel(item.category, lang)}</td>
                     <td className="px-5 py-4">
                       <p className="font-semibold text-cream">
-                        {item.stock} <span className="text-xs font-normal text-cream-dim">{item.unit}</span>
+                        {item.stock} <span className="text-xs font-normal text-cream-dim">{unitLabel(item.unit, lang)}</span>
                       </p>
                       <div className="mt-1.5 h-1.5 w-28 overflow-hidden rounded-full bg-ink-line">
                         <div
@@ -290,7 +308,7 @@ export default function Inventory() {
                       </div>
                     </td>
                     <td className="px-5 py-4 text-cream-dim">
-                      {item.threshold} {item.unit}
+                      {item.threshold} {unitLabel(item.unit, lang)}
                     </td>
                     <td className="px-5 py-4">
                       <span className={`badge ring-1 ${LEVEL_STYLES[level]}`}>{t(LEVEL_LABEL_KEY[level])}</span>

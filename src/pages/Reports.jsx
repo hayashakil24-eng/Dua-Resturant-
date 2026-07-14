@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
-import { useT } from '../i18n/LanguageContext.jsx'
+import { useT, useLang } from '../i18n/LanguageContext.jsx'
+import { itemNameLabel, unitLabel } from '../i18n/dataDict.js'
 import { PageHeader } from '../components/ui.jsx'
 import { money, monthYear, dateLong, time } from '../utils/format.js'
 import DailyClosingView from '../components/DailyClosingView.jsx'
 import KOTView from '../components/KOTView.jsx'
+import DailyReportSlip from '../components/DailyReportSlip.jsx'
 import { monthFigures } from '../utils/accounting.js'
 import { safePrint } from '../utils/print.js'
 import { RECIPE_MAP } from '../data/mockData.js'
@@ -61,7 +63,7 @@ function Row({ label, value, tone = 'text-[#3498DB]', strong }) {
 
 export default function Reports() {
   const { orders, orderTotal, transactions, staff } = useApp()
-  const t = useT()
+  const { t, lang } = useLang()
   const today = useMemo(() => new Date(), [])
 
   const monthOptions = useMemo(() => {
@@ -298,6 +300,14 @@ export default function Reports() {
             printable paper). Uses the app's real figures incl. net profit. */}
         {view === 'overview' && (
           <div className="space-y-4">
+            <div className="flex justify-end no-print">
+              <button onClick={() => safePrint('print-daily')} className="btn-gold px-4 py-2 text-sm">
+                <IconPrint size={16} /> {t('reports.printSlip', 'Print')}
+              </button>
+            </div>
+
+            <DailyReportSlip report={report} />
+
             <div className="card flex items-center justify-between p-5">
               <span className="text-sm text-cream-dim">{t('reports.date')}</span>
               <span className="font-serif text-lg font-semibold text-gold">{report.rangeLabel}</span>
@@ -451,9 +461,9 @@ export default function Reports() {
               <ul className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1">
                 {report.stock.map((s) => (
                   <li key={s.name} className="flex justify-between text-sm text-[#3E2723]">
-                    <span>{s.name}</span>
+                    <span>{itemNameLabel(s.name, lang)}</span>
                     <span className="font-semibold text-[#3498DB]">
-                      {s.qty} {s.unit}
+                      {s.qty} {unitLabel(s.unit, lang)}
                     </span>
                   </li>
                 ))}
@@ -483,7 +493,7 @@ export default function Reports() {
                   <tbody>
                     {report.items.map((it) => (
                       <tr key={it.name} className="border-b border-[#E8DCC4]/50">
-                        <td className="py-2 text-[#3E2723]">{it.name}</td>
+                        <td className="py-2 text-[#3E2723]">{itemNameLabel(it.name, lang)}</td>
                         <td className="py-2 text-center text-[#3498DB]">{it.qty}</td>
                         <td className="py-2 text-right font-semibold text-[#3498DB]">
                           {money(it.total)}

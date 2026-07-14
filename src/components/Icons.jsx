@@ -189,6 +189,17 @@ export const IconInventory = (p) => (
     }
   />
 )
+export const IconDepartments = (p) => (
+  <Icon
+    {...p}
+    path={
+      <>
+        <path d="M3 21h18M5 21V7l7-4 7 4v14" />
+        <path d="M9 9h.01M9 13h.01M9 17h.01M15 9h.01M15 13h.01M15 17h.01" />
+      </>
+    }
+  />
+)
 export const IconAlert = (p) => (
   <Icon
     {...p}

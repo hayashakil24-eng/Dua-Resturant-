@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useApp } from '../context/AppContext.jsx'
-import { useT } from '../i18n/LanguageContext.jsx'
+import { useT, useLang } from '../i18n/LanguageContext.jsx'
+import { itemNameLabel, unitLabel } from '../i18n/dataDict.js'
 import { PageHeader, StatCard, PaymentBadge } from '../components/ui.jsx'
 import { money, time, dateShort, clock as fmtClock, dayShort, monthName as fmtMonthName } from '../utils/format.js'
 import { tableLabel } from '../data/mockData.js'
@@ -69,7 +70,7 @@ function LiveClock({ lastRefresh, onRefresh }) {
 // ============================================================================
 
 function LowStockAlert({ items }) {
-  const t = useT()
+  const { t, lang } = useLang()
   if (!items.length) return null
 
   return (
@@ -101,11 +102,11 @@ function LowStockAlert({ items }) {
               key={it.id}
               className="flex items-center justify-between rounded-xl border border-ink-line bg-ink-soft/60 px-3 py-2"
             >
-              <span className="text-sm font-medium text-cream">{it.name}</span>
+              <span className="text-sm font-medium text-cream">{itemNameLabel(it.name, lang)}</span>
               <span
                 className={`text-xs font-semibold ${critical ? 'text-rose-300' : 'text-amber-300'}`}
               >
-                {it.stock} {it.unit} {t('dashboard.left')}
+                {it.stock} {unitLabel(it.unit, lang)} {t('dashboard.left')}
               </span>
             </div>
           )
@@ -770,72 +771,68 @@ function ManagerDashboard({ stats, orders, orderTotal, attendance, unpaidTotal, 
 function FloorMap({ orders, orderTotal }) {
   const { tables } = useApp()
   const t = useT()
+  // Only tables that are currently occupied (have an active unpaid order). With
+  // 300+ tables, rendering every vacant one buried the dashboard — the full
+  // floor lives on the Tables page.
+  const active = tables
+    .map((tbl) => {
+      const order = orders.find((o) => o.table === tbl.id && o.payment === 'Unpaid' && !o.cancelled)
+      return order ? { tbl, order } : null
+    })
+    .filter(Boolean)
+
   return (
     <div className="card p-6">
-      <div className="flex items-center justify-between mb-5 border-b border-ink-line pb-4">
+      <div className="mb-5 flex items-center justify-between border-b border-ink-line pb-4">
         <div>
-          <h3 className="font-serif text-xl text-cream">{t('dashboard.tableFloorMap')}</h3>
-          <p className="text-xs text-cream-dim mt-0.5">{t('dashboard.floorMapSub')}</p>
+          <h3 className="font-serif text-xl text-cream">{t('dashboard.activeTablesTitle', 'Active Tables')}</h3>
+          <p className="mt-0.5 text-xs text-cream-dim">
+            {active.length} {t('dashboard.occupiedNow', 'occupied now')}
+          </p>
         </div>
-        <div className="flex items-center gap-3 text-[11px]">
-          <span className="flex items-center gap-1.5 text-cream-dim">
-            <span className="h-2.5 w-2.5 rounded bg-ink-line ring-1 ring-white/10" /> {t('dashboard.vacant')}
-          </span>
-          <span className="flex items-center gap-1.5 text-gold">
-            <span className="h-2.5 w-2.5 rounded bg-gold/20 ring-1 ring-gold/50 shadow-sm" /> {t('dashboard.occupied')}
-          </span>
-        </div>
+        <Link to="/tables" className="text-xs font-semibold text-gold transition hover:text-gold-deep">
+          {t('dashboard.viewAllTables', 'View all tables')} →
+        </Link>
       </div>
-      
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-        {tables.map((tbl) => {
-          const activeOrder = orders.find((o) => o.table === tbl.id && o.payment === 'Unpaid' && !o.cancelled)
-          const occupied = !!activeOrder
 
-          return (
+      {active.length === 0 ? (
+        <p className="py-8 text-center text-sm text-cream-dim">
+          {t('dashboard.noActiveTables', 'No occupied tables right now.')}
+        </p>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+          {active.map(({ tbl, order }) => (
             <div
               key={tbl.id}
-              className={`relative rounded-xl border p-4 transition-all duration-300 ${
-                occupied
-                  ? 'border-gold bg-gold/5 shadow-gold ring-1 ring-gold/25'
-                  : 'border-ink-line bg-ink-soft/40 hover:border-gold/30'
-              }`}
+              className="relative rounded-xl border border-gold bg-gold/5 p-4 shadow-gold ring-1 ring-gold/25"
             >
-              <div className="flex justify-between items-start">
-                <span className="font-serif text-lg font-bold text-cream">{tbl.number || `T${tbl.id}`}</span>
-                <span className="text-[9px] text-cream-dim font-bold uppercase bg-white/5 px-2 py-0.5 rounded-md">
+              <div className="flex items-start justify-between">
+                <span className="font-serif text-lg font-bold text-cream">{tableLabel(tbl.id)}</span>
+                <span className="rounded-md bg-white/5 px-2 py-0.5 text-[9px] font-bold uppercase text-cream-dim">
                   {tbl.seats} {t('dashboard.seats')}
                 </span>
               </div>
-              
-              <div className="mt-4">
-                {occupied ? (
-                  <div className="space-y-1">
-                    <div>
-                      <p className="text-[9px] uppercase tracking-wider text-gold">{t('dashboard.waiter')}</p>
-                      <p className="text-xs font-semibold text-cream truncate">{activeOrder.waiter}</p>
-                    </div>
-                    <div>
-                      <p className="text-[9px] uppercase tracking-wider text-cream-dim">{t('dashboard.totalBill')}</p>
-                      <p className="text-xs font-bold text-gold">
-                        {money(orderTotal(activeOrder.items, activeOrder.discount?.amount).total)}
-                      </p>
-                    </div>
-                    <span className="absolute top-2.5 end-2.5 flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gold opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-gold"></span>
-                    </span>
-                  </div>
-                ) : (
-                  <div className="py-2.5">
-                    <span className="text-xs text-cream-dim italic font-medium">{t('dashboard.available')}</span>
-                  </div>
-                )}
+
+              <div className="mt-4 space-y-1">
+                <div>
+                  <p className="text-[9px] uppercase tracking-wider text-gold">{t('dashboard.waiter')}</p>
+                  <p className="truncate text-xs font-semibold text-cream">{order.waiter}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] uppercase tracking-wider text-cream-dim">{t('dashboard.totalBill')}</p>
+                  <p className="text-xs font-bold text-gold">
+                    {money(orderTotal(order.items, order.discount?.amount).total)}
+                  </p>
+                </div>
+                <span className="absolute end-2.5 top-2.5 flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gold opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-gold" />
+                </span>
               </div>
             </div>
-          )
-        })}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

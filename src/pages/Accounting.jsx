@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
-import { useT } from '../i18n/LanguageContext.jsx'
+import { useT, useLang } from '../i18n/LanguageContext.jsx'
+import { categoryLabel } from '../i18n/dataDict.js'
 import { PageHeader } from '../components/ui.jsx'
 import { money, dateShort, monthYear, dateLong } from '../utils/format.js'
 import { safePrint } from '../utils/print.js'
@@ -259,7 +260,7 @@ function AddTransactionModal({ onClose, onSave }) {
 // ---------------------------------------------------------------------------
 export default function Accounting() {
   const { transactions, addTransaction, deleteTransaction, staff } = useApp()
-  const t = useT()
+  const { t, lang } = useLang()
   const today = useMemo(() => new Date(), [])
 
   const monthOptions = useMemo(() => {
@@ -470,7 +471,7 @@ export default function Accounting() {
                           </span>
                         )}
                       </td>
-                      <td className="px-5 py-3 text-cream-dim">{tx.category}</td>
+                      <td className="px-5 py-3 text-cream-dim">{categoryLabel(tx.category, lang)}</td>
                       <td
                         className={`px-5 py-3 text-right font-semibold ${
                           income ? 'text-emerald-300' : 'text-rose-300'

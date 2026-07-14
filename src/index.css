@@ -134,6 +134,13 @@
 }
 
 /* Print styles for receipts and reports */
+/* Portaled print surfaces (kitchen slips + minimal daily-report slip) live on
+   <body> but must never show on screen — only inside the print media query. */
+#printable-kots,
+#printable-daily {
+  display: none;
+}
+
 @media print {
   /* Drop the browser's default page margins so short slips don't spill onto
      a second page, and keep the sheet white. */
@@ -153,8 +160,92 @@
   #printable-receipt,
   #printable-receipt *,
   #printable-report,
-  #printable-report * {
+  #printable-report *,
+  #printable-kots,
+  #printable-kots *,
+  #printable-daily,
+  #printable-daily * {
     visibility: visible;
+  }
+
+  /* Minimal daily-report slip — same portal trick as the kitchen slips: on a
+     daily-report print hide the app entirely and show just the slip. */
+  body.print-daily #root {
+    display: none !important;
+  }
+  body.print-daily #printable-daily {
+    display: block !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm;
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  /* Department kitchen slips (KOT). The slips are portaled to <body>, so on a
+     KOT print we hide the whole app (#root) — short slips then never push blank
+     sheets — and lay the slips out in normal flow so each paginates. */
+  body.print-kot #root {
+    display: none !important;
+  }
+  /* Only reveal the slips on an actual KOT print — otherwise a receipt/report
+     print would drag the (portaled) slips onto the page too. */
+  body.print-kot #printable-kots {
+    display: block !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm;
+    background: #fff !important;
+    color: #000 !important;
+    font-family: 'Courier New', monospace;
+  }
+  .kot-slip {
+    page-break-after: always;
+    break-after: page;
+    page-break-inside: avoid;
+    padding: 4mm 3mm;
+    color: #000;
+  }
+  .kot-slip:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+  .kot-title {
+    text-align: center;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+  .kot-dept {
+    text-align: center;
+    font-size: 14px;
+    font-weight: 700;
+    border: 1px solid #000;
+    padding: 3px 0;
+    margin: 6px 0;
+  }
+  .kot-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .kot-hr {
+    border-top: 1px dashed #000;
+    margin: 6px 0;
+  }
+  .kot-item {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.7;
+  }
+  .kot-foot {
+    text-align: center;
+    font-size: 11px;
   }
 
   /* Receipt prints from a fixed modal, but the app page behind it stays in
