@@ -16,12 +16,13 @@ export default function PartialHandoverModal({ current, onClose, onSubmit }) {
   const [error, setError] = useState('')
   useEscapeKey(onClose)
 
-  // Recipients: active Managers (cash is handed up the chain). Fallback to all
-  // active staff if none are Managers so the picker is never empty.
+  // Recipients: active Managers & Admins (cash is handed up the chain, and both
+  // roles can approve it). Fallback to all active staff if none exist so the
+  // picker is never empty.
   const recipients = useMemo(() => {
     const active = staff.filter((s) => s.active !== false)
-    const managers = active.filter((s) => s.role === 'Manager')
-    return managers.length ? managers : active
+    const seniors = active.filter((s) => s.role === 'Manager' || s.role === 'Admin')
+    return seniors.length ? seniors : active
   }, [staff])
 
   const amt = Number(amount) || 0

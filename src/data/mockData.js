@@ -7,6 +7,7 @@ export const ROLES = ['Admin', 'Manager', 'Cashier', 'Kitchen']
 // shiftStartTime ("HH:MM", 24h) drives the automatic Late calculation in
 // src/utils/attendanceHelpers.js — check-in after start + grace period = Late.
 export const STAFF = [
+  { id: 'S00', name: 'Malik Sahab', role: 'Admin', shift: 'Morning', shiftStartTime: '09:00', phone: '0300-0000000', baseSalary: 0, active: true },
   { id: 'S01', name: 'Ali Raza', role: 'Manager', shift: 'Morning', shiftStartTime: '09:00', phone: '0300-1122334', baseSalary: 60000, active: true },
   { id: 'S02', name: 'Hamza Khan', role: 'Cashier', shift: 'Morning', shiftStartTime: '09:00', phone: '0301-2233445', baseSalary: 38000, active: true },
   { id: 'S03', name: 'Bilal Ahmed', role: 'Waiter', shift: 'Evening', shiftStartTime: '16:00', phone: '0302-3344556', baseSalary: 28000, active: true },
