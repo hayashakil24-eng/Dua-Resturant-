@@ -118,10 +118,12 @@ function OrderDetailsModal({ order, tableLabel, orderTotal, onClose, canAddItems
               <span>{t('tables.subtotal')}</span>
               <span className="text-cream">{money(subtotal)}</span>
             </div>
-            <div className="flex justify-between text-cream-dim">
-              <span>{t('tables.gst')}</span>
-              <span className="text-cream">{money(tax)}</span>
-            </div>
+            {tax > 0 && (
+              <div className="flex justify-between text-cream-dim">
+                <span>{t('tables.gst')}</span>
+                <span className="text-cream">{money(tax)}</span>
+              </div>
+            )}
             {discount > 0 && (
               <div className="flex justify-between text-emerald-300">
                 <span>{t('tables.discount')}{order.discount?.reason ? ` (${order.discount.reason})` : ''}</span>

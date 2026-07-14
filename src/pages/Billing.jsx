@@ -99,10 +99,12 @@ export function Receipt({
                 <span>Subtotal</span>
                 <span className="font-bold">{money(subtotal)}</span>
               </div>
-              <div className="flex justify-between">
-                <span>GST ({Math.round(TAX_RATE * 100)}%)</span>
-                <span className="font-bold">{money(tax)}</span>
-              </div>
+              {tax > 0 && (
+                <div className="flex justify-between">
+                  <span>GST ({Math.round(TAX_RATE * 100)}%)</span>
+                  <span className="font-bold">{money(tax)}</span>
+                </div>
+              )}
               {discount > 0 && (
                 <div className="flex justify-between">
                   <span>Discount{order.discount?.reason ? ` (${order.discount.reason})` : ''}</span>

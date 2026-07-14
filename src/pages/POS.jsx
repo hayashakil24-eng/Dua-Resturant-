@@ -752,10 +752,12 @@ export default function POS() {
                   <span>Subtotal</span>
                   <span className="text-cream">{money(subtotal)}</span>
                 </div>
-                <div className="flex justify-between text-cream-dim">
-                  <span>GST ({Math.round(TAX_RATE * 100)}%)</span>
-                  <span className="text-cream">{money(tax)}</span>
-                </div>
+                {tax > 0 && (
+                  <div className="flex justify-between text-cream-dim">
+                    <span>GST ({Math.round(TAX_RATE * 100)}%)</span>
+                    <span className="text-cream">{money(tax)}</span>
+                  </div>
+                )}
                 <div className="mt-2 flex items-center justify-between border-t border-ink-line pt-2">
                   <span className="font-serif text-lg text-cream">Total</span>
                   <span className="font-serif text-2xl font-semibold text-gold">
