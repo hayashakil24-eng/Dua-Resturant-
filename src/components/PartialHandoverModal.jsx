@@ -43,8 +43,8 @@ export default function PartialHandoverModal({ current, onClose, onSubmit }) {
         <div className="card flex min-h-0 flex-col p-6">
           <div className="flex items-start justify-between">
             <div>
-              <h3 className="font-serif text-2xl text-cream">Partial Handover</h3>
-              <p className="text-xs text-cream-dim">Hand part of the drawer to a manager (needs approval).</p>
+              <h3 className="font-serif text-2xl text-cream">Partial Handover · Mid-shift</h3>
+              <p className="text-xs text-cream-dim">Hand part of the drawer to a manager now — needs their approval. Your shift stays open.</p>
             </div>
             <button onClick={onClose} className="text-cream-dim hover:text-cream">
               <IconClose size={20} />
