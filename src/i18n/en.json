@@ -406,6 +406,8 @@
     "createDirectly": "Create a new inventory item directly.",
     "itemName": "Item Name",
     "itemNamePh": "e.g. Green Chillies",
+    "itemNameUr": "Urdu name (optional)",
+    "itemNameUrPh": "e.g. ہری مرچیں",
     "category": "Category",
     "baseUnit": "Base Unit",
     "initialStock": "Initial Stock",

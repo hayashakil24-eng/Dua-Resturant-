@@ -406,6 +406,8 @@
     "createDirectly": "براہ راست ایک نئی اسٹاک چیز بنائیں۔",
     "itemName": "چیز کا نام",
     "itemNamePh": "مثلاً ہری مرچیں",
+    "itemNameUr": "اردو نام (اختیاری)",
+    "itemNameUrPh": "مثلاً ہری مرچیں",
     "category": "زمرہ",
     "baseUnit": "بنیادی یونٹ",
     "initialStock": "ابتدائی اسٹاک",

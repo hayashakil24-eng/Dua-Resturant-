@@ -39,6 +39,7 @@ const LEVEL_LABEL_KEY = { critical: 'inventory.levelCritical', low: 'inventory.l
 function AddItemModal({ categories, onClose, onSave }) {
   const t = useT()
   const [name, setName] = useState('')
+  const [nameUr, setNameUr] = useState('')
   const [category, setCategory] = useState(categories[0] || 'Other')
   const [unit, setUnit] = useState(UNITS[0])
   const [stock, setStock] = useState('0')
@@ -50,6 +51,7 @@ function AddItemModal({ categories, onClose, onSave }) {
   const submit = () => {
     const res = onSave({
       name: name.trim(),
+      nameUr: nameUr.trim(),
       category,
       unit,
       stock: Number(stock) || 0,
@@ -91,6 +93,19 @@ function AddItemModal({ categories, onClose, onSave }) {
                   setName(e.target.value)
                   if (error) setError('')
                 }}
+              />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+                {t('inventory.itemNameUr')}
+              </label>
+              <input
+                className="input"
+                dir="rtl"
+                placeholder={t('inventory.itemNameUrPh')}
+                value={nameUr}
+                onChange={(e) => setNameUr(e.target.value)}
               />
             </div>
 
@@ -269,7 +284,9 @@ export default function Inventory() {
                 return (
                   <tr key={item.id} className="transition hover:bg-white/[0.02]">
                     <td className="px-5 py-4">
-                      <p className="font-medium text-cream">{itemNameLabel(item.name, lang)}</p>
+                      <p className="font-medium text-cream">
+                        {lang === 'ur' && item.nameUr ? item.nameUr : itemNameLabel(item.name, lang)}
+                      </p>
                       <p className="text-xs text-cream-dim">{item.id}</p>
                     </td>
                     <td className="px-5 py-4 text-cream-dim">{categoryLabel(item.category, lang)}</td>

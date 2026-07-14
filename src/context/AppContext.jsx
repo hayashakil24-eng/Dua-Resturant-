@@ -849,7 +849,7 @@ export function AppProvider({ children }) {
   // proactive path from the Chef's ingredient-request → approveIngredientRequest
   // flow; both coexist. Rejects blank/duplicate names (case-insensitive) and
   // mints the next sequential INV## id following the seed data pattern.
-  const addInventoryItem = ({ name, category, unit, stock = 0, threshold = 0 } = {}) => {
+  const addInventoryItem = ({ name, nameUr = '', category, unit, stock = 0, threshold = 0 } = {}) => {
     if (!user || !canModify(user.role, 'inventoryCreate')) {
       return { error: 'You are not allowed to add new inventory items.' }
     }
@@ -870,6 +870,7 @@ export function AppProvider({ children }) {
     const item = {
       id,
       name: trimmed,
+      nameUr: (nameUr || '').trim(), // optional Urdu name shown in Urdu mode
       category: (category || 'Other').trim() || 'Other',
       stock: Math.max(0, Number(stock) || 0),
       unit: unit || 'kg',
