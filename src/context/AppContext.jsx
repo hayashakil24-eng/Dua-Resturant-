@@ -20,17 +20,30 @@ import { convertUnit, calculateDeductions, calculateRestocks } from '../utils/in
 const AppContext = createContext(null)
 
 export function AppProvider({ children }) {
+  // Frontend-only persistence: JSON in localStorage is this app's only store.
+  // Defined first so the state initialisers below can hydrate from it.
+  const loadJSON = (key, fallback) => {
+    try {
+      const raw = localStorage.getItem(key)
+      return raw ? JSON.parse(raw) : fallback
+    } catch {
+      return fallback
+    }
+  }
   const [user, setUser] = useState(null) // { name, role }
   const [orders, setOrders] = useState(INITIAL_ORDERS)
   const [attendance, setAttendance] = useState(INITIAL_ATTENDANCE)
-  const [inventory, setInventory] = useState(INVENTORY)
+  // Inventory & recipes are actively edited at runtime (add stock, create/
+  // approve recipes) so they persist — otherwise a reload wiped approvals and
+  // added stock back to the seed.
+  const [inventory, setInventory] = useState(() => loadJSON('inventory', INVENTORY))
   const [menu, setMenu] = useState(INITIAL_MENU)
   const [customCategories, setCustomCategories] = useState([]) // free-text categories with no items yet
   const [tables, setTables] = useState(TABLES)
   const [staff, setStaff] = useState(STAFF)
   const [advances, setAdvances] = useState(INITIAL_ADVANCES)
   const [transactions, setTransactions] = useState(INITIAL_TRANSACTIONS)
-  const [recipes, setRecipes] = useState(INITIAL_RECIPES)
+  const [recipes, setRecipes] = useState(() => loadJSON('recipes', INITIAL_RECIPES))
   const [ingredientRequests, setIngredientRequests] = useState([])
   const [auditLog, setAuditLog] = useState([])
   // Most Ordered is a manually-curated, shared list of menu item ids (NOT
@@ -44,14 +57,6 @@ export function AppProvider({ children }) {
   // a cashier can PAUSE (log out without reconciling) and later resume the same
   // open drawer, and so the audit trail survives a page reload. (No backend —
   // this is the app's only persistence layer.)
-  const loadJSON = (key, fallback) => {
-    try {
-      const raw = localStorage.getItem(key)
-      return raw ? JSON.parse(raw) : fallback
-    } catch {
-      return fallback
-    }
-  }
   const [shiftReconciliations, setShiftReconciliations] = useState(() =>
     loadJSON('shiftReconciliations', []),
   )
@@ -93,6 +98,22 @@ export function AppProvider({ children }) {
       /* ignore */
     }
   }, [departments])
+  // Persist inventory + recipes so added stock and recipe approvals survive a
+  // page reload (they were resetting to the seed before).
+  useEffect(() => {
+    try {
+      localStorage.setItem('inventory', JSON.stringify(inventory))
+    } catch {
+      /* ignore */
+    }
+  }, [inventory])
+  useEffect(() => {
+    try {
+      localStorage.setItem('recipes', JSON.stringify(recipes))
+    } catch {
+      /* ignore */
+    }
+  }, [recipes])
   useEffect(() => {
     try {
       if (activeShift) localStorage.setItem('activeShift', JSON.stringify(activeShift))
