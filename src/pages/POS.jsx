@@ -6,6 +6,8 @@ import { money, time } from '../utils/format.js'
 import { Receipt } from './Billing.jsx'
 import PaymentModal from '../components/PaymentModal.jsx'
 import ManageMostOrderedModal from '../components/ManageMostOrderedModal.jsx'
+import KitchenSlips from '../components/KitchenSlips.jsx'
+import { safePrint } from '../utils/print.js'
 import { canModify } from '../config/permissions.js'
 import { TAX_RATE, TABLE_CATEGORIES, tableLabel } from '../data/mockData.js'
 import {
@@ -212,6 +214,7 @@ export default function POS() {
   const [showPayment, setShowPayment] = useState(false)
   const [activeReceipt, setActiveReceipt] = useState(null)
   const [toast, setToast] = useState(null)
+  const [kotOrder, setKotOrder] = useState(null) // just-placed order → department kitchen slips
   const [error, setError] = useState('')
 
   const activeMenu = useMemo(() => menu.filter((m) => m.active !== false), [menu])
@@ -338,6 +341,14 @@ export default function POS() {
     return order
   }
 
+  // Print department-wise kitchen slips (one per counter) for an order that was
+  // just sent to the kitchen. Renders the slips, then prints on the next tick.
+  const printKitchenSlips = (order) => {
+    if (!order?.items?.length) return
+    setKotOrder(order)
+    setTimeout(() => safePrint('print-kot'), 80)
+  }
+
   // "Pay Now" — validate, then open the payment modal.
   const openPayment = () => {
     const err = validate()
@@ -350,6 +361,7 @@ export default function POS() {
   const confirmPayment = (method) => {
     const order = placeOrder({ payment: 'Paid', method })
     setShowPayment(false)
+    printKitchenSlips(order)
     setActiveReceipt(order)
   }
 
@@ -359,6 +371,7 @@ export default function POS() {
     if (err) return setError(err)
     setError('')
     const order = placeOrder({ payment: 'Unpaid', method: '—' })
+    printKitchenSlips(order)
     setToast(order)
     setTimeout(() => setToast(null), 4000)
   }
@@ -368,11 +381,18 @@ export default function POS() {
   const addToOrder = () => {
     if (items.length === 0) return setError('Add at least one new item to append.')
     setError('')
-    appendOrderItems(
-      continuingOrder.id,
-      items.map(({ key, name, price, qty }) => ({ id: key, name, price, qty })),
-    )
-    navigate('/tables')
+    const newItems = items.map(({ key, name, price, qty }) => ({ id: key, name, price, qty }))
+    appendOrderItems(continuingOrder.id, newItems)
+    // Fire kitchen slips for the appended items only (a fresh KOT per counter).
+    // Delay the navigate so the slips render + print before POS unmounts.
+    printKitchenSlips({
+      id: continuingOrder.id,
+      table: continuingOrder.table,
+      waiter: continuingOrder.waiter,
+      items: newItems,
+      createdAt: new Date().toISOString(),
+    })
+    setTimeout(() => navigate('/tables'), 600)
   }
 
   const existingTotal = isContinuing ? orderTotal(continuingOrder.items).total : 0
@@ -769,6 +789,10 @@ export default function POS() {
       )}
 
       {toast && <Toast order={toast} onClose={() => setToast(null)} />}
+
+      {/* Department-wise kitchen slips — hidden on screen, printed via
+          safePrint('print-kot') when an order is sent to the kitchen. */}
+      <KitchenSlips order={kotOrder} />
 
       {showManageMostOrdered && (
         <ManageMostOrderedModal onClose={() => setShowManageMostOrdered(false)} />
