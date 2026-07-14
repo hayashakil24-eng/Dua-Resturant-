@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
-import { useT } from '../i18n/LanguageContext.jsx'
+import { useT, useLang } from '../i18n/LanguageContext.jsx'
+import { itemNameLabel, categoryLabel } from '../i18n/dataDict.js'
 import { PageHeader, StatCard } from '../components/ui.jsx'
 import { canModify } from '../config/permissions.js'
 import { money } from '../utils/format.js'
@@ -305,7 +306,7 @@ export default function MenuManagement() {
     replaceMenu,
     user,
   } = useApp()
-  const t = useT()
+  const { t, lang } = useLang()
 
   const [query, setQuery] = useState('')
   const [catFilter, setCatFilter] = useState('All')
@@ -547,7 +548,7 @@ export default function MenuManagement() {
                         <span className="h-9 w-9 shrink-0 rounded-lg border border-ink-line bg-ink-soft" />
                       )}
                       <div>
-                        <p className="font-medium text-cream">{m.name}</p>
+                        <p className="font-medium text-cream">{itemNameLabel(m.name, lang)}</p>
                         {m.variants && (
                           <p className="text-xs text-cream-dim">
                             {m.variants.map((v) => v.label).join(' · ')}
@@ -556,7 +557,7 @@ export default function MenuManagement() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-5 py-3 text-cream-dim">{m.category}</td>
+                  <td className="px-5 py-3 text-cream-dim">{categoryLabel(m.category, lang)}</td>
                   <td className="px-5 py-3 text-right font-semibold text-gold">{priceLabel(m)}</td>
                   <td className="px-5 py-3">
                     <div className="flex justify-center">

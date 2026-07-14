@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useApp } from '../context/AppContext.jsx'
-import { useT } from '../i18n/LanguageContext.jsx'
+import { useT, useLang } from '../i18n/LanguageContext.jsx'
+import { itemNameLabel, unitLabel } from '../i18n/dataDict.js'
 import { PageHeader, StatCard, PaymentBadge } from '../components/ui.jsx'
 import { money, time, dateShort, clock as fmtClock, dayShort, monthName as fmtMonthName } from '../utils/format.js'
 import { tableLabel } from '../data/mockData.js'
@@ -69,7 +70,7 @@ function LiveClock({ lastRefresh, onRefresh }) {
 // ============================================================================
 
 function LowStockAlert({ items }) {
-  const t = useT()
+  const { t, lang } = useLang()
   if (!items.length) return null
 
   return (
@@ -101,11 +102,11 @@ function LowStockAlert({ items }) {
               key={it.id}
               className="flex items-center justify-between rounded-xl border border-ink-line bg-ink-soft/60 px-3 py-2"
             >
-              <span className="text-sm font-medium text-cream">{it.name}</span>
+              <span className="text-sm font-medium text-cream">{itemNameLabel(it.name, lang)}</span>
               <span
                 className={`text-xs font-semibold ${critical ? 'text-rose-300' : 'text-amber-300'}`}
               >
-                {it.stock} {it.unit} {t('dashboard.left')}
+                {it.stock} {unitLabel(it.unit, lang)} {t('dashboard.left')}
               </span>
             </div>
           )
