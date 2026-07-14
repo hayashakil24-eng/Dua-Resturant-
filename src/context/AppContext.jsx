@@ -31,7 +31,10 @@ export function AppProvider({ children }) {
     }
   }
   const [user, setUser] = useState(null) // { name, role }
-  const [orders, setOrders] = useState(INITIAL_ORDERS)
+  // Orders persist: the cash drawer (activeShift) already persists, so if orders
+  // reset on reload the shift's cash-sales — and therefore expected cash at
+  // reconciliation — would be wrong. Keep them together.
+  const [orders, setOrders] = useState(() => loadJSON('orders', INITIAL_ORDERS))
   const [attendance, setAttendance] = useState(INITIAL_ATTENDANCE)
   // Inventory & recipes are actively edited at runtime (add stock, create/
   // approve recipes) so they persist — otherwise a reload wiped approvals and
@@ -42,7 +45,7 @@ export function AppProvider({ children }) {
   const [tables, setTables] = useState(TABLES)
   const [staff, setStaff] = useState(STAFF)
   const [advances, setAdvances] = useState(INITIAL_ADVANCES)
-  const [transactions, setTransactions] = useState(INITIAL_TRANSACTIONS)
+  const [transactions, setTransactions] = useState(() => loadJSON('transactions', INITIAL_TRANSACTIONS))
   const [recipes, setRecipes] = useState(() => loadJSON('recipes', INITIAL_RECIPES))
   const [ingredientRequests, setIngredientRequests] = useState([])
   const [auditLog, setAuditLog] = useState([])
@@ -50,8 +53,10 @@ export function AppProvider({ children }) {
   // auto-calculated from order history). Any POS role (Cashier/Admin/Manager)
   // can add/remove items and the change is global — everyone sees the same list.
   const [mostOrderedItemIds, setMostOrderedItemIds] = useState(['cd1', 'sl3', 'sk1', 'jc1'])
-  const [orderSeq, setOrderSeq] = useState(1046)
-  const [txnSeq, setTxnSeq] = useState(500)
+  // Sequence counters persist alongside orders/transactions so ids never
+  // collide with already-saved records after a reload.
+  const [orderSeq, setOrderSeq] = useState(() => loadJSON('orderSeq', 1046))
+  const [txnSeq, setTxnSeq] = useState(() => loadJSON('txnSeq', 500))
   // Cash drawer reconciliation: the cashier's open shift plus the closed
   // shifts (kept for the Admin/Manager dashboard). Persisted to localStorage so
   // a cashier can PAUSE (log out without reconciling) and later resume the same
@@ -114,6 +119,30 @@ export function AppProvider({ children }) {
       /* ignore */
     }
   }, [recipes])
+  // Cash-relevant state: orders + transactions + their id counters, so shift
+  // reconciliation and accounting survive a page reload.
+  useEffect(() => {
+    try {
+      localStorage.setItem('orders', JSON.stringify(orders))
+    } catch {
+      /* ignore */
+    }
+  }, [orders])
+  useEffect(() => {
+    try {
+      localStorage.setItem('transactions', JSON.stringify(transactions))
+    } catch {
+      /* ignore */
+    }
+  }, [transactions])
+  useEffect(() => {
+    try {
+      localStorage.setItem('orderSeq', JSON.stringify(orderSeq))
+      localStorage.setItem('txnSeq', JSON.stringify(txnSeq))
+    } catch {
+      /* ignore */
+    }
+  }, [orderSeq, txnSeq])
   useEffect(() => {
     try {
       if (activeShift) localStorage.setItem('activeShift', JSON.stringify(activeShift))
@@ -148,6 +177,9 @@ export function AppProvider({ children }) {
       method: payment === 'Paid' ? method : '—',
       kitchen: 'Pending',
       createdAt: new Date().toISOString(),
+      // Attribute the order to the open cash drawer so reconciliation counts
+      // only this shift's sales (not seed/demo orders or other shifts).
+      shiftId: activeShift?.id ?? null,
     }
     setOrders((prev) => [newOrder, ...prev])
     setOrderSeq((n) => n + 1)
@@ -440,7 +472,12 @@ export function AppProvider({ children }) {
 
   const markPaid = (id, method = 'Cash') =>
     setOrders((prev) =>
-      prev.map((o) => (o.id === id ? { ...o, payment: 'Paid', method } : o)),
+      prev.map((o) =>
+        // Cash enters the drawer when the bill is paid, so attribute it to the
+        // shift open at payment time (an order placed unpaid earlier may be
+        // settled in a later shift).
+        o.id === id ? { ...o, payment: 'Paid', method, shiftId: activeShift?.id ?? o.shiftId ?? null } : o,
+      ),
     )
 
   // Running bill: append newly-ordered items to an existing UNPAID order (same
@@ -607,13 +644,15 @@ export function AppProvider({ children }) {
   // Cash & card taken in since a shift opened. Orders don't record which
   // cashier rang them up, so (single-drawer mock) sales are attributed by the
   // shift's time window + payment method, using the same bill math as the POS.
-  const shiftSalesSince = (startISO) => {
-    const start = new Date(startISO)
+  // Sum a shift's collected sales by attribution (order.shiftId), not by
+  // timestamp — so seed/demo orders and other shifts' orders never leak into
+  // this drawer's expected cash.
+  const shiftSalesForShift = (shiftId) => {
     let totalCashSales = 0
     let totalCardSales = 0
     orders.forEach((o) => {
       if (o.payment !== 'Paid' || o.cancelled) return
-      if (new Date(o.createdAt) < start) return
+      if (o.shiftId !== shiftId) return
       const total = orderTotal(o.items, o.discount?.amount).total
       if (o.method === 'Cash') totalCashSales += total
       else if (o.method === 'Card') totalCardSales += total
@@ -627,7 +666,7 @@ export function AppProvider({ children }) {
         ? activeShift
         : shiftReconciliations.find((s) => s.id === shiftId)
     if (!shift) return null
-    const { totalCashSales, totalCardSales } = shiftSalesSince(shift.shiftStartTime)
+    const { totalCashSales, totalCardSales } = shiftSalesForShift(shift.id)
     // Cash handed over mid-shift (accepted partial handovers) leaves the drawer,
     // so it reduces the cash the cashier is accountable for at reconciliation.
     const handedOver = (shift.partialHandovers || []).reduce((s, h) => s + h.amount, 0)

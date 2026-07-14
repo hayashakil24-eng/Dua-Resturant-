@@ -798,5 +798,5 @@ export const INITIAL_ADVANCES = [
   { id: 'ADV-3', staffId: 'S03', amount: 4000, reason: 'Advance', date: txnDate(0, 4), status: 'pending' },
 ]
 
-export const TAX_RATE = 0.05 // 5% GST
+export const TAX_RATE = 0 // GST removed (was 0.05). orderTotal → tax 0, total = subtotal.
 export const CURRENCY = 'Rs.'

@@ -19,6 +19,12 @@ export function safePrint(bodyClass) {
   // Guard: safePrint is also used directly as an onClick handler, where the
   // first arg is the event object rather than a class name.
   const cls = typeof bodyClass === 'string' ? bodyClass : ''
+  // Only one print surface may be active at a time. Print-to-PDF drivers often
+  // never fire `afterprint`, so a previous `print-*` class can linger and its
+  // (portaled) slip would overlap this print — strip any stale one first.
+  Array.from(document.body.classList)
+    .filter((c) => c.startsWith('print-'))
+    .forEach((c) => document.body.classList.remove(c))
   if (cls) document.body.classList.add(cls)
 
   const release = () => {
