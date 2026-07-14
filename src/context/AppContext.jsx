@@ -31,7 +31,10 @@ export function AppProvider({ children }) {
     }
   }
   const [user, setUser] = useState(null) // { name, role }
-  const [orders, setOrders] = useState(INITIAL_ORDERS)
+  // Orders persist: the cash drawer (activeShift) already persists, so if orders
+  // reset on reload the shift's cash-sales — and therefore expected cash at
+  // reconciliation — would be wrong. Keep them together.
+  const [orders, setOrders] = useState(() => loadJSON('orders', INITIAL_ORDERS))
   const [attendance, setAttendance] = useState(INITIAL_ATTENDANCE)
   // Inventory & recipes are actively edited at runtime (add stock, create/
   // approve recipes) so they persist — otherwise a reload wiped approvals and
@@ -42,7 +45,7 @@ export function AppProvider({ children }) {
   const [tables, setTables] = useState(TABLES)
   const [staff, setStaff] = useState(STAFF)
   const [advances, setAdvances] = useState(INITIAL_ADVANCES)
-  const [transactions, setTransactions] = useState(INITIAL_TRANSACTIONS)
+  const [transactions, setTransactions] = useState(() => loadJSON('transactions', INITIAL_TRANSACTIONS))
   const [recipes, setRecipes] = useState(() => loadJSON('recipes', INITIAL_RECIPES))
   const [ingredientRequests, setIngredientRequests] = useState([])
   const [auditLog, setAuditLog] = useState([])
@@ -50,8 +53,10 @@ export function AppProvider({ children }) {
   // auto-calculated from order history). Any POS role (Cashier/Admin/Manager)
   // can add/remove items and the change is global — everyone sees the same list.
   const [mostOrderedItemIds, setMostOrderedItemIds] = useState(['cd1', 'sl3', 'sk1', 'jc1'])
-  const [orderSeq, setOrderSeq] = useState(1046)
-  const [txnSeq, setTxnSeq] = useState(500)
+  // Sequence counters persist alongside orders/transactions so ids never
+  // collide with already-saved records after a reload.
+  const [orderSeq, setOrderSeq] = useState(() => loadJSON('orderSeq', 1046))
+  const [txnSeq, setTxnSeq] = useState(() => loadJSON('txnSeq', 500))
   // Cash drawer reconciliation: the cashier's open shift plus the closed
   // shifts (kept for the Admin/Manager dashboard). Persisted to localStorage so
   // a cashier can PAUSE (log out without reconciling) and later resume the same
@@ -114,6 +119,30 @@ export function AppProvider({ children }) {
       /* ignore */
     }
   }, [recipes])
+  // Cash-relevant state: orders + transactions + their id counters, so shift
+  // reconciliation and accounting survive a page reload.
+  useEffect(() => {
+    try {
+      localStorage.setItem('orders', JSON.stringify(orders))
+    } catch {
+      /* ignore */
+    }
+  }, [orders])
+  useEffect(() => {
+    try {
+      localStorage.setItem('transactions', JSON.stringify(transactions))
+    } catch {
+      /* ignore */
+    }
+  }, [transactions])
+  useEffect(() => {
+    try {
+      localStorage.setItem('orderSeq', JSON.stringify(orderSeq))
+      localStorage.setItem('txnSeq', JSON.stringify(txnSeq))
+    } catch {
+      /* ignore */
+    }
+  }, [orderSeq, txnSeq])
   useEffect(() => {
     try {
       if (activeShift) localStorage.setItem('activeShift', JSON.stringify(activeShift))
