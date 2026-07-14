@@ -168,14 +168,17 @@
     visibility: visible;
   }
 
-  /* Minimal daily-report slip — same portal trick as the kitchen slips: on a
-     daily-report print hide the app entirely and show just the slip. */
+  /* Minimal daily-report slip. Uses the SAME proven approach as the receipt:
+     collapse #root to zero height (so the hidden app can't push a blank sheet)
+     and pin the slip with position:fixed — display:none + position:absolute
+     prints a blank page in Chrome, which is the bug this fixes. */
   body.print-daily #root {
-    display: none !important;
+    height: 0 !important;
+    overflow: hidden !important;
   }
   body.print-daily #printable-daily {
     display: block !important;
-    position: absolute;
+    position: fixed;
     left: 0;
     top: 0;
     width: 80mm;
@@ -187,16 +190,16 @@
      KOT print we hide the whole app (#root) — short slips then never push blank
      sheets — and lay the slips out in normal flow so each paginates. */
   body.print-kot #root {
-    display: none !important;
+    height: 0 !important;
+    overflow: hidden !important;
   }
   /* Only reveal the slips on an actual KOT print — otherwise a receipt/report
-     print would drag the (portaled) slips onto the page too. */
+     print would drag the (portaled) slips onto the page too. Kept in normal
+     flow (not absolute) so each .kot-slip can page-break onto its own sheet. */
   body.print-kot #printable-kots {
     display: block !important;
-    position: absolute;
-    left: 0;
-    top: 0;
     width: 80mm;
+    margin: 0 auto;
     background: #fff !important;
     color: #000 !important;
     font-family: 'Courier New', monospace;
