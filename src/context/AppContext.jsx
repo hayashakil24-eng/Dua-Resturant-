@@ -1191,6 +1191,61 @@ export function AppProvider({ children }) {
     return { success: true, settled }
   }
 
+  // Convert an unpaid order into an on-account (udhaar) credit sale. The order
+  // is flagged Udhaar and its total is added to a customer's Receivable — an
+  // existing open account or a new one. This reuses the single receivables
+  // ledger (no separate udhaar store). Manager/Admin only.
+  const markOrderUdhaar = (orderId, { accountId = '', customerName = '' } = {}) => {
+    if (!user || !canModify(user.role, 'receivables')) return { error: 'Not authorised.' }
+    const order = orders.find((o) => o.id === orderId)
+    if (!order || order.cancelled) return { error: 'Order not found.' }
+    if (order.payment !== 'Unpaid') return { error: 'Only unpaid orders can be put on account.' }
+    const amount = orderTotal(order.items, order.discount?.amount).total
+    if (amount <= 0) return { error: 'Order total is zero.' }
+    const at = new Date().toISOString()
+
+    let account = accountId ? receivables.find((r) => r.id === accountId && r.status !== 'settled') : null
+    const name = account ? account.name : (customerName || '').trim()
+    if (!account && !name) return { error: 'Customer name is required.' }
+    const charge = { orderId, amount, at, by: user.name }
+
+    if (account) {
+      setReceivables((prev) =>
+        prev.map((r) =>
+          r.id === account.id
+            ? { ...r, balance: r.balance + amount, status: 'open', charges: [charge, ...(r.charges || [])] }
+            : r,
+        ),
+      )
+    } else {
+      account = {
+        id: `RCV-${Date.now()}`,
+        name,
+        type: 'customer',
+        balance: amount,
+        status: 'open',
+        notes: 'On-account from order',
+        createdAt: at,
+        payments: [],
+        charges: [charge],
+      }
+      setReceivables((prev) => [...prev, account])
+    }
+
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.id === orderId
+          ? { ...o, payment: 'Udhaar', method: 'Udhaar', udhaarCustomerName: name, udhaarAccountId: account.id, udhaarAt: at, udhaarBy: user.name }
+          : o,
+      ),
+    )
+    setAuditLog((prev) => [
+      { id: `AUD-${Date.now()}`, action: 'ORDER_UDHAAR', orderId, amount, account: name, by: user.name, role: user.role, at },
+      ...prev,
+    ])
+    return { success: true, accountId: account.id }
+  }
+
   // ---- Department / counter routing --------------------------------------
   // Only Admin/Manager may reconfigure counters (defense-in-depth; the route
   // is already permission-gated). `getDepartmentForItem` is read-only and
@@ -1329,6 +1384,7 @@ export function AppProvider({ children }) {
     receivables,
     addReceivable,
     recordReceivablePayment,
+    markOrderUdhaar,
     departments,
     addDepartment,
     deleteDepartment,
