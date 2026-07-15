@@ -115,6 +115,15 @@ export function Receipt({
                 <span>TOTAL</span>
                 <span>{money(total)}</span>
               </div>
+              {order.complimentary && (
+                <div className="mt-2 rounded border border-[#C9A961] bg-[#C9A961]/15 px-2 py-1.5 text-center">
+                  <p className="text-[11px] font-bold tracking-wide text-[#5D4037]">🎁 COMPLIMENTARY</p>
+                  <p className="text-[10px] text-[#5D4037]">
+                    By {order.complimentary.orderedBy}
+                    {order.complimentary.reason ? ` · ${order.complimentary.reason}` : ''}
+                  </p>
+                </div>
+              )}
               <div className="flex justify-between pt-1">
                 <span>Payment</span>
                 <span className="font-bold">

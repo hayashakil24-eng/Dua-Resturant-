@@ -1307,6 +1307,41 @@ export function AppProvider({ children }) {
     return { success: true, accountId: account.id }
   }
 
+  // Mark an unpaid order as complimentary (free / on-the-house): no cash, no
+  // receivable — it's written off with an authoriser + reason for the audit
+  // trail. Manager/Admin only. method 'Free' keeps it out of drawer cash and
+  // payment 'Complimentary' keeps it out of revenue.
+  const markOrderComplimentary = (orderId, { orderedBy = '', reason = '', notes = '' } = {}) => {
+    if (!user || !canModify(user.role, 'orderComplimentary')) return { error: 'Not authorised.' }
+    const order = orders.find((o) => o.id === orderId)
+    if (!order || order.cancelled) return { error: 'Order not found.' }
+    if (order.payment !== 'Unpaid') return { error: 'Only unpaid orders can be made complimentary.' }
+    const who = (orderedBy || '').trim()
+    if (!who) return { error: 'Enter who authorised the free order.' }
+    const amount = orderTotal(order.items, order.discount?.amount).total
+    const at = new Date().toISOString()
+
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.id === orderId
+          ? {
+              ...o,
+              payment: 'Complimentary',
+              method: 'Free',
+              complimentary: { reason, orderedBy: who, orderedByRole: user.role, approvedBy: user.name, at },
+              complimentaryAt: at,
+              complimentaryBy: user.name,
+            }
+          : o,
+      ),
+    )
+    setAuditLog((prev) => [
+      { id: `AUD-${Date.now()}`, action: 'ORDER_COMPLIMENTARY', orderId, amount, orderedBy: who, reason, by: user.name, role: user.role, at },
+      ...prev,
+    ])
+    return { success: true }
+  }
+
   // ---- Department / counter routing --------------------------------------
   // Only Admin/Manager may reconfigure counters (defense-in-depth; the route
   // is already permission-gated). `getDepartmentForItem` is read-only and
@@ -1446,6 +1481,7 @@ export function AppProvider({ children }) {
     addReceivable,
     recordReceivablePayment,
     markOrderUdhaar,
+    markOrderComplimentary,
     departments,
     addDepartment,
     deleteDepartment,

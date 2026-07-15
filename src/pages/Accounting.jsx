@@ -259,7 +259,7 @@ function AddTransactionModal({ onClose, onSave }) {
 
 // ---------------------------------------------------------------------------
 export default function Accounting() {
-  const { transactions, addTransaction, deleteTransaction, staff } = useApp()
+  const { transactions, addTransaction, deleteTransaction, staff, orders, orderTotal } = useApp()
   const { t, lang } = useLang()
   const today = useMemo(() => new Date(), [])
 
@@ -348,6 +348,20 @@ export default function Accounting() {
   const scopeLabel = daily ? dayLabel : monthLabel
   const ledgerRows = daily ? dayRows : rows
 
+  // Complimentary (free / on-the-house) orders in the selected period — shown as
+  // lost revenue, kept separate from the manual ledger.
+  const compStat = useMemo(() => {
+    const inScope = orders.filter((o) => {
+      if (o.payment !== 'Complimentary' || o.cancelled) return false
+      const d = new Date(o.createdAt)
+      return daily ? toDayStr(d) === dayDate : d.getFullYear() === year && d.getMonth() === monthIndex
+    })
+    return {
+      count: inScope.length,
+      value: inScope.reduce((s, o) => s + orderTotal(o.items, o.discount?.amount).total, 0),
+    }
+  }, [orders, orderTotal, daily, dayDate, year, monthIndex])
+
   return (
     <div>
       <PageHeader title={t('accounting.title')} subtitle={t('accounting.subtitle')}>
@@ -417,6 +431,21 @@ export default function Accounting() {
           tone={figures.margin >= 0 ? 'blue' : 'red'}
         />
       </div>
+
+      {compStat.count > 0 && (
+        <div className="mb-6 flex items-center justify-between rounded-2xl border border-violet-500/30 bg-violet-500/[0.06] p-5">
+          <div className="flex items-center gap-3">
+            <span className="grid h-11 w-11 place-items-center rounded-xl bg-violet-500/12 text-violet-300 ring-1 ring-violet-500/25">🎁</span>
+            <div>
+              <p className="text-sm font-semibold text-cream">{t('accounting.complimentary')}</p>
+              <p className="text-xs text-cream-dim">
+                {compStat.count} {t('accounting.complimentaryOrders')} · {scopeLabel}
+              </p>
+            </div>
+          </div>
+          <p className="font-serif text-2xl font-semibold text-violet-300">{money(compStat.value)}</p>
+        </div>
+      )}
 
       {!daily && (
         <div className="grid gap-6 lg:grid-cols-3">

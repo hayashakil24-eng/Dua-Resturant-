@@ -3,19 +3,24 @@ import { useT } from '../i18n/LanguageContext.jsx'
 
 export function PaymentBadge({ status }) {
   const t = useT()
-  // Three states: Paid (emerald), Udhaar/on-account (sky), Unpaid (amber).
+  // Four states: Paid (emerald), Udhaar/on-account (sky), Complimentary/free
+  // (violet), Unpaid (amber).
   const tone =
     status === 'Paid'
       ? { badge: 'bg-emerald-500/12 text-emerald-300 ring-emerald-500/30', dot: 'bg-emerald-400' }
       : status === 'Udhaar'
         ? { badge: 'bg-sky-500/12 text-sky-300 ring-sky-500/30', dot: 'bg-sky-400' }
-        : { badge: 'bg-amber-500/12 text-amber-300 ring-amber-500/30', dot: 'bg-amber-400' }
+        : status === 'Complimentary'
+          ? { badge: 'bg-violet-500/12 text-violet-300 ring-violet-500/30', dot: 'bg-violet-400' }
+          : { badge: 'bg-amber-500/12 text-amber-300 ring-amber-500/30', dot: 'bg-amber-400' }
   const label =
     status === 'Paid'
       ? t('status.paid', 'Paid')
       : status === 'Udhaar'
         ? t('status.udhaar', 'Udhaar')
-        : t('status.unpaid', 'Unpaid')
+        : status === 'Complimentary'
+          ? t('status.complimentary', 'Complimentary')
+          : t('status.unpaid', 'Unpaid')
   return (
     <span className={`badge ring-1 ${tone.badge}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} />

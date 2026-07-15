@@ -263,6 +263,8 @@
     "loss": "نقصان",
     "profitMargin": "منافع کی شرح",
     "profitOverIncome": "منافع / آمدنی",
+    "complimentary": "کمپلیمنٹری آرڈرز",
+    "complimentaryOrders": "مفت آرڈرز",
     "profitAndLoss": "نفع و نقصان",
     "expenseBreakdown": "اخراجات کی تفصیل",
     "noExpenses": "اس مہینے کوئی اخراجات نہیں۔",
@@ -597,6 +599,7 @@
     "paid": "ادا شدہ",
     "unpaid": "ادا نہ شدہ",
     "udhaar": "ادھار",
+    "complimentary": "کمپلیمنٹری",
     "cancelled": "منسوخ",
     "present": "حاضر"
   },

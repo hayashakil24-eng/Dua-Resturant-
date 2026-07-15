@@ -7,8 +7,9 @@ import { IconOrders, IconSearch, IconCheck, IconClose, IconWallet } from '../com
 import { canModify } from '../config/permissions.js'
 import PaymentModal from '../components/PaymentModal.jsx'
 import MarkAsUdhaarModal from '../components/MarkAsUdhaarModal.jsx'
+import MarkAsComplimentaryModal from '../components/MarkAsComplimentaryModal.jsx'
 
-const FILTERS = ['All', 'Paid', 'Unpaid', 'Udhaar', 'Cancelled']
+const FILTERS = ['All', 'Paid', 'Unpaid', 'Udhaar', 'Complimentary', 'Cancelled']
 const CANCEL_REASONS = ['Customer Request', 'Wrong Order', 'Out of Stock', 'Other']
 
 function CancelledBadge() {
@@ -100,15 +101,17 @@ function CancelModal({ order, orderTotal, onConfirm, onClose }) {
 }
 
 export default function Orders() {
-  const { orders, orderTotal, markPaid, cancelOrder, markOrderUdhaar, auditLog, user } = useApp()
+  const { orders, orderTotal, markPaid, cancelOrder, markOrderUdhaar, markOrderComplimentary, auditLog, user } = useApp()
   const canMarkPaid = user && canModify(user.role, 'orders')
   const canCancel = user && canModify(user.role, 'orderCancel')
   const canUdhaar = user && canModify(user.role, 'receivables') // Manager/Admin: put a bill on account
+  const canComp = user && canModify(user.role, 'orderComplimentary') // Manager/Admin: free/on-the-house
   const [filter, setFilter] = useState('All')
   const [query, setQuery] = useState('')
   const [cancelTarget, setCancelTarget] = useState(null)
   const [payTarget, setPayTarget] = useState(null) // unpaid order awaiting payment
   const [udhaarTarget, setUdhaarTarget] = useState(null) // unpaid order → on-account
+  const [compTarget, setCompTarget] = useState(null) // unpaid order → complimentary
 
   const rows = useMemo(
     () =>
@@ -159,6 +162,14 @@ export default function Orders() {
             className="inline-flex items-center gap-1.5 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-xs font-semibold text-sky-300 transition hover:bg-sky-500/20"
           >
             <IconWallet size={14} /> Udhaar
+          </button>
+        )}
+        {isUnpaid && canComp && (
+          <button
+            onClick={() => setCompTarget(o)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-violet-500/40 bg-violet-500/10 px-3 py-1.5 text-xs font-semibold text-violet-300 transition hover:bg-violet-500/20"
+          >
+            🎁 Complimentary
           </button>
         )}
         {isUnpaid && canCancel && (
@@ -248,6 +259,9 @@ export default function Orders() {
                         {o.payment === 'Udhaar' && o.udhaarCustomerName && (
                           <span className="mt-1 block text-xs text-cream-dim">📋 {o.udhaarCustomerName}</span>
                         )}
+                        {o.payment === 'Complimentary' && o.complimentary?.orderedBy && (
+                          <span className="mt-1 block text-xs text-cream-dim">🎁 {o.complimentary.orderedBy}</span>
+                        )}
                       </td>
                       <td className="px-5 py-4 text-cream-dim">{time(o.createdAt)}</td>
                       <td className="px-5 py-4 text-right">
@@ -270,6 +284,9 @@ export default function Orders() {
                     {o.cancelled ? <CancelledBadge /> : <PaymentBadge status={o.payment} />}
                     {o.payment === 'Udhaar' && o.udhaarCustomerName && (
                       <span className="mt-1 block text-xs text-cream-dim">📋 {o.udhaarCustomerName}</span>
+                    )}
+                    {o.payment === 'Complimentary' && o.complimentary?.orderedBy && (
+                      <span className="mt-1 block text-xs text-cream-dim">🎁 {o.complimentary.orderedBy}</span>
                     )}
                   </div>
                 </div>
@@ -355,6 +372,19 @@ export default function Orders() {
             setUdhaarTarget(null)
           }}
           onClose={() => setUdhaarTarget(null)}
+        />
+      )}
+
+      {/* Mark as Complimentary → free / on-the-house (no cash, no due). */}
+      {compTarget && (
+        <MarkAsComplimentaryModal
+          order={compTarget}
+          onConfirm={(data) => {
+            const res = markOrderComplimentary(compTarget.id, data)
+            if (res?.error) return
+            setCompTarget(null)
+          }}
+          onClose={() => setCompTarget(null)}
         />
       )}
     </div>
