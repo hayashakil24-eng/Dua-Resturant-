@@ -6,6 +6,7 @@ import { PageHeader } from '../components/ui.jsx'
 import { money, dateShort, monthYear, dateLong } from '../utils/format.js'
 import { safePrint } from '../utils/print.js'
 import { monthFigures } from '../utils/accounting.js'
+import { complimentaryCost, formatCostTotal } from '../utils/cost.js'
 import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from '../data/mockData.js'
 import {
   IconChart,
@@ -259,7 +260,7 @@ function AddTransactionModal({ onClose, onSave }) {
 
 // ---------------------------------------------------------------------------
 export default function Accounting() {
-  const { transactions, addTransaction, deleteTransaction, staff, orders, orderTotal } = useApp()
+  const { transactions, addTransaction, deleteTransaction, staff, orders, orderTotal, menu } = useApp()
   const { t, lang } = useLang()
   const today = useMemo(() => new Date(), [])
 
@@ -359,8 +360,12 @@ export default function Accounting() {
     return {
       count: inScope.length,
       value: inScope.reduce((s, o) => s + orderTotal(o.items, o.discount?.amount).total, 0),
+      // What the giveaways actually cost: ingredient spend, not the forgone
+      // bill. Only this figure belongs in the books as a loss.
+      cost: inScope.reduce((s, o) => s + complimentaryCost(o, menu, orderTotal).costTotal, 0),
+      costAllKnown: inScope.every((o) => complimentaryCost(o, menu, orderTotal).allKnown),
     }
-  }, [orders, orderTotal, daily, dayDate, year, monthIndex])
+  }, [orders, orderTotal, menu, daily, dayDate, year, monthIndex])
 
   return (
     <div>
@@ -443,7 +448,14 @@ export default function Accounting() {
               </p>
             </div>
           </div>
-          <p className="font-serif text-2xl font-semibold text-violet-300">{money(compStat.value)}</p>
+          <div className="text-right">
+            <p className="font-serif text-2xl font-semibold text-violet-300">
+              {formatCostTotal({ costTotal: compStat.cost, allKnown: compStat.costAllKnown }, money)}
+            </p>
+            <p className="text-[11px] text-cream-dim">
+              est. cost · bill forgone {money(compStat.value)}
+            </p>
+          </div>
         </div>
       )}
 

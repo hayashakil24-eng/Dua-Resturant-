@@ -12,6 +12,13 @@ import MarkAsComplimentaryModal from '../components/MarkAsComplimentaryModal.jsx
 const FILTERS = ['All', 'Paid', 'Unpaid', 'Udhaar', 'Complimentary', 'Cancelled']
 const CANCEL_REASONS = ['Customer Request', 'Wrong Order', 'Out of Stock', 'Other']
 
+// Shared shape for the row actions; each button supplies its own gradient.
+// Colours follow PaymentBadge so a button and the badge it produces match.
+const ACTION_BTN =
+  'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white ' +
+  'shadow-sm transition-all duration-200 hover:shadow-lg active:scale-95 ' +
+  'disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-sm'
+
 function CancelledBadge() {
   return (
     <span className="badge bg-rose-500/12 text-rose-300 ring-1 ring-rose-500/30">
@@ -89,7 +96,8 @@ function CancelModal({ order, orderTotal, onConfirm, onClose }) {
             <button
               onClick={() => onConfirm({ reason, notes: notes.trim() })}
               disabled={!reason}
-              className="flex-1 rounded-xl border border-rose-500/50 bg-rose-500/15 py-3 font-semibold text-rose-200 transition hover:bg-rose-500/25 disabled:cursor-not-allowed disabled:opacity-40"
+              title={reason ? 'Cancel this order' : 'Select a reason first'}
+              className="flex-1 rounded-xl bg-gradient-to-r from-rose-500 to-red-600 py-3 font-semibold text-white transition-all duration-200 hover:from-rose-400 hover:to-red-500 hover:shadow-lg hover:shadow-rose-500/40 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:shadow-none"
             >
               Confirm Cancel
             </button>
@@ -147,11 +155,12 @@ export default function Orders() {
     if (o.cancelled) return null
     const isUnpaid = o.payment === 'Unpaid'
     return (
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         {isUnpaid && canMarkPaid && (
           <button
             onClick={() => setPayTarget(o)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-500/20"
+            title="Mark this order as paid (Cash / Card / Online)"
+            className={`${ACTION_BTN} bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 hover:shadow-emerald-500/40`}
           >
             <IconCheck size={14} /> Mark as Paid
           </button>
@@ -159,7 +168,8 @@ export default function Orders() {
         {isUnpaid && canUdhaar && (
           <button
             onClick={() => setUdhaarTarget(o)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-xs font-semibold text-sky-300 transition hover:bg-sky-500/20"
+            title="Put this bill on a customer's Udhaar (credit) account"
+            className={`${ACTION_BTN} bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 hover:shadow-sky-500/40`}
           >
             <IconWallet size={14} /> Udhaar
           </button>
@@ -167,7 +177,8 @@ export default function Orders() {
         {isUnpaid && canComp && (
           <button
             onClick={() => setCompTarget(o)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-violet-500/40 bg-violet-500/10 px-3 py-1.5 text-xs font-semibold text-violet-300 transition hover:bg-violet-500/20"
+            title="Mark this order as complimentary (free / on-the-house)"
+            className={`${ACTION_BTN} bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-400 hover:to-purple-500 hover:shadow-violet-500/40`}
           >
             🎁 Complimentary
           </button>
@@ -175,7 +186,8 @@ export default function Orders() {
         {isUnpaid && canCancel && (
           <button
             onClick={() => setCancelTarget(o)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20"
+            title="Cancel this order (reason required, recorded in the audit log)"
+            className={`${ACTION_BTN} bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-400 hover:to-red-500 hover:shadow-rose-500/40`}
           >
             <IconClose size={14} /> Cancel
           </button>

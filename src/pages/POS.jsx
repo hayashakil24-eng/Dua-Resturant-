@@ -253,6 +253,10 @@ export default function POS() {
       id,
       name: label ? `${base.name} (${label})` : base.name,
       price: variant ? variant.price : base.price,
+      // Snapshot cost with the line: it is what the item cost us at the time of
+      // sale, so later menu re-costing must not rewrite historical orders.
+      cost: variant ? variant.cost : base.cost,
+      costEstimated: base.costEstimated,
       emoji: base.emoji,
       qty,
     }
@@ -357,7 +361,14 @@ export default function POS() {
     const order = addOrder({
       table: Number(table),
       waiter,
-      items: items.map(({ key, name, price, qty }) => ({ id: key, name, price, qty })),
+      items: items.map(({ key, name, price, qty, cost, costEstimated }) => ({
+        id: key,
+        name,
+        price,
+        qty,
+        cost,
+        costEstimated,
+      })),
       payment,
       method,
     })
@@ -405,7 +416,14 @@ export default function POS() {
   const addToOrder = () => {
     if (items.length === 0) return setError('Add at least one new item to append.')
     setError('')
-    const newItems = items.map(({ key, name, price, qty }) => ({ id: key, name, price, qty }))
+    const newItems = items.map(({ key, name, price, qty, cost, costEstimated }) => ({
+      id: key,
+      name,
+      price,
+      qty,
+      cost,
+      costEstimated,
+    }))
     appendOrderItems(continuingOrder.id, newItems)
     // Fire kitchen slips for the appended items only (a fresh KOT per counter).
     // Delay the navigate so the slips render + print before POS unmounts.
