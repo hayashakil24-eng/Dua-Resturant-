@@ -263,6 +263,8 @@
     "loss": "Loss",
     "profitMargin": "Profit Margin",
     "profitOverIncome": "Profit / income",
+    "complimentary": "Complimentary orders",
+    "complimentaryOrders": "free orders",
     "profitAndLoss": "Profit & Loss",
     "expenseBreakdown": "Expense Breakdown",
     "noExpenses": "No expenses this month.",
@@ -597,6 +599,7 @@
     "paid": "Paid",
     "unpaid": "Unpaid",
     "udhaar": "Udhaar",
+    "complimentary": "Complimentary",
     "cancelled": "Cancelled",
     "present": "Present"
   },

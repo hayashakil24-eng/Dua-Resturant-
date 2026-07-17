@@ -6,6 +6,8 @@ import { safePrint } from '../utils/print.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import { TAX_RATE, tableLabel } from '../data/mockData.js'
 import DiscountModal from '../components/DiscountModal.jsx'
+import ComplimentaryOrderDetail from '../components/ComplimentaryOrderDetail.jsx'
+import { complimentaryCost, formatCostTotal } from '../utils/cost.js'
 import Logo from '../components/Logo.jsx'
 import { IconReceipt, IconPrint, IconCheck, IconClose, IconWallet } from '../components/Icons.jsx'
 
@@ -35,14 +37,23 @@ export function Receipt({
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm no-print" onClick={onClose} />
       {/* Flex column capped at the viewport so the sticky footer buttons stay
           in view on short screens; the slip scrolls instead of pushing them off. */}
-      <div className="relative z-10 flex max-h-[90vh] w-full max-w-sm flex-col">
+      {/* A complimentary order carries a costing panel alongside the slip, so the
+          dialog widens and goes two-column on desktop. Kept at slip width
+          otherwise: stacking the panel under a print-width slip pushes it past
+          the fold on a laptop, where it cannot be scrolled into view. */}
+      <div
+        className={`relative z-10 flex max-h-[90vh] w-full flex-col ${
+          order.complimentary ? 'max-w-4xl' : 'max-w-sm'
+        }`}
+      >
         {/* Scrollable content — min-h-0 lets it shrink below the slip height so
             overflow-y-auto actually kicks in inside the flex column. */}
         <div className="min-h-0 overflow-y-auto">
+          <div className={order.complimentary ? 'flex flex-col gap-4 lg:flex-row lg:items-start' : ''}>
           {/* Printable slip */}
           <div
             id="printable-receipt"
-            className="rounded-2xl bg-white p-6 text-[#3E2723] shadow-lift border border-[#E8DCC4]"
+            className="w-full shrink-0 rounded-2xl bg-white p-6 text-[#3E2723] shadow-lift border border-[#E8DCC4] lg:w-[384px]"
             style={{ fontFamily: 'ui-monospace, monospace' }}
           >
             <div className="text-center">
@@ -115,6 +126,15 @@ export function Receipt({
                 <span>TOTAL</span>
                 <span>{money(total)}</span>
               </div>
+              {order.complimentary && (
+                <div className="mt-2 rounded border border-[#C9A961] bg-[#C9A961]/15 px-2 py-1.5 text-center">
+                  <p className="text-[11px] font-bold tracking-wide text-[#5D4037]">🎁 COMPLIMENTARY</p>
+                  <p className="text-[10px] text-[#5D4037]">
+                    By {order.complimentary.orderedBy}
+                    {order.complimentary.reason ? ` · ${order.complimentary.reason}` : ''}
+                  </p>
+                </div>
+              )}
               <div className="flex justify-between pt-1">
                 <span>Payment</span>
                 <span className="font-bold">
@@ -137,11 +157,23 @@ export function Receipt({
               </p>
             </div>
           </div>
+
+          {/* Internal costing for a giveaway — staff-facing only. Sits outside
+              the printable slip and is no-print so a customer's receipt never
+              shows what the cafe pays for their food. */}
+          {order.complimentary && (
+            <div className="no-print lg:min-w-0 lg:flex-1">
+              <ComplimentaryOrderDetail order={order} />
+            </div>
+          )}
+          </div>
         </div>
 
         {/* Sticky footer — flex-shrink-0 keeps these controls in view even when
-            the slip above scrolls, so they never get clipped on short screens. */}
-        <div className="flex-shrink-0">
+            the slip above scrolls, so they never get clipped on short screens.
+            Capped at slip width so the wide complimentary layout doesn't
+            stretch Print across the whole dialog. */}
+        <div className="w-full flex-shrink-0 lg:max-w-sm">
           {/* Discount controls (Admin/Manager, unpaid orders only) */}
           {canDiscount && order.payment === 'Unpaid' && !order.cancelled && (
             <div className="mt-4 no-print">
@@ -175,7 +207,8 @@ export function Receipt({
             {order.payment === 'Unpaid' && canMarkPaid && (
               <button
                 onClick={() => onMarkPaid(order.id)}
-                className="flex-1 rounded-xl border border-emerald-500/40 bg-emerald-500/10 py-3 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/20"
+                title="Mark this order as paid (Cash / Card / Online)"
+                className="flex-1 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 py-3 text-sm font-semibold text-white transition-all duration-200 hover:from-emerald-400 hover:to-green-500 hover:shadow-lg hover:shadow-emerald-500/40 active:scale-95"
               >
                 <span className="inline-flex items-center gap-2">
                   <IconCheck size={16} /> Mark Paid
@@ -202,7 +235,7 @@ export function Receipt({
 import { canModify } from '../config/permissions.js'
 
 export default function Billing() {
-  const { orders, orderTotal, markPaid, applyDiscount, removeDiscount, user } = useApp()
+  const { orders, orderTotal, markPaid, applyDiscount, removeDiscount, user, menu } = useApp()
   // Track by id so the open receipt reflects live discount / paid changes.
   const [activeId, setActiveId] = useState(null)
   const [showDiscount, setShowDiscount] = useState(false)
@@ -217,6 +250,21 @@ export default function Billing() {
     .filter((o) => o.payment === 'Unpaid' && !o.cancelled)
     .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount).total, 0)
 
+  // Complimentary roll-up. The headline number is COGS, not the bill: what the
+  // giveaways actually cost the cafe is the ingredient spend.
+  const compOrders = orders.filter((o) => o.payment === 'Complimentary' && !o.cancelled)
+  const comp = compOrders.reduce(
+    (acc, o) => {
+      const c = complimentaryCost(o, menu, orderTotal)
+      return {
+        bill: acc.bill + c.billTotal,
+        cost: acc.cost + c.costTotal,
+        allKnown: acc.allKnown && c.allKnown,
+      }
+    },
+    { bill: 0, cost: 0, allKnown: true },
+  )
+
   const handleApplyDiscount = (data) => {
     if (activeId) applyDiscount(activeId, data)
     setShowDiscount(false)
@@ -226,7 +274,7 @@ export default function Billing() {
     <div>
       <PageHeader title="Billing & Receipts" subtitle="Generate and print receipts for any order." />
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="card p-5">
           <p className="text-xs uppercase tracking-widest text-cream-dim">Collected</p>
           <p className="mt-2 font-serif text-2xl font-semibold text-emerald-300">{money(paidTotal)}</p>
@@ -238,6 +286,27 @@ export default function Billing() {
         <div className="card p-5">
           <p className="text-xs uppercase tracking-widest text-cream-dim">Receipts</p>
           <p className="mt-2 font-serif text-2xl font-semibold text-cream">{orders.length}</p>
+        </div>
+
+        {/* Complimentary — headline is estimated COGS, with the forgone bill
+            kept as context underneath so the two are never confused. */}
+        <div className="rounded-lg border-2 border-amber-300 bg-gradient-to-br from-amber-50 to-orange-50 p-4">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-sm font-medium text-amber-900">Complimentary (est. cost)</p>
+              <p className="mt-1 text-2xl font-bold text-amber-900">
+                {formatCostTotal({ costTotal: comp.cost, allKnown: comp.allKnown }, money)}
+              </p>
+              <p className="mt-1 text-xs text-amber-700">
+                {compOrders.length} order{compOrders.length === 1 ? '' : 's'} · Bill forgone:{' '}
+                {money(comp.bill)}
+              </p>
+            </div>
+            <span className="text-4xl">🎁</span>
+          </div>
+          <div className="mt-2 rounded bg-white p-2 text-xs text-amber-700">
+            Accounting books the <strong>cost</strong>, not the bill — the rest is unearned margin.
+          </div>
         </div>
       </div>
 

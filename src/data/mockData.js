@@ -153,7 +153,44 @@ export const MENU_CATEGORIES = [
 // `price` is the default (from) price. Managed live via Menu Management and
 // consumed by the POS. A few dishes reuse existing local images.
 // ---------------------------------------------------------------------------
-export const INITIAL_MENU = [
+// Food-cost ratio per category — the share of an item's menu price that is
+// raw ingredient cost. Used ONLY to seed a starting `cost` on each menu item so
+// complimentary orders can report COGS instead of nothing.
+//
+// !! THESE ARE ESTIMATES, NOT MEASURED COSTS. They are industry-typical ratios,
+// not Cafe Ali's actual purchase prices. Anything shown to a user from `cost`
+// must be labelled "estimated". Replace per item with real costs (edit `cost`
+// directly, or drive it from recipes × inventory unit price) before treating
+// these figures as accounting truth.
+const FOOD_COST_RATIO = {
+  Coladas: 0.3, Slush: 0.25, 'Fresh Juice': 0.35, Shakes: 0.32, Mocktails: 0.3,
+  Beverages: 0.4, 'Ice Cream': 0.35,
+  'Mutton Karahi': 0.48, 'Chicken Karahi': 0.42, Handi: 0.42, Steaks: 0.45,
+  Seafood: 0.45, 'Beef BBQ': 0.45, 'Chicken BBQ': 0.42, 'BBQ Special': 0.45,
+  Broast: 0.4, Burgers: 0.38, 'Burgers & Sandwiches': 0.38, Rolls: 0.35,
+  Pizza: 0.3, Pasta: 0.3, Chinese: 0.35, Rice: 0.3, Pulao: 0.35,
+  'Pakistani Cuisine': 0.4, 'Chef Special': 0.45, Breads: 0.25,
+  'Salads & Raita': 0.28, Starters: 0.35, Soups: 0.3, 'Kids Special': 0.35,
+  Catering: 0.45, Special: 0.4,
+}
+const DEFAULT_FOOD_COST_RATIO = 0.35
+
+// Stamps an estimated `cost` on each item (and each variant) from its category
+// ratio, so every menu line carries a cost without hand-authoring 200+ numbers.
+const withEstimatedCost = (items) =>
+  items.map((m) => {
+    const ratio = FOOD_COST_RATIO[m.category] ?? DEFAULT_FOOD_COST_RATIO
+    return {
+      ...m,
+      cost: Math.round(m.price * ratio),
+      costEstimated: true, // cleared once a real cost is entered for this item
+      ...(m.variants && {
+        variants: m.variants.map((v) => ({ ...v, cost: Math.round(v.price * ratio) })),
+      }),
+    }
+  })
+
+export const INITIAL_MENU = withEstimatedCost([
   // Coladas — Rs. 550
   { id: 'cd1', name: 'Pina Colada', category: 'Coladas', price: 550, image: '/Pina Colada.jfif', active: true },
   { id: 'cd2', name: 'Strawberry Colada', category: 'Coladas', price: 550, image: '/Strawberry Colada.jfif', active: true },
@@ -402,7 +439,7 @@ export const INITIAL_MENU = [
   { id: 'rl2', name: 'Mayo Garlic Roll', category: 'Rolls', price: 349, image: '/Mayo Garlic Roll.jfif', active: true },
   { id: 'rl3', name: 'Zinger Cheesy Roll', category: 'Rolls', price: 399, active: true },
   { id: 'rl4', name: 'Vegetable Roll', category: 'Rolls', price: 249, image: '/Vegetable Roll.jfif', active: true },
-]
+])
 
 // ---------------------------------------------------------------------------
 // Department / counter routing. Each department "owns" a set of menu item ids;
