@@ -4,7 +4,7 @@ import { PageHeader, PaymentBadge, EmptyState } from '../components/ui.jsx'
 import { money, time, dateLong } from '../utils/format.js'
 import { safePrint } from '../utils/print.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
-import { TAX_RATE, tableLabel } from '../data/mockData.js'
+import { tableLabel } from '../data/mockData.js'
 import DiscountModal from '../components/DiscountModal.jsx'
 import ComplimentaryOrderDetail from '../components/ComplimentaryOrderDetail.jsx'
 import { complimentaryCost, formatCostTotal } from '../utils/cost.js'
@@ -21,7 +21,11 @@ export function Receipt({
   onApplyDiscount = () => {},
   onRemoveDiscount = () => {},
 }) {
-  const { subtotal, tax, discount, total } = orderTotal(order.items, order.discount?.amount)
+  const { gstRate, gstEnabled } = useApp()
+  // A placed order shows its LOCKED rate; a legacy order without a snapshot (or a
+  // brand-new object) falls back to the current global setting.
+  const rate = typeof order.gstRate === 'number' ? order.gstRate : gstEnabled ? gstRate : 0
+  const { subtotal, tax, discount, total } = orderTotal(order.items, order.discount?.amount, rate)
   const [printing, setPrinting] = useState(false)
   useEscapeKey(onClose)
 
@@ -70,7 +74,9 @@ export function Receipt({
             <div className="my-4 border-t border-dashed border-[#E8DCC4]" />
 
             <div className="grid grid-cols-2 gap-1 text-xs text-[#3E2723]">
-              <span>Receipt</span>
+              {/* An unpaid order prints as a "Bill" (to be settled), not a paid
+                  "Receipt" — so a customer can't mistake it for proof of payment. */}
+              <span>{order.payment === 'Unpaid' ? 'Bill' : 'Receipt'}</span>
               <span className="text-right font-bold">{order.id}</span>
               <span>Date</span>
               <span className="text-right">{new Date(order.createdAt).toLocaleDateString('en-PK')}</span>
@@ -112,7 +118,7 @@ export function Receipt({
               </div>
               {tax > 0 && (
                 <div className="flex justify-between">
-                  <span>GST ({Math.round(TAX_RATE * 100)}%)</span>
+                  <span>GST ({Math.round(rate * 100)}%)</span>
                   <span className="font-bold">{money(tax)}</span>
                 </div>
               )}
@@ -138,9 +144,22 @@ export function Receipt({
               <div className="flex justify-between pt-1">
                 <span>Payment</span>
                 <span className="font-bold">
-                  {order.payment}{order.payment === 'Paid' ? ` · ${order.method}` : ''}
+                  {order.payment === 'Paid' && order.method === 'Online' && order.onlineAccountName
+                    ? `Paid via ${order.onlineAccountName}`
+                    : `${order.payment}${order.payment === 'Paid' ? ` · ${order.method}` : ''}`}
                 </span>
               </div>
+              {/* Which online account the money landed in — printed for the
+                  customer and for daily reconciliation of each account. */}
+              {order.method === 'Online' && order.onlineAccountName && (
+                <div className="flex justify-between text-[11px]">
+                  <span>Account</span>
+                  <span>
+                    {order.onlineAccountName}
+                    {order.onlineAccountType ? ` · ${order.onlineAccountType}` : ''}
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="my-4 border-t border-dashed border-[#E8DCC4]" />
@@ -245,10 +264,10 @@ export default function Billing() {
 
   const paidTotal = orders
     .filter((o) => o.payment === 'Paid' && !o.cancelled)
-    .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount).total, 0)
+    .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount, o.gstRate).total, 0)
   const unpaidTotal = orders
     .filter((o) => o.payment === 'Unpaid' && !o.cancelled)
-    .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount).total, 0)
+    .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount, o.gstRate).total, 0)
 
   // Complimentary roll-up. The headline number is COGS, not the bill: what the
   // giveaways actually cost the cafe is the ingredient spend.
@@ -336,7 +355,7 @@ export default function Billing() {
               </p>
               <div className="mt-4 flex items-center justify-between border-t border-ink-line pt-3">
                 <span className="font-serif text-xl font-semibold text-cream">
-                  {money(orderTotal(o.items, o.discount?.amount).total)}
+                  {money(orderTotal(o.items, o.discount?.amount, o.gstRate).total)}
                   {o.discount && (
                     <span className="ml-2 align-middle text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
                       −{money(o.discount.amount)}
@@ -368,7 +387,7 @@ export default function Billing() {
       {showDiscount && active && (
         <DiscountModal
           order={active}
-          gross={orderTotal(active.items).total}
+          gross={orderTotal(active.items, 0, active.gstRate).total}
           onApply={handleApplyDiscount}
           onClose={() => setShowDiscount(false)}
         />

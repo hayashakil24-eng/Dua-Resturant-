@@ -23,7 +23,7 @@ export default function KOTView({ dayStr }) {
         .filter((o) => !o.cancelled && toDayStr(o.createdAt) === dayStr)
         .map((o) => ({
           ...o,
-          amount: orderTotal(o.items, o.discount?.amount).total,
+          amount: orderTotal(o.items, o.discount?.amount, o.gstRate).total,
           qty: o.items.reduce((s, i) => s + i.qty, 0),
         }))
         .sort((a, b) => a.table - b.table),

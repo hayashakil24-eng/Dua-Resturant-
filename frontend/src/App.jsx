@@ -1,6 +1,6 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useApp } from './context/AppContext.jsx'
-import { navForRole } from './config/nav.js'
+import { navForRole, landingForRole } from './config/nav.js'
 import Layout from './components/Layout.jsx'
 import Login from './pages/Login.jsx'
 import Dashboard from './pages/Dashboard.jsx'
@@ -17,9 +17,11 @@ import Accounting from './pages/Accounting.jsx'
 import ReceivablesManagement from './pages/ReceivablesManagement.jsx'
 import HandoverApprovals from './pages/HandoverApprovals.jsx'
 import Reports from './pages/Reports.jsx'
+import Closing from './pages/Closing.jsx'
 import KitchenDisplay from './pages/KitchenDisplay.jsx'
 import Kitchen from './pages/Kitchen.jsx'
 import Billing from './pages/Billing.jsx'
+import Settings from './pages/Settings.jsx'
 
 // Guards a route: must be logged in and role must allow the path.
 // `fullscreen` renders the page without the sidebar/header Layout (used by KDS).
@@ -33,7 +35,9 @@ function Protected({ path, children, fullscreen }) {
 
   if (!allowed) {
     if (allowedNavs.length > 0) {
-      return <Navigate to={allowedNavs[0].to} replace />
+      // Land on a page that actually has a sidebar (never the fullscreen KDS),
+      // so the role can navigate onward from there.
+      return <Navigate to={landingForRole(user.role)} replace />
     }
     return <Navigate to="/login" replace />
   }
@@ -62,9 +66,11 @@ export default function App() {
       <Route path="/receivables" element={<Protected path="/receivables"><ReceivablesManagement /></Protected>} />
       <Route path="/handovers" element={<Protected path="/handovers"><HandoverApprovals /></Protected>} />
       <Route path="/reports" element={<Protected path="/reports"><Reports /></Protected>} />
+      <Route path="/closing" element={<Protected path="/closing"><Closing /></Protected>} />
       <Route path="/kitchen" element={<Protected path="/kitchen"><Kitchen /></Protected>} />
       <Route path="/kds" element={<Protected path="/kds" fullscreen><KitchenDisplay /></Protected>} />
       <Route path="/billing" element={<Protected path="/billing"><Billing /></Protected>} />
+      <Route path="/settings" element={<Protected path="/settings"><Settings /></Protected>} />
       <Route path="*" element={<Navigate to={user ? '/' : '/login'} replace />} />
     </Routes>
   )

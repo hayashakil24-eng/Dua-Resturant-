@@ -107,20 +107,31 @@ export default function Reports() {
     const totalOrders = scopeOrders.length
     const paidOrders = scopeOrders.filter((o) => o.payment === 'Paid')
     const collected = paidOrders.reduce(
-      (s, o) => s + orderTotal(o.items, o.discount?.amount).total,
+      (s, o) => s + orderTotal(o.items, o.discount?.amount, o.gstRate).total,
       0,
     )
     // Payment-method split — collected (paid) orders only. Cash + Card + Online
     // always equals the collected total.
     const cash = paidOrders
       .filter((o) => o.method === 'Cash')
-      .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount).total, 0)
+      .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount, o.gstRate).total, 0)
     const card = paidOrders
       .filter((o) => o.method === 'Card')
-      .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount).total, 0)
-    const online = paidOrders
-      .filter((o) => o.method === 'Online')
-      .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount).total, 0)
+      .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount, o.gstRate).total, 0)
+    const onlineOrders = paidOrders.filter((o) => o.method === 'Online')
+    const online = onlineOrders.reduce(
+      (s, o) => s + orderTotal(o.items, o.discount?.amount, o.gstRate).total,
+      0,
+    )
+    // Per-account split of online sales, for daily reconciliation of each
+    // wallet/bank account. Keyed by the snapshotted account name on the order.
+    const onlineByAccount = Object.entries(
+      onlineOrders.reduce((acc, o) => {
+        const key = o.onlineAccountName || 'Unspecified'
+        acc[key] = (acc[key] || 0) + orderTotal(o.items, o.discount?.amount, o.gstRate).total
+        return acc
+      }, {}),
+    ).sort((a, b) => b[1] - a[1])
     const top = topSelling(scopeOrders)
     const stock = estimateStockUsed(scopeOrders)
 
@@ -191,6 +202,7 @@ export default function Reports() {
       cash,
       card,
       online,
+      onlineByAccount,
       top,
       stock,
       items,
@@ -335,6 +347,26 @@ export default function Reports() {
                 <p className="mt-2 font-serif text-3xl font-semibold text-indigo-300">{money(report.online)}</p>
               </div>
             </div>
+
+            {/* Online reconciliation — how much landed in each account, so the
+                totals can be matched against each wallet/bank statement. */}
+            {report.onlineByAccount?.length > 0 && (
+              <div className="card border border-indigo-500/25 bg-indigo-500/[0.04] p-6">
+                <p className="text-xs uppercase tracking-widest text-indigo-300/80">
+                  🌐 {t('reports.onlineByAccount', 'Online — received by account')}
+                </p>
+                <ul className="mt-4 divide-y divide-ink-line">
+                  {report.onlineByAccount.map(([name, amount]) => (
+                    <li key={name} className="flex items-center justify-between py-2.5">
+                      <span className="text-sm text-cream">{name}</span>
+                      <span className="font-serif text-lg font-semibold text-indigo-300">
+                        {money(amount)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <div className="card border border-gold/30 bg-gold/[0.06] p-6">
               <p className="text-xs uppercase tracking-widest text-gold">{t('reports.totalProfit')}</p>

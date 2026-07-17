@@ -48,6 +48,8 @@ function ItemModal({ item, categories, onSave, onClose }) {
     item?.variants?.length ? item.variants.map((v) => ({ ...v })) : [{ label: '', price: '' }],
   )
   const [active, setActive] = useState(item ? item.active !== false : true)
+  // Reusable = can be re-served if an order is cancelled (not a material loss).
+  const [reusable, setReusable] = useState(item ? item.reusable === true : false)
   const [image, setImage] = useState(item?.image || null) // data URL or existing path
   const [imageError, setImageError] = useState('')
 
@@ -100,6 +102,7 @@ function ItemModal({ item, categories, onSave, onClose }) {
       description: description.trim() || undefined,
       image: image || undefined,
       active,
+      reusable,
     }
     if (hasVariants) {
       payload.variants = cleanVariants
@@ -271,6 +274,19 @@ function ItemModal({ item, categories, onSave, onClose }) {
                 className="h-4 w-4 accent-gold"
               />
               {t('menu.availablePos')}
+            </label>
+
+            <label className="flex items-start gap-2.5 text-sm text-cream">
+              <input
+                type="checkbox"
+                checked={reusable}
+                onChange={(e) => setReusable(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-gold"
+              />
+              <span>
+                {t('menu.reusable')}
+                <span className="mt-0.5 block text-xs text-cream-dim">{t('menu.reusableHint')}</span>
+              </span>
             </label>
           </div>
 

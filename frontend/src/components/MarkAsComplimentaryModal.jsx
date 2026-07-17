@@ -19,7 +19,7 @@ const REASONS = [
 
 export default function MarkAsComplimentaryModal({ order, onClose, onConfirm }) {
   const { orderTotal } = useApp()
-  const total = orderTotal(order.items, order.discount?.amount).total
+  const total = orderTotal(order.items, order.discount?.amount, order.gstRate).total
   const [orderedBy, setOrderedBy] = useState('')
   const [reason, setReason] = useState(REASONS[0])
   const [notes, setNotes] = useState('')

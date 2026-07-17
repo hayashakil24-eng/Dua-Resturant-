@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { useT, useLang } from '../i18n/LanguageContext.jsx'
 import { PageHeader, StatCard } from '../components/ui.jsx'
-import { dateLong } from '../utils/format.js'
+import { dateLong, money } from '../utils/format.js'
 import { unitLabel, categoryLabel, itemNameLabel } from '../i18n/dataDict.js'
 import { canModify } from '../config/permissions.js'
 import {
@@ -44,6 +44,7 @@ function AddItemModal({ categories, onClose, onSave }) {
   const [unit, setUnit] = useState(UNITS[0])
   const [stock, setStock] = useState('0')
   const [threshold, setThreshold] = useState('0')
+  const [costPerUnit, setCostPerUnit] = useState('0')
   const [error, setError] = useState('')
 
   const valid = name.trim().length > 0
@@ -56,6 +57,7 @@ function AddItemModal({ categories, onClose, onSave }) {
       unit,
       stock: Number(stock) || 0,
       threshold: Number(threshold) || 0,
+      costPerUnit: Number(costPerUnit) || 0,
     })
     if (res?.error) {
       setError(res.error)
@@ -168,6 +170,22 @@ function AddItemModal({ categories, onClose, onSave }) {
                 />
               </div>
             </div>
+
+            <div>
+              <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+                {t('inventory.costPerUnit')} ({unit})
+              </label>
+              <input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step="0.01"
+                className="input"
+                value={costPerUnit}
+                onChange={(e) => setCostPerUnit(e.target.value)}
+                placeholder="0"
+              />
+            </div>
           </div>
 
           {error && (
@@ -273,6 +291,7 @@ export default function Inventory() {
                 <th className="px-5 py-4 font-semibold">{t('inventory.colCategory')}</th>
                 <th className="px-5 py-4 font-semibold">{t('inventory.colInStock')}</th>
                 <th className="px-5 py-4 font-semibold">{t('inventory.colThreshold')}</th>
+                <th className="px-5 py-4 text-right font-semibold">{t('inventory.colCost')}</th>
                 <th className="px-5 py-4 font-semibold">{t('inventory.colStatus')}</th>
                 {canEdit && <th className="px-5 py-4 text-right font-semibold">{t('inventory.colAdjust')}</th>}
               </tr>
@@ -309,6 +328,16 @@ export default function Inventory() {
                     </td>
                     <td className="px-5 py-4 text-cream-dim">
                       {item.threshold} {unitLabel(item.unit, lang)}
+                    </td>
+                    <td className="px-5 py-4 text-right">
+                      {item.costPerUnit > 0 ? (
+                        <span className="text-cream">
+                          {money(item.costPerUnit)}
+                          <span className="text-xs text-cream-dim">/{unitLabel(item.unit, lang)}</span>
+                        </span>
+                      ) : (
+                        <span className="text-cream-dim">—</span>
+                      )}
                     </td>
                     <td className="px-5 py-4">
                       <span className={`badge ring-1 ${LEVEL_STYLES[level]}`}>{t(LEVEL_LABEL_KEY[level])}</span>

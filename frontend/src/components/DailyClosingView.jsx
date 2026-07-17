@@ -46,13 +46,13 @@ export default function DailyClosingView({ dayStr }) {
 
   const data = useMemo(() => {
     const dayOrders = orders.filter((o) => !o.cancelled && toDayStr(o.createdAt) === dayStr)
-    const grossSale = dayOrders.reduce((s, o) => s + orderTotal(o.items).total, 0)
+    const grossSale = dayOrders.reduce((s, o) => s + orderTotal(o.items, 0, o.gstRate).total, 0)
     const discount = dayOrders.reduce((s, o) => s + (o.discount?.amount || 0), 0)
     const netSale = grossSale - discount
 
     const paid = dayOrders.filter((o) => o.payment === 'Paid')
     const byMethod = (m) =>
-      paid.filter((o) => o.method === m).reduce((s, o) => s + orderTotal(o.items, o.discount?.amount).total, 0)
+      paid.filter((o) => o.method === m).reduce((s, o) => s + orderTotal(o.items, o.discount?.amount, o.gstRate).total, 0)
     const cash = byMethod('Cash')
     const card = byMethod('Card')
     const online = byMethod('Online')

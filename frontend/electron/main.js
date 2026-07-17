@@ -57,6 +57,38 @@ async function createWindow() {
   win.webContents.on('did-fail-load', (_e, code, desc) => console.error('[electron] load failed:', code, desc))
 
   if (VITE_DEV_SERVER_URL) {
+    // Dev keeps a menu (reload, DevTools, copy/paste) — but Electron's default
+    // menu binds Toggle DevTools to F12 on Windows/Linux, and that accelerator
+    // is consumed by the main process before the renderer's keydown fires. F12
+    // is the in-app "Place as Unpaid" shortcut (see POS.jsx), so rebind DevTools
+    // to Ctrl+Shift+I here to free F12 for the renderer. (`before-input-event`
+    // can't do this surgically — its preventDefault also swallows the page
+    // keydown, which would break the shortcut too.) Production ships no menu at
+    // all (below), so F12 there never touches DevTools regardless.
+    Menu.setApplicationMenu(
+      Menu.buildFromTemplate([
+        {
+          label: 'Edit',
+          submenu: [
+            { role: 'undo' }, { role: 'redo' }, { type: 'separator' },
+            { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' },
+          ],
+        },
+        {
+          label: 'View',
+          submenu: [
+            { role: 'reload' },
+            { role: 'forceReload' },
+            { role: 'toggleDevTools', accelerator: 'CmdOrCtrl+Shift+I' },
+            { type: 'separator' },
+            { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' },
+            { type: 'separator' },
+            { role: 'togglefullscreen' },
+          ],
+        },
+        { role: 'windowMenu' },
+      ]),
+    )
     await win.loadURL(VITE_DEV_SERVER_URL)
     win.webContents.openDevTools({ mode: 'detach' })
   } else {

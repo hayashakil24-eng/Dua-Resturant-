@@ -14,6 +14,7 @@ import {
   IconReceipt,
   IconDepartments,
   IconCash,
+  IconSettings,
 } from '../components/Icons.jsx'
 
 import { hasAccess } from './permissions.js'
@@ -33,6 +34,7 @@ export const NAV_GROUPS = [
   { id: 'people', label: 'People', labelKey: 'nav.groups.people', icon: IconUsers },
   { id: 'finance', label: 'Finance', labelKey: 'nav.groups.finance', icon: IconChart },
   { id: 'reports', label: 'Reports', labelKey: 'nav.groups.reports', icon: IconReport },
+  { id: 'settings', label: 'Settings', labelKey: 'nav.groups.settings', icon: IconSettings },
 ]
 
 // Groups with exactly one item collapse to a single flat link instead of a
@@ -48,7 +50,10 @@ export const NAV = [
   { to: '/pos', label: 'New Order', labelKey: 'nav.newOrder', icon: IconPOS, pageKey: 'pos', group: 'operations' },
   { to: '/orders', label: 'Orders', labelKey: 'nav.orders', icon: IconOrders, pageKey: 'orders', group: 'operations' },
   { to: '/tables', label: 'Tables', labelKey: 'nav.tables', icon: IconTable, pageKey: 'tables', group: 'operations' },
-  { to: '/kds', label: 'Kitchen (KDS)', labelKey: 'nav.kds', icon: IconKitchen, pageKey: 'kds', group: 'operations' },
+  // `fullscreen`: renders without the sidebar/Layout (unattended kitchen
+  // monitor), so it must never be a role's landing page — landingForRole skips
+  // it, otherwise a Kitchen-only role would be stranded with no nav (see below).
+  { to: '/kds', label: 'Kitchen (KDS)', labelKey: 'nav.kds', icon: IconKitchen, pageKey: 'kds', group: 'operations', fullscreen: true },
   { to: '/menu', label: 'Menu', labelKey: 'nav.menu', icon: IconMenuBook, pageKey: 'menu', group: 'menuKitchen' },
   { to: '/departments', label: 'Departments', labelKey: 'nav.departments', icon: IconDepartments, pageKey: 'departments', group: 'menuKitchen' },
   { to: '/inventory', label: 'Inventory', labelKey: 'nav.inventory', icon: IconInventory, pageKey: 'inventory', group: 'menuKitchen' },
@@ -61,9 +66,21 @@ export const NAV = [
   { to: '/handovers', label: 'Handover Approvals', labelKey: 'nav.handovers', icon: IconCash, pageKey: 'handovers', group: 'finance' },
   { to: '/billing', label: 'Billing', labelKey: 'nav.billing', icon: IconReceipt, pageKey: 'billing', group: 'finance' },
   { to: '/reports', label: 'Reports', labelKey: 'nav.reports', icon: IconReport, pageKey: 'reports', group: 'reports' },
+  { to: '/closing', label: 'Day Closing', labelKey: 'nav.closing', icon: IconReceipt, pageKey: 'closing', group: 'reports' },
+  { to: '/settings', label: 'Settings', labelKey: 'nav.settings', icon: IconSettings, pageKey: 'settings', group: 'settings' },
 ]
 
 export const navForRole = (role) => NAV.filter((n) => hasAccess(role, n.pageKey))
+
+// The page a role lands on after login (and when redirected off a disallowed
+// route). It's the first allowed nav item that ISN'T fullscreen — a fullscreen
+// page (KDS) has no sidebar, so landing there leaves the role with no way to
+// navigate anywhere else (this stranded the Kitchen role on the KDS, hiding the
+// recipe-creation page). Falls back to the first allowed item, then /login.
+export const landingForRole = (role) => {
+  const items = navForRole(role)
+  return (items.find((n) => !n.fullscreen) || items[0])?.to || '/login'
+}
 
 // Same as navForRole, but bucketed into NAV_GROUPS for the sidebar. Groups
 // with no visible items for this role are omitted entirely.

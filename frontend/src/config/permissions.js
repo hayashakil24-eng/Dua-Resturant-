@@ -31,12 +31,14 @@ export const PERMISSIONS = {
     payroll: 'full',
     accounting: 'full',
     reports: 'full',
+    closing: 'full', // end-of-day closing report (Admin/Manager)
     receivables: 'full', // credit accounts — view & settle
     departments: 'full', // create/edit counters + assign items to them
     handovers: 'full', // review/accept/reject cashier cash handovers
     orderComplimentary: 'full', // mark an order free / on-the-house
     kds: 'full',
     billing: 'full',
+    settings: 'full', // Admin-only: app settings (GST toggle, etc.)
     attendanceOverride: 'full',
     kitchen: 'view', // Admin can view the Kitchen dashboard / recipes
     tableAdd: 'full', // add/manage tables (Admin + Manager only)
@@ -65,12 +67,14 @@ export const PERMISSIONS = {
     payroll: 'full',
     accounting: 'full',
     reports: 'full',
+    closing: 'full', // end-of-day closing report (Admin/Manager)
     receivables: 'full', // Manager may view & settle credit accounts
     departments: 'full', // Manager may create counters + assign items too
     handovers: 'full', // Manager may review/accept/reject cash handovers
     orderComplimentary: 'full', // Manager may mark an order free / on-the-house
     kds: 'full',
     billing: 'view',
+    settings: 'hidden', // Only Admin controls app settings
     attendanceOverride: 'none',
     kitchen: 'view', // Manager can view the Kitchen dashboard / recipes
     tableAdd: 'full', // add/manage tables
@@ -102,12 +106,14 @@ export const PERMISSIONS = {
     payroll: 'hidden',
     accounting: 'hidden',
     reports: 'hidden',
+    closing: 'hidden',
     receivables: 'hidden',
     departments: 'hidden', // Kitchen doesn't configure counters
     handovers: 'hidden',
     orderComplimentary: 'none',
     kds: 'full', // kitchen staff can watch the live order display too
     billing: 'hidden',
+    settings: 'hidden',
     attendanceOverride: 'none',
     kitchen: 'full', // owns the Kitchen dashboard + recipe creation
     tableAdd: 'none',
@@ -136,12 +142,14 @@ export const PERMISSIONS = {
     payroll: 'hidden',
     accounting: 'hidden',
     reports: 'hidden',
+    closing: 'hidden',
     receivables: 'hidden',
     departments: 'hidden', // Cashier only places orders (auto-routed)
     handovers: 'hidden', // Cashier initiates handovers but doesn't approve them
     orderComplimentary: 'none', // only Admin/Manager may comp an order
     kds: 'hidden',
     billing: 'create',
+    settings: 'hidden',
     attendanceOverride: 'none',
     kitchen: 'hidden',
     tableAdd: 'none', // Cashier can use tables to take orders, but not add them

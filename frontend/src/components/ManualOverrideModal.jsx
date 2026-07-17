@@ -73,7 +73,7 @@ export default function ManualOverrideModal({ staff, record, onSave, onClose }) 
           </div>
 
           {/* Emergency-only warning */}
-          <div className="mt-5 rounded-2xl border border-amber-500/30 bg-amber-500/[0.08] p-3 text-xs text-amber-200">
+          <div className="mt-5 rounded-2xl border border-amber-500/30 bg-amber-500/[0.08] p-3 text-xs text-amber-300">
             {t('override.emergencyNote')}
           </div>
 

@@ -89,7 +89,7 @@ function LowStockAlert({ items }) {
         </div>
         <Link
           to="/inventory"
-          className="hidden items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20 sm:inline-flex"
+          className="hidden items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-300 transition hover:bg-amber-500/20 sm:inline-flex"
         >
           <IconInventory size={14} /> {t('dashboard.viewInventory')}
         </Link>
@@ -114,7 +114,7 @@ function LowStockAlert({ items }) {
       </div>
       <Link
         to="/inventory"
-        className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-amber-200 hover:underline sm:hidden"
+        className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-amber-300 hover:underline sm:hidden"
       >
         <IconInventory size={14} /> {t('dashboard.viewInventory')} →
       </Link>
@@ -245,7 +245,7 @@ function RevenueByHour({ orders, orderTotal }) {
     .filter((o) => o.payment === 'Paid' && !o.cancelled)
     .forEach((o) => {
       const h = new Date(o.createdAt).getHours()
-      buckets[h] = (buckets[h] || 0) + orderTotal(o.items, o.discount?.amount).total
+      buckets[h] = (buckets[h] || 0) + orderTotal(o.items, o.discount?.amount, o.gstRate).total
     })
   const hours = Object.keys(buckets).map(Number).sort((a, b) => a - b)
   const max = Math.max(1, ...Object.values(buckets))
@@ -309,7 +309,7 @@ function RecentOrders({ orders, orderTotal }) {
               </p>
             </div>
             <div className="text-right">
-              <p className="text-sm font-semibold text-cream">{money(orderTotal(o.items, o.discount?.amount).total)}</p>
+              <p className="text-sm font-semibold text-cream">{money(orderTotal(o.items, o.discount?.amount, o.gstRate).total)}</p>
               <div className="mt-1">
                 {o.cancelled ? (
                   <span className="badge bg-rose-500/12 text-rose-300 ring-1 ring-rose-500/30">{t('status.cancelled')}</span>
@@ -625,7 +625,7 @@ function AdminDashboard({ stats, orders, orderTotal, attendance, lowStock }) {
   orders
     .filter((o) => o.payment === 'Paid' && !o.cancelled)
     .forEach((o) => {
-      const tot = orderTotal(o.items, o.discount?.amount).total
+      const tot = orderTotal(o.items, o.discount?.amount, o.gstRate).total
       if (o.method === 'Cash') {
         cashTotal += tot
       } else if (o.method === 'Card') {
@@ -821,7 +821,7 @@ function FloorMap({ orders, orderTotal }) {
                 <div>
                   <p className="text-[9px] uppercase tracking-wider text-cream-dim">{t('dashboard.totalBill')}</p>
                   <p className="text-xs font-bold text-gold">
-                    {money(orderTotal(order.items, order.discount?.amount).total)}
+                    {money(orderTotal(order.items, order.discount?.amount, order.gstRate).total)}
                   </p>
                 </div>
                 <span className="absolute end-2.5 top-2.5 flex h-2 w-2">
@@ -887,7 +887,7 @@ function CashierDashboard({ stats, orders, orderTotal, unpaidTotal, onProcessBil
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-semibold text-emerald-300">{money(orderTotal(o.items, o.discount?.amount).total)}</p>
+                      <p className="text-sm font-semibold text-emerald-300">{money(orderTotal(o.items, o.discount?.amount, o.gstRate).total)}</p>
                       <span className="inline-flex items-center gap-1 rounded bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-cream-dim">
                         {o.method}
                       </span>
@@ -974,7 +974,7 @@ function PendingBillsQueue({ orders, orderTotal, onProcessBill }) {
               </div>
               <div className="flex items-center justify-between gap-4 border-t border-ink-line/30 pt-2 sm:border-t-0 sm:pt-0">
                 <div className="text-right">
-                  <p className="text-sm font-semibold text-cream">{money(orderTotal(o.items, o.discount?.amount).total)}</p>
+                  <p className="text-sm font-semibold text-cream">{money(orderTotal(o.items, o.discount?.amount, o.gstRate).total)}</p>
                   <p className="text-[10px] text-cream-dim">{time(o.createdAt)}</p>
                 </div>
                 <button
@@ -1014,7 +1014,7 @@ export default function Dashboard() {
 
   const unpaidTotal = orders
     .filter((o) => o.payment === 'Unpaid' && !o.cancelled)
-    .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount).total, 0)
+    .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount, o.gstRate).total, 0)
 
   // Role-specific headers and page headings
   const heading = {
