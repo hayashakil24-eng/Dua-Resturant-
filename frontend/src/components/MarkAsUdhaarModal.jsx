@@ -9,7 +9,7 @@ import { IconClose, IconWallet } from './Icons.jsx'
 // the Orders/POS operational flow. onConfirm({ accountId, customerName }).
 export default function MarkAsUdhaarModal({ order, onClose, onConfirm }) {
   const { orderTotal, receivables } = useApp()
-  const total = orderTotal(order.items, order.discount?.amount).total
+  const total = orderTotal(order.items, order.discount?.amount, order.gstRate).total
   const openAccounts = useMemo(() => receivables.filter((r) => r.status !== 'settled'), [receivables])
 
   const [mode, setMode] = useState(openAccounts.length ? 'existing' : 'new')

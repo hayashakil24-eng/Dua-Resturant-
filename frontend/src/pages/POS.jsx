@@ -10,7 +10,7 @@ import KitchenSlips from '../components/KitchenSlips.jsx'
 import { safePrint } from '../utils/print.js'
 import { getRecipeStock, getStockShortfall } from '../utils/inventoryFlow.js'
 import { canModify } from '../config/permissions.js'
-import { TAX_RATE, TABLE_CATEGORIES, tableLabel } from '../data/mockData.js'
+import { TABLE_CATEGORIES, tableLabel } from '../data/mockData.js'
 import {
   IconPlus,
   IconMinus,
@@ -21,6 +21,20 @@ import {
   IconClose,
   IconReceipt,
 } from '../components/Icons.jsx'
+
+// Build a compact page list with ellipses, e.g. [1, '…', 4, 5, 6, '…', 12].
+// Always keeps first/last and a window around the current page.
+function pageNumbers(current, total) {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const pages = [1]
+  const start = Math.max(2, current - 1)
+  const end = Math.min(total - 1, current + 1)
+  if (start > 2) pages.push('…')
+  for (let p = start; p <= end; p++) pages.push(p)
+  if (end < total - 1) pages.push('…')
+  pages.push(total)
+  return pages
+}
 
 function Toast({ order, onClose }) {
   return (
@@ -184,6 +198,8 @@ export default function POS() {
     inventory,
     recipes,
     getMostOrderedItems,
+    onlineAccounts,
+    gstRate,
   } = useApp()
 
   // Recipe-based stock status per menu item (only items with an approved recipe
@@ -241,6 +257,24 @@ export default function POS() {
         (!q || m.name.toLowerCase().includes(q) || m.category.toLowerCase().includes(q)),
     )
   }, [activeMenu, cat, query])
+
+  // Paginate the menu grid so the page doesn't grow unbounded with ~70 items —
+  // one screenful per page instead of a long scroll.
+  const PAGE_SIZE = 20
+  const [page, setPage] = useState(1)
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  // Reset to the first page whenever the result set changes (category/search).
+  useEffect(() => {
+    setPage(1)
+  }, [cat, query])
+  // Clamp if the current page falls out of range (e.g. after a filter narrows).
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount)
+  }, [page, pageCount])
+  const paginated = useMemo(
+    () => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filtered, page],
+  )
 
   // Resolve a cart line key ("id" or "id::variant") to a priced line item.
   const resolveLine = (key, qty) => {
@@ -357,7 +391,7 @@ export default function POS() {
     setWaiter('')
   }
 
-  const placeOrder = ({ payment, method }) => {
+  const placeOrder = ({ payment, method, onlineAccount = null }) => {
     const order = addOrder({
       table: Number(table),
       waiter,
@@ -371,6 +405,7 @@ export default function POS() {
       })),
       payment,
       method,
+      onlineAccount,
     })
     resetForm()
     return order
@@ -393,8 +428,9 @@ export default function POS() {
   }
 
   // Confirmed in the payment modal → mark paid, then auto-open receipt to print.
-  const confirmPayment = (method) => {
-    const order = placeOrder({ payment: 'Paid', method })
+  // `account` is the online destination when method === 'Online' (else null).
+  const confirmPayment = (method, _amount, account = null) => {
+    const order = placeOrder({ payment: 'Paid', method, onlineAccount: account })
     setShowPayment(false)
     printKitchenSlips(order)
     setActiveReceipt(order)
@@ -410,6 +446,28 @@ export default function POS() {
     setToast(order)
     setTimeout(() => setToast(null), 4000)
   }
+
+  // F12 = keyboard shortcut for the "Place as Unpaid" button: submit → print KOT
+  // → toast the order id/table → reset the form, without reaching for the mouse.
+  // It runs the exact same handler as the button, so validation (needs an item,
+  // a table, and a waiter, and enough stock) and its error message are shared —
+  // an incomplete order shows the same inline error instead of being placed.
+  // A ref holds the latest handler so the one-time listener always sees the
+  // current cart/table/waiter rather than a stale closure.
+  const placeUnpaidRef = useRef(placeUnpaid)
+  placeUnpaidRef.current = placeUnpaid
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== 'F12') return
+      // Only the new-order form (the continuing-bill flow appends instead of
+      // creating a new order) and never while a modal owns the screen.
+      if (isContinuing || showPayment || variantPick || activeReceipt) return
+      e.preventDefault()
+      placeUnpaidRef.current()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isContinuing, showPayment, variantPick, activeReceipt])
 
   // Running bill: append the cart's new items to the existing order, then return
   // to the floor. The combined bill is settled later at billing/checkout.
@@ -437,7 +495,7 @@ export default function POS() {
     setTimeout(() => navigate('/tables'), 600)
   }
 
-  const existingTotal = isContinuing ? orderTotal(continuingOrder.items).total : 0
+  const existingTotal = isContinuing ? orderTotal(continuingOrder.items, 0, continuingOrder.gstRate).total : 0
 
   return (
     <div className="pb-24 lg:pb-0">
@@ -549,7 +607,7 @@ export default function POS() {
 
           {/* 4. Menu items grid — denser columns so more items fit, less scroll */}
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
-            {filtered.map((m) => {
+            {paginated.map((m) => {
               const count = qtyFor(m)
               const hasVariants = m.variants && m.variants.length
               const stock = stockByItem[m.id] || { status: 'none', maxServings: Infinity }
@@ -614,6 +672,46 @@ export default function POS() {
               </p>
             )}
           </div>
+
+          {/* Pagination — previous / numbered pages / next. Only shown when the
+              result set spills past a single page. */}
+          {pageCount > 1 && (
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-1.5">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="rounded-lg border border-ink-line bg-ink-soft px-3 py-1.5 text-sm font-medium text-cream-dim transition hover:text-cream disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                ‹ Previous
+              </button>
+              {pageNumbers(page, pageCount).map((p, i) =>
+                p === '…' ? (
+                  <span key={`gap-${i}`} className="px-2 text-sm text-cream-dim">
+                    …
+                  </span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    className={`min-w-9 rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
+                      p === page
+                        ? 'border-gold/60 bg-gold/12 text-gold'
+                        : 'border-ink-line bg-ink-soft text-cream-dim hover:text-cream'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ),
+              )}
+              <button
+                onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                disabled={page === pageCount}
+                className="rounded-lg border border-ink-line bg-ink-soft px-3 py-1.5 text-sm font-medium text-cream-dim transition hover:text-cream disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Next ›
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Cart side */}
@@ -690,15 +788,19 @@ export default function POS() {
                 </div>
               </div>
               {tableLocked && (
-                <p className="mt-3 flex items-center gap-2 rounded-lg border border-gold/25 bg-gold/[0.06] px-3 py-2 text-xs text-gold">
-                  🔒 Locked to {tableLabel(table)} until checkout
-                  {lockedAt ? ` · since ${time(lockedAt.toISOString())}` : ''}. Remove all items or
-                  checkout to change tables.
+                // Compact single-line banner: the tall multi-line version stole
+                // enough vertical space from the (max-height-capped) card that
+                // the items list collapsed to ~one row, hiding added items.
+                <p className="mt-2 flex items-center gap-1.5 rounded-lg border border-gold/25 bg-gold/[0.06] px-2.5 py-1.5 text-[11px] leading-snug text-gold">
+                  🔒 Locked to {tableLabel(table)}
+                  {lockedAt ? ` · ${time(lockedAt.toISOString())}` : ''} — remove all items or checkout to switch tables.
                 </p>
               )}
             </div>
 
-            {/* Items */}
+            {/* Items — flex-1 so the list scrolls and yields space to the pinned
+                totals/checkout buttons on short screens (a fixed min-height here
+                pushed the checkout buttons below the viewport). */}
             <div className="flex-1 overflow-y-auto p-5">
               {items.length === 0 ? (
                 <div className="grid h-40 place-items-center text-center">
@@ -772,7 +874,7 @@ export default function POS() {
                 </div>
                 {tax > 0 && (
                   <div className="flex justify-between text-cream-dim">
-                    <span>GST ({Math.round(TAX_RATE * 100)}%)</span>
+                    <span>GST ({Math.round(gstRate * 100)}%)</span>
                     <span className="text-cream">{money(tax)}</span>
                   </div>
                 )}
@@ -801,9 +903,12 @@ export default function POS() {
                   </button>
                   <button
                     onClick={placeUnpaid}
-                    className="btn-ghost mt-2 w-full py-2.5 text-sm"
+                    className="btn-ghost mt-2 flex w-full items-center justify-center gap-2 py-2.5 text-sm"
                   >
                     <IconReceipt size={16} /> Place as Unpaid
+                    <kbd className="rounded border border-ink-line bg-ink-soft px-1.5 py-0.5 text-[10px] font-semibold text-cream-dim">
+                      F12
+                    </kbd>
                   </button>
                 </>
               )}
@@ -841,6 +946,7 @@ export default function POS() {
       {showPayment && (
         <PaymentModal
           total={total}
+          onlineAccounts={onlineAccounts}
           onClose={() => setShowPayment(false)}
           onConfirm={confirmPayment}
         />

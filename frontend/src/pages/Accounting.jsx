@@ -359,7 +359,7 @@ export default function Accounting() {
     })
     return {
       count: inScope.length,
-      value: inScope.reduce((s, o) => s + orderTotal(o.items, o.discount?.amount).total, 0),
+      value: inScope.reduce((s, o) => s + orderTotal(o.items, o.discount?.amount, o.gstRate).total, 0),
       // What the giveaways actually cost: ingredient spend, not the forgone
       // bill. Only this figure belongs in the books as a loss.
       cost: inScope.reduce((s, o) => s + complimentaryCost(o, menu, orderTotal).costTotal, 0),
@@ -468,12 +468,12 @@ export default function Accounting() {
         </div>
       )}
 
-      {/* Ledger */}
-      <div className="mt-6 card overflow-hidden">
+      {/* Ledger — also the print surface (#printable-report) for "Print Report". */}
+      <div id="printable-report" className="mt-6 card overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-ink-line p-5 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="font-serif text-xl text-cream">{t('accounting.transactions')} · {scopeLabel}</h3>
           <div className="flex gap-2 no-print">
-            <button onClick={safePrint} className="btn-ghost px-4 py-2 text-sm">
+            <button onClick={() => safePrint('print-report')} className="btn-ghost px-4 py-2 text-sm">
               <IconPrint size={16} /> {t('accounting.printReport')}
             </button>
             <button onClick={() => setShowAdd(true)} className="btn-gold px-4 py-2 text-sm">

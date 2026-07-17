@@ -9,6 +9,21 @@ export const CONVERSIONS = {
   'g_tsp': 1 / 5,
   'tbsp_tsp': 3,
   'tsp_tbsp': 1 / 3,
+  // Direct pairs to weight/volume in kg & L too, so a recipe measured in spoons
+  // or cups can still deduct from (and be costed against) an inventory item
+  // stored in kg/L (convertUnit does a single direct lookup, no chaining).
+  'tbsp_kg': 0.015,
+  'kg_tbsp': 1 / 0.015,
+  'tsp_kg': 0.005,
+  'kg_tsp': 1 / 0.005,
+  'cup_ml': 240,
+  'ml_cup': 1 / 240,
+  'cup_l': 0.24,
+  'l_cup': 1 / 0.24,
+  'cup_g': 240, // approx (≈ water density) — good enough for costing/estimates
+  'g_cup': 1 / 240,
+  'cup_kg': 0.24,
+  'kg_cup': 1 / 0.24,
 }
 
 export function convertUnit(quantity, fromUnit, toUnit) {
@@ -22,6 +37,47 @@ export function convertUnit(quantity, fromUnit, toUnit) {
   }
 
   throw new Error(`No unit conversion defined from '${fromUnit}' to '${toUnit}'.`)
+}
+
+// Cost (₨) of a single recipe ingredient line: convert its quantity into the
+// inventory item's own unit, then multiply by that item's costPerUnit. Returns 0
+// when the item, its cost, or a unit conversion is unknown — costing degrades
+// gracefully instead of throwing (an un-costed ingredient just adds nothing).
+export function ingredientCost(ing, inventory = []) {
+  const inv = inventory.find((x) => x.id === ing.inventoryItemId)
+  if (!inv || inv.costPerUnit == null) return 0
+  let qtyInInvUnit
+  try {
+    qtyInInvUnit = convertUnit(Number(ing.quantity) || 0, ing.unit, inv.unit)
+  } catch {
+    return 0
+  }
+  const cost = qtyInInvUnit * (Number(inv.costPerUnit) || 0)
+  return cost > 0 ? cost : 0
+}
+
+// Total ₨ cost to make one serving of a recipe = sum of its ingredient lines.
+export function calculateRecipeCost(ingredients = [], inventory = []) {
+  return ingredients.reduce((sum, ing) => sum + ingredientCost(ing, inventory), 0)
+}
+
+// Total ₨ material cost consumed by a set of order line items: the same
+// approved-recipe deductions that leave inventory, valued at each item's
+// costPerUnit. This is what a cancelled (already-cooked) order writes off as a
+// loss. Items without an approved recipe or a known cost contribute nothing.
+export function calculateOrderMaterialCost(orderItems = [], inventory = [], recipes = []) {
+  let deductions
+  try {
+    deductions = calculateDeductions(orderItems, inventory, recipes)
+  } catch {
+    return 0
+  }
+  return Object.entries(deductions).reduce((sum, [invId, d]) => {
+    const inv = inventory.find((x) => x.id === invId)
+    if (!inv || inv.costPerUnit == null) return sum
+    // d.amount is already expressed in the inventory item's own unit.
+    return sum + d.amount * (Number(inv.costPerUnit) || 0)
+  }, 0)
 }
 
 export function calculateDeductions(orderItems = [], inventory = [], recipes = []) {

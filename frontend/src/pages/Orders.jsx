@@ -3,11 +3,15 @@ import { useApp } from '../context/AppContext.jsx'
 import { PageHeader, PaymentBadge, EmptyState } from '../components/ui.jsx'
 import { money, time } from '../utils/format.js'
 import { tableLabel } from '../data/mockData.js'
-import { IconOrders, IconSearch, IconCheck, IconClose, IconWallet } from '../components/Icons.jsx'
-import { canModify } from '../config/permissions.js'
+import { IconOrders, IconSearch, IconCheck, IconClose, IconWallet, IconPrint } from '../components/Icons.jsx'
+import { canModify, hasAccess } from '../config/permissions.js'
 import PaymentModal from '../components/PaymentModal.jsx'
 import MarkAsUdhaarModal from '../components/MarkAsUdhaarModal.jsx'
 import MarkAsComplimentaryModal from '../components/MarkAsComplimentaryModal.jsx'
+// Reuse the same slip the POS/Billing pages print — a running (unpaid) order can
+// be printed as a "bill to pay" here without settling it (waiter takes it to the
+// table; cash is collected and Mark as Paid pressed later).
+import { Receipt } from './Billing.jsx'
 
 const FILTERS = ['All', 'Paid', 'Unpaid', 'Udhaar', 'Complimentary', 'Cancelled']
 const CANCEL_REASONS = ['Customer Request', 'Wrong Order', 'Out of Stock', 'Other']
@@ -29,10 +33,10 @@ function CancelledBadge() {
 }
 
 // Admin-only cancel dialog — reason required, no PIN (role-gated).
-function CancelModal({ order, orderTotal, onConfirm, onClose }) {
+function CancelModal({ order, orderTotal, materialLoss = 0, onConfirm, onClose }) {
   const [reason, setReason] = useState('')
   const [notes, setNotes] = useState('')
-  const { total } = orderTotal(order.items, order.discount?.amount)
+  const { total } = orderTotal(order.items, order.discount?.amount, order.gstRate)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -62,6 +66,15 @@ function CancelModal({ order, orderTotal, onConfirm, onClose }) {
               <span className="font-serif text-lg font-semibold text-cream">{money(total)}</span>
             </div>
           </div>
+
+          {/* Material write-off: cancelling does NOT restock — the recipe
+              ingredients already consumed are booked as a loss. */}
+          {materialLoss > 0 && (
+            <div className="mt-3 flex items-center justify-between rounded-xl border border-rose-500/25 bg-rose-500/[0.06] px-3 py-2 text-sm">
+              <span className="text-cream-dim">Material loss (ingredients wasted)</span>
+              <span className="font-semibold text-rose-300">{money(materialLoss)}</span>
+            </div>
+          )}
 
           <div className="mt-4">
             <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
@@ -109,8 +122,12 @@ function CancelModal({ order, orderTotal, onConfirm, onClose }) {
 }
 
 export default function Orders() {
-  const { orders, orderTotal, markPaid, cancelOrder, markOrderUdhaar, markOrderComplimentary, auditLog, user } = useApp()
+  const { orders, orderTotal, markPaid, cancelOrder, orderMaterialLoss, markOrderUdhaar, markOrderComplimentary, onlineAccounts, auditLog, user } = useApp()
   const canMarkPaid = user && canModify(user.role, 'orders')
+  // Printing a bill doesn't mutate the order, so it's allowed for anyone who can
+  // even VIEW orders (Cashier/Admin settle, but a Manager on 'view' can still
+  // hand a customer their bill) — a wider gate than the settle actions above.
+  const canPrintBill = user && hasAccess(user.role, 'orders')
   const canCancel = user && canModify(user.role, 'orderCancel')
   const canUdhaar = user && canModify(user.role, 'receivables') // Manager/Admin: put a bill on account
   const canComp = user && canModify(user.role, 'orderComplimentary') // Manager/Admin: free/on-the-house
@@ -118,6 +135,7 @@ export default function Orders() {
   const [query, setQuery] = useState('')
   const [cancelTarget, setCancelTarget] = useState(null)
   const [payTarget, setPayTarget] = useState(null) // unpaid order awaiting payment
+  const [billTarget, setBillTarget] = useState(null) // unpaid order → print bill only (no settle)
   const [udhaarTarget, setUdhaarTarget] = useState(null) // unpaid order → on-account
   const [compTarget, setCompTarget] = useState(null) // unpaid order → complimentary
 
@@ -156,6 +174,15 @@ export default function Orders() {
     const isUnpaid = o.payment === 'Unpaid'
     return (
       <div className="flex flex-wrap items-center justify-end gap-2">
+        {isUnpaid && canPrintBill && (
+          <button
+            onClick={() => setBillTarget(o)}
+            title="Print the bill for this running order — does NOT mark it paid"
+            className={`${ACTION_BTN} bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 hover:shadow-amber-500/40`}
+          >
+            <IconPrint size={14} /> Print Bill
+          </button>
+        )}
         {isUnpaid && canMarkPaid && (
           <button
             onClick={() => setPayTarget(o)}
@@ -228,6 +255,18 @@ export default function Orders() {
         ))}
       </div>
 
+      {/* Total material written off across the cancelled orders in view. */}
+      {filter === 'Cancelled' && rows.length > 0 && (
+        <div className="mb-4 flex items-center justify-between rounded-xl border border-rose-500/25 bg-rose-500/[0.06] px-4 py-3">
+          <span className="text-sm text-cream-dim">
+            Total material loss · {rows.length} cancelled order(s)
+          </span>
+          <span className="font-serif text-xl font-semibold text-rose-300">
+            {money(rows.reduce((s, o) => s + (o.materialLoss || 0), 0))}
+          </span>
+        </div>
+      )}
+
       {rows.length === 0 ? (
         <EmptyState icon={IconOrders} title="No orders found" hint="Try a different filter or search term." />
       ) : (
@@ -243,6 +282,9 @@ export default function Orders() {
                     <th className="px-5 py-4 font-semibold">Waiter</th>
                     <th className="px-5 py-4 font-semibold">Items</th>
                     <th className="px-5 py-4 text-right font-semibold">Total</th>
+                    {filter === 'Cancelled' && (
+                      <th className="px-5 py-4 text-right font-semibold">Loss</th>
+                    )}
                     <th className="px-5 py-4 font-semibold">Status</th>
                     <th className="px-5 py-4 font-semibold">Time</th>
                     <th className="px-5 py-4"></th>
@@ -264,8 +306,13 @@ export default function Orders() {
                         </span>
                       </td>
                       <td className="px-5 py-4 text-right font-semibold text-cream">
-                        {money(orderTotal(o.items, o.discount?.amount).total)}
+                        {money(orderTotal(o.items, o.discount?.amount, o.gstRate).total)}
                       </td>
+                      {filter === 'Cancelled' && (
+                        <td className="px-5 py-4 text-right font-semibold text-rose-300">
+                          {o.materialLoss ? money(o.materialLoss) : '—'}
+                        </td>
+                      )}
                       <td className="px-5 py-4">
                         {o.cancelled ? <CancelledBadge /> : <PaymentBadge status={o.payment} />}
                         {o.payment === 'Udhaar' && o.udhaarCustomerName && (
@@ -314,10 +361,16 @@ export default function Orders() {
                 </p>
                 <div className="mt-3 flex items-center justify-between border-t border-ink-line pt-3">
                   <span className="font-serif text-lg font-semibold text-cream">
-                    {money(orderTotal(o.items, o.discount?.amount).total)}
+                    {money(orderTotal(o.items, o.discount?.amount, o.gstRate).total)}
                   </span>
                   <OrderActions o={o} />
                 </div>
+                {o.cancelled && o.materialLoss > 0 && (
+                  <div className="mt-2 flex items-center justify-between text-xs">
+                    <span className="text-cream-dim">Material loss</span>
+                    <span className="font-semibold text-rose-300">{money(o.materialLoss)}</span>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -342,6 +395,11 @@ export default function Orders() {
                   {a.notes && <p className="truncate text-xs text-cream-dim">{a.notes}</p>}
                 </div>
                 <div className="text-xs text-cream-dim sm:text-right">
+                  {a.materialLoss > 0 && (
+                    <span className="mb-0.5 block font-semibold text-rose-300">
+                      Loss {money(a.materialLoss)}
+                    </span>
+                  )}
                   by <span className="text-cream">{a.by}</span> ({a.role}) · {time(a.at)}
                 </div>
               </div>
@@ -354,6 +412,7 @@ export default function Orders() {
         <CancelModal
           order={cancelTarget}
           orderTotal={orderTotal}
+          materialLoss={orderMaterialLoss(cancelTarget.items)}
           onConfirm={({ reason, notes }) => {
             cancelOrder(cancelTarget.id, { reason, notes })
             setCancelTarget(null)
@@ -362,12 +421,25 @@ export default function Orders() {
         />
       )}
 
+      {/* Print Bill → the printable slip, but print-only: canMarkPaid=false hides
+          the in-slip "Mark Paid" button so settling stays with the dedicated
+          "Mark as Paid" flow (which collects the payment method). */}
+      {billTarget && (
+        <Receipt
+          order={billTarget}
+          orderTotal={orderTotal}
+          canMarkPaid={false}
+          onClose={() => setBillTarget(null)}
+        />
+      )}
+
       {/* Mark as Paid → same payment dialog as the POS "Pay Now" flow. */}
       {payTarget && (
         <PaymentModal
-          total={orderTotal(payTarget.items, payTarget.discount?.amount).total}
-          onConfirm={(method) => {
-            markPaid(payTarget.id, method)
+          total={orderTotal(payTarget.items, payTarget.discount?.amount, payTarget.gstRate).total}
+          onlineAccounts={onlineAccounts}
+          onConfirm={(method, _amount, account) => {
+            markPaid(payTarget.id, method, account)
             setPayTarget(null)
           }}
           onClose={() => setPayTarget(null)}

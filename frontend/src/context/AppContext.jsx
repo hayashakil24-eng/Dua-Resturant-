@@ -10,12 +10,13 @@ import {
   INITIAL_RECIPES,
   INITIAL_RECEIVABLES,
   INITIAL_DEPARTMENTS,
+  INITIAL_ONLINE_ACCOUNTS,
   TABLES,
   STAFF,
   TAX_RATE,
 } from '../data/mockData.js'
 import { canModify } from '../config/permissions.js'
-import { convertUnit, calculateDeductions, calculateRestocks } from '../utils/inventoryFlow.js'
+import { convertUnit, calculateDeductions, calculateRestocks, ingredientCost, calculateRecipeCost, calculateOrderMaterialCost } from '../utils/inventoryFlow.js'
 
 const AppContext = createContext(null)
 
@@ -68,6 +69,53 @@ export function AppProvider({ children }) {
   const [activeShift, setActiveShift] = useState(() => loadJSON('activeShift', null))
   // Mid-shift partial cash handovers awaiting a Manager/Admin decision.
   const [pendingHandovers, setPendingHandovers] = useState(() => loadJSON('pendingHandovers', []))
+  // GST toggle — a single app-wide switch (Admin → Settings) that decides whether
+  // orderTotal applies TAX_RATE at all. Defaults to OFF so no GST is charged
+  // anywhere until an Admin turns it on. Persisted so the choice survives reloads.
+  const [gstEnabled, setGstEnabled] = useState(() => loadJSON('gstEnabled', false))
+  useEffect(() => {
+    try {
+      localStorage.setItem('gstEnabled', JSON.stringify(gstEnabled))
+    } catch {
+      /* ignore */
+    }
+  }, [gstEnabled])
+
+  // GST rate as a fraction (0.05 = 5%). Editable by an Admin in Settings and
+  // persisted, so the cafe can set 5%, 10%, 17%, etc. TAX_RATE is only the
+  // first-run default. It's applied to a bill only when gstEnabled is on.
+  const [gstRate, setGstRateState] = useState(() => loadJSON('gstRate', TAX_RATE))
+  useEffect(() => {
+    try {
+      localStorage.setItem('gstRate', JSON.stringify(gstRate))
+    } catch {
+      /* ignore */
+    }
+  }, [gstRate])
+
+  // Admin-managed online payment accounts (Settings). Persisted so they survive
+  // reloads; a cashier picks one of the ACTIVE accounts when taking an "Online"
+  // payment, and the order snapshots that account (see addOrder/markPaid).
+  const [onlineAccounts, setOnlineAccounts] = useState(() => loadJSON('onlineAccounts', INITIAL_ONLINE_ACCOUNTS))
+  useEffect(() => {
+    try {
+      localStorage.setItem('onlineAccounts', JSON.stringify(onlineAccounts))
+    } catch {
+      /* ignore */
+    }
+  }, [onlineAccounts])
+
+  // Saved end-of-day closing reports (history). Each is a snapshot of the day's
+  // figures stamped with who closed and when — persisted so the record survives
+  // reloads and can be reviewed/reprinted later.
+  const [dailyClosings, setDailyClosings] = useState(() => loadJSON('dailyClosings', []))
+  useEffect(() => {
+    try {
+      localStorage.setItem('dailyClosings', JSON.stringify(dailyClosings))
+    } catch {
+      /* ignore */
+    }
+  }, [dailyClosings])
 
   useEffect(() => {
     try {
@@ -158,16 +206,158 @@ export function AppProvider({ children }) {
   // Bill breakdown for a set of line items. `discount` is a flat Rs. amount
   // taken off the gross total (subtotal + tax); clamped so the bill never
   // goes negative. Existing callers that omit it are unaffected.
-  const orderTotal = (items, discount = 0) => {
+  // `rate` is the GST fraction to apply. A saved order passes its own LOCKED
+  // rate (order.gstRate, snapshotted at creation) so its bill never changes when
+  // the Admin later edits the global rate; a not-yet-placed POS cart omits it and
+  // gets today's live setting (gstEnabled ? gstRate : 0). A stored rate of 0
+  // correctly means "no GST" (GST was off, or 0%, when the order was placed).
+  const orderTotal = (items, discount = 0, rate) => {
     const subtotal = items.reduce((s, it) => s + it.price * it.qty, 0)
-    const tax = Math.round(subtotal * TAX_RATE)
+    const effRate = typeof rate === 'number' ? rate : gstEnabled ? gstRate : 0
+    const tax = Math.round(subtotal * effRate)
     const gross = subtotal + tax
     const discountAmt = Math.min(Math.max(0, Number(discount) || 0), gross)
     return { subtotal, tax, discount: discountAmt, total: gross - discountAmt }
   }
 
-  const addOrder = ({ table, waiter, items, payment, method }) => {
+  // Flip the app-wide GST switch. Gated to Admin (settings is Admin-only) and
+  // audited like every other money-affecting change. No-ops if the value is
+  // unchanged so we don't log a phantom toggle.
+  const setGst = (enabled) => {
+    if (!user || !canModify(user.role, 'settings')) return
+    const next = Boolean(enabled)
+    if (next === gstEnabled) return
+    setGstEnabled(next)
+    setAuditLog((prev) => [
+      {
+        id: `AUD-${Date.now()}`,
+        action: next ? 'GST_ENABLED' : 'GST_DISABLED',
+        by: user.name,
+        role: user.role,
+        at: new Date().toISOString(),
+      },
+      ...prev,
+    ])
+  }
+
+  // Set the GST rate from a percentage (e.g. 10 → 0.10). Admin-only + audited.
+  // Rejects out-of-range input and no-ops if unchanged. Stored as a fraction so
+  // orderTotal can multiply directly. Takes effect on every bill immediately
+  // (tax is always recomputed from the current rate, not stored per order).
+  const setGstRate = (pct) => {
+    if (!user || !canModify(user.role, 'settings')) return
+    const n = Number(pct)
+    if (!Number.isFinite(n) || n < 0 || n > 100) {
+      return { error: 'Enter a GST rate between 0 and 100.' }
+    }
+    const frac = Math.round(n * 100) / 10000 // keep up to 2 decimals of a percent
+    if (frac === gstRate) return {}
+    setGstRateState(frac)
+    setAuditLog((prev) => [
+      {
+        id: `AUD-${Date.now()}`,
+        action: 'GST_RATE_CHANGED',
+        rate: `${n}%`,
+        by: user.name,
+        role: user.role,
+        at: new Date().toISOString(),
+      },
+      ...prev,
+    ])
+    return {}
+  }
+
+  // ---- Online payment accounts (Admin → Settings) ------------------------
+  // Manage the destinations a cashier attributes an "Online" payment to. All
+  // three are Admin-only (settings permission), re-checked here (not just in the
+  // UI), and audited. Accounts are deactivated rather than deleted so historical
+  // orders that reference them keep resolving — matching the no-hard-delete rule.
+  const auditAccount = (action, extra) =>
+    setAuditLog((prev) => [
+      { id: `AUD-${Date.now()}`, action, ...extra, by: user.name, role: user.role, at: new Date().toISOString() },
+      ...prev,
+    ])
+
+  const addOnlineAccount = ({ name, type, number = '' } = {}) => {
+    if (!user || !canModify(user.role, 'settings')) {
+      return { error: 'Only an Admin can manage online payment accounts.' }
+    }
+    const clean = String(name || '').trim()
+    if (!clean) return { error: 'Account name is required.' }
+    if (onlineAccounts.some((a) => a.name.toLowerCase() === clean.toLowerCase())) {
+      return { error: 'An account with this name already exists.' }
+    }
+    const account = {
+      id: `OPA-${Date.now()}`,
+      name: clean,
+      type: String(type || '').trim() || 'Other',
+      number: String(number || '').trim(),
+      active: true,
+    }
+    setOnlineAccounts((prev) => [...prev, account])
+    auditAccount('ONLINE_ACCOUNT_ADDED', { account: account.name })
+    return { account }
+  }
+
+  const updateOnlineAccount = (id, patch = {}) => {
+    if (!user || !canModify(user.role, 'settings')) {
+      return { error: 'Only an Admin can manage online payment accounts.' }
+    }
+    const clean = patch.name != null ? String(patch.name).trim() : null
+    if (clean === '') return { error: 'Account name is required.' }
+    if (
+      clean &&
+      onlineAccounts.some((a) => a.id !== id && a.name.toLowerCase() === clean.toLowerCase())
+    ) {
+      return { error: 'An account with this name already exists.' }
+    }
+    setOnlineAccounts((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, ...patch, ...(clean != null && { name: clean }) } : a)),
+    )
+    auditAccount('ONLINE_ACCOUNT_UPDATED', { accountId: id })
+    return {}
+  }
+
+  const toggleOnlineAccount = (id) => {
+    if (!user || !canModify(user.role, 'settings')) return
+    setOnlineAccounts((prev) => prev.map((a) => (a.id === id ? { ...a, active: !a.active } : a)))
+    auditAccount('ONLINE_ACCOUNT_TOGGLED', { accountId: id })
+  }
+
+  // Persist an end-of-day closing snapshot (Admin/Manager), stamped with who
+  // closed and when. Intentionally does NOT stop the POS — days are separated by
+  // order timestamp, so the next day's orders fall under the next date on their
+  // own. Audited like other money-affecting actions.
+  const saveDailyClosing = (report) => {
+    if (!user || !canModify(user.role, 'closing')) {
+      return { error: 'Only an Admin or Manager can save a closing report.' }
+    }
+    const record = {
+      id: `CLZ-${Date.now()}`,
+      ...report,
+      closedBy: user.name,
+      closedByRole: user.role,
+      closingTime: new Date().toISOString(),
+    }
+    setDailyClosings((prev) => [record, ...prev])
+    setAuditLog((prev) => [
+      {
+        id: `AUD-${Date.now()}`,
+        action: 'DAY_CLOSED',
+        date: report.date,
+        totalSales: report.totalSales,
+        by: user.name,
+        role: user.role,
+        at: record.closingTime,
+      },
+      ...prev,
+    ])
+    return { record }
+  }
+
+  const addOrder = ({ table, waiter, items, payment, method, onlineAccount = null }) => {
     const id = `ORD-${orderSeq}`
+    const paidOnline = payment === 'Paid' && method === 'Online'
     const newOrder = {
       id,
       table,
@@ -175,6 +365,14 @@ export function AppProvider({ children }) {
       items,
       payment,
       method: payment === 'Paid' ? method : '—',
+      // Snapshot the online destination (name/type) so a receipt or the daily
+      // reconciliation stays correct even if the account is later renamed/removed.
+      onlineAccountId: paidOnline ? onlineAccount?.id ?? null : null,
+      onlineAccountName: paidOnline ? onlineAccount?.name ?? null : null,
+      onlineAccountType: paidOnline ? onlineAccount?.type ?? null : null,
+      // Lock the GST rate in effect right now onto the order, so editing the
+      // global rate later never rewrites this bill. 0 = GST was off (or 0%).
+      gstRate: gstEnabled ? gstRate : 0,
       kitchen: 'Pending',
       createdAt: new Date().toISOString(),
       // Attribute the order to the open cash drawer so reconciliation counts
@@ -205,11 +403,19 @@ export function AppProvider({ children }) {
     if (!user || !canModify(user.role, 'recipeCreate')) {
       return { error: 'Only Kitchen staff can create recipes.' }
     }
+    // Snapshot each ingredient's ₨ cost from current inventory prices so the
+    // recipe carries its material cost (used for cancellation-loss costing).
+    const costedIngredients = ingredients.map((ing) => ({
+      ...ing,
+      costPerUnit: Number(inventory.find((x) => x.id === ing.inventoryItemId)?.costPerUnit) || 0,
+      lineCost: Math.round(ingredientCost(ing, inventory)),
+    }))
     const recipe = {
       id: `RCP-${Date.now()}`,
       menuItemId,
       menuItemName,
-      ingredients,
+      ingredients: costedIngredients,
+      totalCost: Math.round(calculateRecipeCost(ingredients, inventory)),
       status: 'pending',
       createdBy: user?.name || 'Unknown',
       createdByRole: user?.role || '—',
@@ -470,14 +676,25 @@ export function AppProvider({ children }) {
     ])
   }
 
-  const markPaid = (id, method = 'Cash') =>
+  const markPaid = (id, method = 'Cash', onlineAccount = null) =>
     setOrders((prev) =>
-      prev.map((o) =>
+      prev.map((o) => {
+        if (o.id !== id) return o
+        const paidOnline = method === 'Online'
         // Cash enters the drawer when the bill is paid, so attribute it to the
         // shift open at payment time (an order placed unpaid earlier may be
-        // settled in a later shift).
-        o.id === id ? { ...o, payment: 'Paid', method, shiftId: activeShift?.id ?? o.shiftId ?? null } : o,
-      ),
+        // settled in a later shift). An online payment also snapshots which
+        // account it landed in for the receipt + daily reconciliation.
+        return {
+          ...o,
+          payment: 'Paid',
+          method,
+          onlineAccountId: paidOnline ? onlineAccount?.id ?? null : null,
+          onlineAccountName: paidOnline ? onlineAccount?.name ?? null : null,
+          onlineAccountType: paidOnline ? onlineAccount?.type ?? null : null,
+          shiftId: activeShift?.id ?? o.shiftId ?? null,
+        }
+      }),
     )
 
   // Running bill: append newly-ordered items to an existing UNPAID order (same
@@ -524,14 +741,33 @@ export function AppProvider({ children }) {
 
   // Admin only — cancel an UNPAID order with a reason + audit entry. Gated in the
   // UI (orderCancel permission) and re-checked here so a bypass can't cancel.
+  // A cancelled line is "reusable" (re-servable, not a loss) when its menu item
+  // is flagged reusable. Strip any ::variant suffix to resolve the base item.
+  const isReusableItem = (orderItem) => {
+    const baseId = String(orderItem.id).split('::')[0]
+    return Boolean(menu.find((m) => m.id === baseId)?.reusable)
+  }
+
   const cancelOrder = (id, { reason, notes = '' } = {}) => {
     if (!user || !canModify(user.role, 'orderCancel')) return
     const orderToCancel = orders.find((o) => o.id === id)
     if (!orderToCancel || orderToCancel.payment !== 'Unpaid' || orderToCancel.cancelled) return
 
+    // Split the cancelled items: reusable ones (cold drinks, ice cream, bread,
+    // sides) can be re-served to another customer, so we RESTOCK them and they
+    // are NOT a loss. The rest were cooked-to-order and are wasted, so they stay
+    // deducted and their material cost is booked as a loss.
+    const reusableItems = orderToCancel.items.filter((it) => isReusableItem(it))
+    const wastedItems = orderToCancel.items.filter((it) => !isReusableItem(it))
+    const materialLoss = Math.round(
+      calculateOrderMaterialCost(wastedItems, inventory, recipes),
+    )
+    if (reusableItems.length) restockInventoryForOrder(reusableItems)
+
     const recorded = {
       reason,
       notes,
+      materialLoss,
       by: user?.name || 'Unknown',
       role: user?.role || '—',
       at: new Date().toISOString(),
@@ -540,18 +776,23 @@ export function AppProvider({ children }) {
     setOrders((prev) =>
       prev.map((o) => {
         if (o.id !== id) return o
-        return { ...o, cancelled: true, cancellation: recorded }
+        return { ...o, cancelled: true, cancellation: recorded, materialLoss }
       }),
     )
-
-    // Restock the cancelled order items
-    restockInventoryForOrder(orderToCancel.items)
 
     setAuditLog((prev) => [
       { id: `AUD-${Date.now()}`, orderId: id, action: 'CANCELLED', ...recorded },
       ...prev,
     ])
   }
+
+  // ₨ material cost an order would write off if cancelled now — only the wasted
+  // (non-reusable) items count, matching cancelOrder. Lets the cancel dialog
+  // preview the loss before it's confirmed.
+  const orderMaterialLoss = (items = []) =>
+    Math.round(
+      calculateOrderMaterialCost(items.filter((it) => !isReusableItem(it)), inventory, recipes),
+    )
 
   const updateOrderItemQty = (orderId, itemId, newQty) => {
     const orderObj = orders.find((o) => o.id === orderId)
@@ -609,7 +850,7 @@ export function AppProvider({ children }) {
     setOrders((prev) =>
       prev.map((o) => {
         if (o.id !== id || o.cancelled) return o
-        const { total } = orderTotal(o.items) // gross bill, before any discount
+        const { total } = orderTotal(o.items, 0, o.gstRate) // gross bill, before any discount
         const amt = Math.min(Math.max(0, Number(amount) || 0), total)
         if (amt <= 0) return o
         recorded = {
@@ -653,7 +894,7 @@ export function AppProvider({ children }) {
     orders.forEach((o) => {
       if (o.payment !== 'Paid' || o.cancelled) return
       if (o.shiftId !== shiftId) return
-      const total = orderTotal(o.items, o.discount?.amount).total
+      const total = orderTotal(o.items, o.discount?.amount, o.gstRate).total
       if (o.method === 'Cash') totalCashSales += total
       else if (o.method === 'Card') totalCardSales += total
     })
@@ -909,7 +1150,7 @@ export function AppProvider({ children }) {
   // proactive path from the Chef's ingredient-request → approveIngredientRequest
   // flow; both coexist. Rejects blank/duplicate names (case-insensitive) and
   // mints the next sequential INV## id following the seed data pattern.
-  const addInventoryItem = ({ name, nameUr = '', category, unit, stock = 0, threshold = 0 } = {}) => {
+  const addInventoryItem = ({ name, nameUr = '', category, unit, stock = 0, threshold = 0, costPerUnit = 0 } = {}) => {
     if (!user || !canModify(user.role, 'inventoryCreate')) {
       return { error: 'You are not allowed to add new inventory items.' }
     }
@@ -935,6 +1176,7 @@ export function AppProvider({ children }) {
       stock: Math.max(0, Number(stock) || 0),
       unit: unit || 'kg',
       threshold: Math.max(0, Number(threshold) || 0),
+      costPerUnit: Math.max(0, Number(costPerUnit) || 0), // ₨ per unit, for recipe costing
       active: true,
     }
     setInventory((prev) => [...prev, item])
@@ -1169,7 +1411,7 @@ export function AppProvider({ children }) {
   const stats = useMemo(() => {
     const revenue = orders
       .filter((o) => o.payment === 'Paid' && !o.cancelled)
-      .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount).total, 0)
+      .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount, o.gstRate).total, 0)
     const pending = orders.filter((o) => o.payment === 'Unpaid' && !o.cancelled).length
     const activeTables = new Set(
       orders.filter((o) => o.payment === 'Unpaid' && !o.cancelled).map((o) => o.table),
@@ -1261,7 +1503,7 @@ export function AppProvider({ children }) {
     const order = orders.find((o) => o.id === orderId)
     if (!order || order.cancelled) return { error: 'Order not found.' }
     if (order.payment !== 'Unpaid') return { error: 'Only unpaid orders can be put on account.' }
-    const amount = orderTotal(order.items, order.discount?.amount).total
+    const amount = orderTotal(order.items, order.discount?.amount, order.gstRate).total
     if (amount <= 0) return { error: 'Order total is zero.' }
     const at = new Date().toISOString()
 
@@ -1318,7 +1560,7 @@ export function AppProvider({ children }) {
     if (order.payment !== 'Unpaid') return { error: 'Only unpaid orders can be made complimentary.' }
     const who = (orderedBy || '').trim()
     if (!who) return { error: 'Enter who authorised the free order.' }
-    const amount = orderTotal(order.items, order.discount?.amount).total
+    const amount = orderTotal(order.items, order.discount?.amount, order.gstRate).total
     const at = new Date().toISOString()
 
     setOrders((prev) =>
@@ -1416,11 +1658,22 @@ export function AppProvider({ children }) {
     markReady,
     clearKitchen,
     cancelOrder,
+    orderMaterialLoss,
     updateOrderItemQty,
     applyDiscount,
     removeDiscount,
     auditLog,
     orderTotal,
+    gstEnabled,
+    gstRate,
+    setGst,
+    setGstRate,
+    onlineAccounts,
+    addOnlineAccount,
+    updateOnlineAccount,
+    toggleOnlineAccount,
+    dailyClosings,
+    saveDailyClosing,
     attendance,
     overrideAttendance,
     inventory,

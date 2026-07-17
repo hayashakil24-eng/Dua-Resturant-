@@ -6,17 +6,24 @@ import { IconClose, IconCheck } from './Icons.jsx'
 const roundUp = (n, step) => Math.ceil(n / step) * step
 
 // Shared payment dialog used by the POS "Pay Now" flow and the Orders page
-// "Mark as Paid" action. `onConfirm(method, tendered)` reports the chosen
-// method (Cash/Card/Online) and, for cash, the amount tendered.
-// Forced dir="ltr" so it renders identically on the RTL (Urdu) admin pages.
-export default function PaymentModal({ total, onClose, onConfirm }) {
+// "Mark as Paid" action. `onConfirm(method, tendered, account)` reports the
+// chosen method (Cash/Card/Online), the amount tendered (cash), and — for an
+// online payment — the destination account it landed in.
+// `onlineAccounts` is the Admin-managed list from Settings; only the ACTIVE ones
+// are offered. Forced dir="ltr" so it renders identically on the RTL (Urdu) pages.
+export default function PaymentModal({ total, onClose, onConfirm, onlineAccounts = [] }) {
+  const activeAccounts = onlineAccounts.filter((a) => a.active)
   const [method, setMethod] = useState('Cash')
   const [tendered, setTendered] = useState('')
+  const [accountId, setAccountId] = useState(activeAccounts[0]?.id || '')
 
   const isCash = method === 'Cash'
+  const isOnline = method === 'Online'
+  const selectedAccount = activeAccounts.find((a) => a.id === accountId) || null
   const tenderedNum = Number(tendered) || 0
   const change = tenderedNum - total
-  const canConfirm = !isCash || tenderedNum >= total
+  // Online requires picking which account received the money (no amount checks).
+  const canConfirm = (!isCash || tenderedNum >= total) && (!isOnline || Boolean(selectedAccount))
 
   // Handy cash denominations at or above the bill total.
   const suggestions = [
@@ -27,7 +34,7 @@ export default function PaymentModal({ total, onClose, onConfirm }) {
 
   const confirm = () => {
     if (!canConfirm) return
-    onConfirm(method, isCash ? tenderedNum : total)
+    onConfirm(method, isCash ? tenderedNum : total, isOnline ? selectedAccount : null)
   }
 
   return (
@@ -113,6 +120,40 @@ export default function PaymentModal({ total, onClose, onConfirm }) {
                   {money(Math.abs(change))}
                 </span>
               </div>
+            </div>
+          )}
+
+          {/* Online → which account received the payment (Admin-managed list) */}
+          {isOnline && (
+            <div className="mt-5">
+              <label className="mb-2 block text-[11px] uppercase tracking-wider text-cream-dim">
+                Received in account
+              </label>
+              {activeAccounts.length === 0 ? (
+                <p className="rounded-xl border border-rose-500/25 bg-rose-500/[0.06] px-3 py-2.5 text-xs text-rose-300">
+                  No active online accounts. An Admin can add one in Settings → Online Payment Accounts.
+                </p>
+              ) : (
+                <>
+                  <select
+                    className="input"
+                    value={accountId}
+                    onChange={(e) => setAccountId(e.target.value)}
+                  >
+                    {activeAccounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}
+                        {a.type ? ` · ${a.type}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedAccount?.number && (
+                    <p className="mt-1.5 text-xs text-cream-dim">
+                      {selectedAccount.type} · {selectedAccount.number}
+                    </p>
+                  )}
+                </>
+              )}
             </div>
           )}
 

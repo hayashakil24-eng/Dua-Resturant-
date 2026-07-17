@@ -299,6 +299,7 @@
     "cashPayment": "Cash Payment",
     "cardPayment": "Card Payment",
     "onlinePayment": "Online Payment",
+    "onlineByAccount": "Online — received by account",
     "dailyReport": "Daily Report",
     "printSlip": "Print",
     "generated": "Generated",
@@ -414,6 +415,8 @@
     "baseUnit": "Base Unit",
     "initialStock": "Initial Stock",
     "thresholdAlert": "Threshold (low-stock alert)",
+    "costPerUnit": "Cost / Unit (₨)",
+    "colCost": "Cost/Unit",
     "addItem": "Add Item"
   },
   "menu": {
@@ -463,6 +466,8 @@
     "addOption": "Add option",
     "priceRs": "Price (Rs.)",
     "availablePos": "Available (shown on POS)",
+    "reusable": "Re-servable if cancelled",
+    "reusableHint": "Can be given to another customer if an order is cancelled — restocked, not counted as a loss (e.g. cold drinks, ice cream, bread, sides).",
     "chooseImage": "Please choose an image file.",
     "imageUnder2mb": "Image must be under 2MB."
   },
@@ -560,7 +565,8 @@
       "menuKitchen": "Menu & Kitchen",
       "people": "People",
       "finance": "Finance",
-      "reports": "Reports"
+      "reports": "Reports",
+      "settings": "Settings"
     },
     "dashboard": "Dashboard",
     "newOrder": "New Order",
@@ -576,11 +582,39 @@
     "receivables": "Receivables",
     "handovers": "Handover Approvals",
     "reports": "Reports",
+    "closing": "Day Closing",
     "dailyClosing": "Daily Closing",
     "kot": "KOT Report",
     "kitchen": "Kitchen",
     "kds": "Kitchen (KDS)",
-    "billing": "Billing"
+    "billing": "Billing",
+    "settings": "Settings"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "App-wide configuration — controlled by Admin.",
+    "taxSection": "Tax & GST",
+    "gstLabel": "GST",
+    "gstDesc": "When enabled, {rate}% GST is applied to every bill across POS, billing, and reports. When off, no GST is charged anywhere.",
+    "gstOn": "Enabled",
+    "gstOff": "Disabled",
+    "gstStatusOn": "GST is currently ON — {rate}% is added to every bill.",
+    "gstStatusOff": "GST is currently OFF — bills show subtotal only, no tax.",
+    "gstRateLabel": "GST Rate (%)",
+    "gstRateHint": "The percentage applied when GST is enabled. Takes effect on new bills right away.",
+    "rateSaved": "Rate updated.",
+    "onlineAccounts": "Online Payment Accounts",
+    "onlineAccountsDesc": "Destinations a cashier can attribute an Online payment to (JazzCash, Easypaisa, bank…).",
+    "addAccount": "Add Account",
+    "editAccount": "Edit Account",
+    "accountName": "Account Name",
+    "accountType": "Account Type",
+    "accountNumber": "Account Number / ID",
+    "active": "Active",
+    "inactive": "Inactive",
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "noAccounts": "No online accounts yet. Add one so cashiers can record online payments."
   },
   "common": {
     "save": "Save",

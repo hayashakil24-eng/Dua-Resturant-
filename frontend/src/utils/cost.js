@@ -55,7 +55,7 @@ export function formatCostTotal({ costTotal, allKnown }, money) {
 export function complimentaryCost(order, menu = [], orderTotal) {
   const items = order?.items || []
   const billTotal = orderTotal
-    ? orderTotal(items, order?.discount?.amount).total
+    ? orderTotal(items, order?.discount?.amount, order?.gstRate).total
     : items.reduce((s, i) => s + i.price * i.qty, 0)
   let costTotal = 0
   let allKnown = true

@@ -137,7 +137,8 @@
 /* Portaled print surfaces (kitchen slips + minimal daily-report slip) live on
    <body> but must never show on screen — only inside the print media query. */
 #printable-kots,
-#printable-daily {
+#printable-daily,
+#printable-closing {
   display: none;
 }
 
@@ -167,14 +168,18 @@
   body.print-kot #printable-kots,
   body.print-kot #printable-kots *,
   body.print-daily #printable-daily,
-  body.print-daily #printable-daily * {
+  body.print-daily #printable-daily *,
+  body.print-closing #printable-closing,
+  body.print-closing #printable-closing * {
     visibility: visible;
   }
 
-  /* Minimal daily-report slip. Uses the SAME proven approach as the receipt:
-     collapse #root to zero height (so the hidden app can't push a blank sheet)
-     and pin the slip with position:fixed — display:none + position:absolute
-     prints a blank page in Chrome, which is the bug this fixes. */
+  /* Daily report — an A4 page (not an 80mm thermal slip). Uses the SAME proven
+     approach as the receipt: collapse #root to zero height (so the hidden app
+     can't push a blank sheet) and pin the page with position:fixed —
+     display:none + position:absolute prints a blank page in Chrome, which is
+     the bug this guards against. The 16mm padding gives the sheet real A4
+     margins (the global @page margin is 0, shared with the thermal surfaces). */
   body.print-daily #root {
     height: 0 !important;
     overflow: hidden !important;
@@ -184,9 +189,28 @@
     position: fixed;
     left: 0;
     top: 0;
-    width: 80mm;
+    width: 100%;
+    padding: 16mm;
+    box-sizing: border-box;
     background: #fff !important;
-    color: #000 !important;
+    color: #3E2723 !important;
+  }
+
+  /* End-of-day closing slip — same A4 treatment as the daily report. */
+  body.print-closing #root {
+    height: 0 !important;
+    overflow: hidden !important;
+  }
+  body.print-closing #printable-closing {
+    display: block !important;
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 16mm;
+    box-sizing: border-box;
+    background: #fff !important;
+    color: #3e2723 !important;
   }
 
   /* Department kitchen slips (KOT). The slips are portaled to <body>, so on a

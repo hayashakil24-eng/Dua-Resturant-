@@ -77,7 +77,7 @@ function TableCard({ info, now, onClick }) {
 
 function OrderDetailsModal({ order, tableLabel, orderTotal, onClose, canAddItems, onAddItems }) {
   const t = useT()
-  const { subtotal, tax, discount, total } = orderTotal(order.items, order.discount?.amount)
+  const { subtotal, tax, discount, total } = orderTotal(order.items, order.discount?.amount, order.gstRate)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />

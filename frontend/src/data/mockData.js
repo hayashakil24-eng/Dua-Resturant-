@@ -175,6 +175,13 @@ const FOOD_COST_RATIO = {
 }
 const DEFAULT_FOOD_COST_RATIO = 0.35
 
+// Categories whose items can usually be re-served to another customer if an
+// order is cancelled (packaged/cold/side/bread), so they are NOT written off as
+// a material loss. This is only the seed default — it's editable per item in
+// Menu Management (`reusable` flag), and cancelOrder restocks these instead of
+// booking their cost as loss.
+const REUSABLE_CATEGORIES = new Set(['Ice Cream', 'Breads', 'Salads & Raita'])
+
 // Stamps an estimated `cost` on each item (and each variant) from its category
 // ratio, so every menu line carries a cost without hand-authoring 200+ numbers.
 const withEstimatedCost = (items) =>
@@ -184,6 +191,8 @@ const withEstimatedCost = (items) =>
       ...m,
       cost: Math.round(m.price * ratio),
       costEstimated: true, // cleared once a real cost is entered for this item
+      // Respect an explicit flag on the item; otherwise default by category.
+      reusable: m.reusable ?? REUSABLE_CATEGORIES.has(m.category),
       ...(m.variants && {
         variants: m.variants.map((v) => ({ ...v, cost: Math.round(v.price * ratio) })),
       }),
@@ -496,23 +505,26 @@ export const INITIAL_DEPARTMENTS = [
 // ---------------------------------------------------------------------------
 // Kitchen inventory — stock levels for low-stock alerts (frontend only)
 //   low stock  => stock <= threshold
+//   costPerUnit => purchase cost in ₨ per one `unit` (e.g. ₨550 per kg chicken);
+//   drives recipe costing (utils/inventoryFlow.js) and is snapshotted onto a
+//   recipe when it's approved, so later price swings don't rewrite old recipes.
 // ---------------------------------------------------------------------------
 export const INVENTORY = [
-  { id: 'INV01', name: 'Flour (Atta)', category: 'Grains', stock: 2, unit: 'kg', threshold: 10 },
-  { id: 'INV02', name: 'Cooking Oil', category: 'Pantry', stock: 1, unit: 'L', threshold: 8 },
-  { id: 'INV03', name: 'Chicken', category: 'Meat', stock: 3, unit: 'kg', threshold: 12 },
-  { id: 'INV04', name: 'Mutton', category: 'Meat', stock: 18, unit: 'kg', threshold: 10 },
-  { id: 'INV05', name: 'Beef', category: 'Meat', stock: 22, unit: 'kg', threshold: 10 },
-  { id: 'INV06', name: 'Basmati Rice', category: 'Grains', stock: 40, unit: 'kg', threshold: 15 },
-  { id: 'INV07', name: 'Tomatoes', category: 'Vegetables', stock: 6, unit: 'kg', threshold: 8 },
-  { id: 'INV08', name: 'Onions', category: 'Vegetables', stock: 30, unit: 'kg', threshold: 10 },
-  { id: 'INV09', name: 'Yogurt', category: 'Dairy', stock: 9, unit: 'L', threshold: 6 },
-  { id: 'INV10', name: 'Milk', category: 'Dairy', stock: 4, unit: 'L', threshold: 10 },
-  { id: 'INV11', name: 'Tea Leaves', category: 'Beverages', stock: 3, unit: 'kg', threshold: 5 },
-  { id: 'INV12', name: 'Sugar', category: 'Pantry', stock: 25, unit: 'kg', threshold: 10 },
-  { id: 'INV13', name: 'Spice Mix', category: 'Pantry', stock: 14, unit: 'packs', threshold: 5 },
-  { id: 'INV14', name: 'Soft Drinks', category: 'Beverages', stock: 18, unit: 'pcs', threshold: 20 },
-  { id: 'INV15', name: 'Mineral Water', category: 'Beverages', stock: 40, unit: 'pcs', threshold: 24 },
+  { id: 'INV01', name: 'Flour (Atta)', category: 'Grains', stock: 2, unit: 'kg', threshold: 10, costPerUnit: 120 },
+  { id: 'INV02', name: 'Cooking Oil', category: 'Pantry', stock: 1, unit: 'L', threshold: 8, costPerUnit: 550 },
+  { id: 'INV03', name: 'Chicken', category: 'Meat', stock: 3, unit: 'kg', threshold: 12, costPerUnit: 550 },
+  { id: 'INV04', name: 'Mutton', category: 'Meat', stock: 18, unit: 'kg', threshold: 10, costPerUnit: 1800 },
+  { id: 'INV05', name: 'Beef', category: 'Meat', stock: 22, unit: 'kg', threshold: 10, costPerUnit: 1200 },
+  { id: 'INV06', name: 'Basmati Rice', category: 'Grains', stock: 40, unit: 'kg', threshold: 15, costPerUnit: 350 },
+  { id: 'INV07', name: 'Tomatoes', category: 'Vegetables', stock: 6, unit: 'kg', threshold: 8, costPerUnit: 150 },
+  { id: 'INV08', name: 'Onions', category: 'Vegetables', stock: 30, unit: 'kg', threshold: 10, costPerUnit: 120 },
+  { id: 'INV09', name: 'Yogurt', category: 'Dairy', stock: 9, unit: 'L', threshold: 6, costPerUnit: 220 },
+  { id: 'INV10', name: 'Milk', category: 'Dairy', stock: 4, unit: 'L', threshold: 10, costPerUnit: 200 },
+  { id: 'INV11', name: 'Tea Leaves', category: 'Beverages', stock: 3, unit: 'kg', threshold: 5, costPerUnit: 1400 },
+  { id: 'INV12', name: 'Sugar', category: 'Pantry', stock: 25, unit: 'kg', threshold: 10, costPerUnit: 150 },
+  { id: 'INV13', name: 'Spice Mix', category: 'Pantry', stock: 14, unit: 'packs', threshold: 5, costPerUnit: 180 },
+  { id: 'INV14', name: 'Soft Drinks', category: 'Beverages', stock: 18, unit: 'pcs', threshold: 20, costPerUnit: 60 },
+  { id: 'INV15', name: 'Mineral Water', category: 'Beverages', stock: 40, unit: 'pcs', threshold: 24, costPerUnit: 40 },
 ]
 
 // ---------------------------------------------------------------------------
@@ -716,10 +728,12 @@ export const INITIAL_RECIPES = [
     id: 'RCP-seed-1',
     menuItemId: 'ckh1', // Chicken Shahi Karahi
     menuItemName: 'Chicken Shahi Karahi',
+    // costPerUnit/lineCost are ₨ snapshots; totalCost is the locked cost/plate.
     ingredients: [
-      { id: 'ing-s1', inventoryItemId: 'INV03', itemName: 'Chicken', quantity: 0.5, unit: 'kg' },
-      { id: 'ing-s2', inventoryItemId: 'INV02', itemName: 'Cooking Oil', quantity: 0.1, unit: 'L' },
+      { id: 'ing-s1', inventoryItemId: 'INV03', itemName: 'Chicken', quantity: 0.5, unit: 'kg', costPerUnit: 550, lineCost: 275 },
+      { id: 'ing-s2', inventoryItemId: 'INV02', itemName: 'Cooking Oil', quantity: 0.1, unit: 'L', costPerUnit: 550, lineCost: 55 },
     ],
+    totalCost: 330,
     status: 'approved',
     createdBy: 'Ahmed Chef',
     createdByRole: 'Kitchen',
@@ -735,9 +749,10 @@ export const INITIAL_RECIPES = [
     menuItemId: 'ckh2', // Chicken White Karahi
     menuItemName: 'Chicken White Karahi',
     ingredients: [
-      { id: 'ing-s3', inventoryItemId: 'INV03', itemName: 'Chicken', quantity: 0.5, unit: 'kg' },
-      { id: 'ing-s4', inventoryItemId: 'INV09', itemName: 'Yogurt', quantity: 0.15, unit: 'L' },
+      { id: 'ing-s3', inventoryItemId: 'INV03', itemName: 'Chicken', quantity: 0.5, unit: 'kg', costPerUnit: 550, lineCost: 275 },
+      { id: 'ing-s4', inventoryItemId: 'INV09', itemName: 'Yogurt', quantity: 0.15, unit: 'L', costPerUnit: 220, lineCost: 33 },
     ],
+    totalCost: 308, // estimate only — not locked until an Admin approves
     status: 'pending',
     createdBy: 'Ahmed Chef',
     createdByRole: 'Kitchen',
@@ -835,5 +850,22 @@ export const INITIAL_ADVANCES = [
   { id: 'ADV-3', staffId: 'S03', amount: 4000, reason: 'Advance', date: txnDate(0, 4), status: 'pending' },
 ]
 
-export const TAX_RATE = 0 // GST removed (was 0.05). orderTotal → tax 0, total = subtotal.
+// GST rate applied to a bill *when GST is enabled*. Whether it's actually
+// applied is controlled at runtime by the `gstEnabled` toggle in AppContext
+// (Admin → Settings), which defaults to OFF — so out of the box orderTotal
+// yields tax 0 / total = subtotal, and this rate only kicks in once an Admin
+// switches GST on.
+export const TAX_RATE = 0.05
 export const CURRENCY = 'Rs.'
+
+// Online payment destinations a cashier can attribute an "Online" payment to
+// (mobile wallets, bank accounts). Admin-managed in Settings and persisted; each
+// order paid online SNAPSHOTS the chosen account's name/type onto the order, so
+// receipts and daily reconciliation stay correct even if the account is later
+// renamed or deactivated. `active: false` hides an account from the cashier's
+// picker without deleting its history (no hard-delete, per the audit-trail rule).
+export const INITIAL_ONLINE_ACCOUNTS = [
+  { id: 'OPA-1', name: 'JazzCash - Main', type: 'JazzCash', number: '0300-1234567', active: true },
+  { id: 'OPA-2', name: 'Easypaisa - Shop', type: 'Easypaisa', number: '0345-7654321', active: true },
+  { id: 'OPA-3', name: 'Meezan Bank', type: 'Bank Account', number: 'PK00MEZN0000001234567', active: false },
+]
