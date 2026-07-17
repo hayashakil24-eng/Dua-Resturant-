@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import Logo from './Logo.jsx'
-import { navForRole } from '../config/nav.js'
+import { groupedNavForRole, isCollapsibleGroup } from '../config/nav.js'
 import { useApp } from '../context/AppContext.jsx'
 import { useLang } from '../i18n/LanguageContext.jsx'
 
@@ -24,7 +24,7 @@ const RTL_ROUTES = new Set([
   '/kitchen',
 ])
 import { dateLong } from '../utils/format.js'
-import { IconLogout, IconMenu, IconClose, IconCash } from './Icons.jsx'
+import { IconLogout, IconMenu, IconClose, IconCash, IconChevronDown } from './Icons.jsx'
 import ShiftStartModal from './ShiftStartModal.jsx'
 import ShiftEndModal from './ShiftEndModal.jsx'
 import AutoResumeModal from './AutoResumeModal.jsx'
@@ -53,38 +53,108 @@ function LanguageSwitcher() {
   )
 }
 
+// A single nav row. `indented` renders it as a child under a collapsed-group
+// header (no icon, extra start padding) instead of a flat top-level link.
+function NavRow({ to, label, labelKey, icon: Icon, indented, onNavigate }) {
+  const { t } = useLang()
+  return (
+    <NavLink
+      to={to}
+      end={to === '/'}
+      onClick={onNavigate}
+      className={({ isActive }) =>
+        `group flex items-center gap-2.5 rounded-xl py-2.5 text-sm font-medium transition ${
+          indented ? 'ps-9 pe-3' : 'px-3'
+        } ${
+          isActive
+            ? 'bg-gold/12 text-gold-deep ring-1 ring-gold/25'
+            : 'text-cream-dim hover:bg-white/5 hover:text-cream'
+        }`
+      }
+    >
+      {({ isActive }) => (
+        <>
+          {!indented && (
+            <span
+              className={`shrink-0 transition ${isActive ? 'text-gold-deep' : 'text-cream-dim group-hover:text-cream'}`}
+            >
+              <Icon size={20} />
+            </span>
+          )}
+          <span className="min-w-0 flex-1 truncate">{t(labelKey, label)}</span>
+          {isActive && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-gold" />}
+        </>
+      )}
+    </NavLink>
+  )
+}
+
 function SidebarLinks({ role, onNavigate }) {
   const { t } = useLang()
-  const items = navForRole(role)
+  const location = useLocation()
+  const groups = groupedNavForRole(role)
+  const [openGroups, setOpenGroups] = useState(() => new Set())
+
+  // Auto-expand whichever group contains the current route, so navigating
+  // (or a fresh login landing on a role's default page) never leaves the
+  // active page buried inside a collapsed section. Groups the user opens or
+  // closes by hand otherwise stay exactly as they left them.
+  useEffect(() => {
+    const activeGroup = groups.find((g) =>
+      g.items.some((n) => (n.to === '/' ? location.pathname === '/' : location.pathname.startsWith(n.to))),
+    )
+    if (activeGroup) {
+      setOpenGroups((prev) => (prev.has(activeGroup.id) ? prev : new Set(prev).add(activeGroup.id)))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname])
+
+  const toggleGroup = (id) =>
+    setOpenGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+
   return (
     <nav className="flex flex-col gap-1">
-      {items.map(({ to, label, labelKey, icon: Icon }) => (
-        <NavLink
-          key={to}
-          to={to}
-          end={to === '/'}
-          onClick={onNavigate}
-          className={({ isActive }) =>
-            `group flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-              isActive
-                ? 'bg-gold/12 text-gold-deep ring-1 ring-gold/25'
-                : 'text-cream-dim hover:bg-white/5 hover:text-cream'
-            }`
-          }
-        >
-          {({ isActive }) => (
-            <>
-              <span
-                className={`shrink-0 transition ${isActive ? 'text-gold-deep' : 'text-cream-dim group-hover:text-cream'}`}
-              >
-                <Icon size={20} />
+      {groups.map((g) => {
+        // A group with a single visible item (e.g. Reports, or Cashier's
+        // Finance section which only has Billing) is just a flat link — a
+        // one-item dropdown is friction, not navigation.
+        if (!isCollapsibleGroup(g)) {
+          return <NavRow key={g.id} {...g.items[0]} onNavigate={onNavigate} />
+        }
+        const isOpen = openGroups.has(g.id)
+        const GroupIcon = g.icon
+        return (
+          <div key={g.id}>
+            <button
+              type="button"
+              onClick={() => toggleGroup(g.id)}
+              aria-expanded={isOpen}
+              className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-cream-dim transition hover:bg-white/5 hover:text-cream"
+            >
+              <span className="shrink-0">
+                <GroupIcon size={20} />
               </span>
-              <span className="min-w-0 flex-1 truncate">{t(labelKey, label)}</span>
-              {isActive && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-gold" />}
-            </>
-          )}
-        </NavLink>
-      ))}
+              <span className="min-w-0 flex-1 truncate text-start">{t(g.labelKey, g.label)}</span>
+              <IconChevronDown
+                size={16}
+                className={`shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+            {isOpen && (
+              <div className="mt-1 flex flex-col gap-1">
+                {g.items.map((item) => (
+                  <NavRow key={item.to} {...item} indented onNavigate={onNavigate} />
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
     </nav>
   )
 }
@@ -174,9 +244,6 @@ export default function Layout({ children }) {
           <Logo />
         </div>
         <div className="mt-6 min-h-0 flex-1 overflow-y-auto">
-          <p className="mb-2 px-3 text-[10px] uppercase tracking-[0.25em] text-cream-dim">
-            {t('app.menuHeading')}
-          </p>
           <SidebarLinks role={user.role} />
         </div>
         <div className="mt-4 shrink-0">

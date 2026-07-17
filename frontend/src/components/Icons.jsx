@@ -325,3 +325,4 @@ export const IconRefresh = (p) => (
     }
   />
 )
+export const IconChevronDown = (p) => <Icon {...p} path={<path d="M6 9l6 6 6-6" />} />

@@ -1,7 +1,34 @@
+# Dependencies
 node_modules
+
+# Build outputs (frontend/dist, frontend/dist-electron, frontend/release —
+# no leading slash so these match at any depth, including inside frontend/)
 dist
 dist-ssr
+dist-electron
+release
+
+# Env / secrets — none exist yet, but the future backend will need these
+.env
+.env.local
+.env.*.local
+
+# Editor / IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Local tooling state (not shared across machines/team members)
 *.local
 .vite
-.DS_Store
-npm-debug.log*
+.claude/scheduled_tasks.lock

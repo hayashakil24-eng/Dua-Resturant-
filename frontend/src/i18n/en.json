@@ -512,7 +512,6 @@
     "noResults": "No tables match."
   },
   "app": {
-    "menuHeading": "Menu",
     "signedInAs": "Signed in as",
     "logout": "Log out",
     "endShiftLogout": "End Shift & Log out",
@@ -556,6 +555,13 @@
     "done": "Done"
   },
   "nav": {
+    "groups": {
+      "operations": "Operations",
+      "menuKitchen": "Menu & Kitchen",
+      "people": "People",
+      "finance": "Finance",
+      "reports": "Reports"
+    },
     "dashboard": "Dashboard",
     "newOrder": "New Order",
     "orders": "Orders",

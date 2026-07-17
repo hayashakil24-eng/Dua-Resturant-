@@ -512,7 +512,6 @@
     "noResults": "کوئی میز مطابقت نہیں رکھتی۔"
   },
   "app": {
-    "menuHeading": "مینو",
     "signedInAs": "بطور داخل",
     "logout": "لاگ آؤٹ",
     "endShiftLogout": "شفٹ ختم کریں اور لاگ آؤٹ",
@@ -556,6 +555,13 @@
     "done": "مکمل"
   },
   "nav": {
+    "groups": {
+      "operations": "آپریشنز",
+      "menuKitchen": "مینو اور باورچی خانہ",
+      "people": "عملہ",
+      "finance": "مالیات",
+      "reports": "رپورٹس"
+    },
     "dashboard": "ڈیش بورڈ",
     "newOrder": "نیا آرڈر",
     "orders": "آرڈرز",
