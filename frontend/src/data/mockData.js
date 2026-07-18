@@ -527,59 +527,6 @@ export const INVENTORY = [
   { id: 'INV15', name: 'Mineral Water', category: 'Beverages', stock: 40, unit: 'pcs', threshold: 24, costPerUnit: 40 },
 ]
 
-// ---------------------------------------------------------------------------
-// Recipe map — approximate ingredient usage per one unit of a menu item.
-// Ingredient names match INVENTORY above, so Reports can estimate stock used
-// from the day's/month's orders. Frontend estimate only (no auto-deduction).
-// ---------------------------------------------------------------------------
-export const RECIPE_MAP = {
-  M01: [{ name: 'Chicken', qty: 0.25, unit: 'kg' }],
-  M02: [{ name: 'Beef', qty: 0.2, unit: 'kg' }],
-  M03: [{ name: 'Beef', qty: 0.4, unit: 'kg' }],
-  M04: [
-    { name: 'Chicken', qty: 0.5, unit: 'kg' },
-    { name: 'Tomatoes', qty: 0.15, unit: 'kg' },
-    { name: 'Onions', qty: 0.1, unit: 'kg' },
-  ],
-  M05: [
-    { name: 'Basmati Rice', qty: 0.2, unit: 'kg' },
-    { name: 'Mutton', qty: 0.2, unit: 'kg' },
-  ],
-  M06: [
-    { name: 'Chicken', qty: 0.35, unit: 'kg' },
-    { name: 'Yogurt', qty: 0.05, unit: 'L' },
-  ],
-  M07: [{ name: 'Onions', qty: 0.05, unit: 'kg' }],
-  M08: [
-    { name: 'Chicken', qty: 0.05, unit: 'kg' },
-    { name: 'Flour (Atta)', qty: 0.05, unit: 'kg' },
-  ],
-  M09: [{ name: 'Cooking Oil', qty: 0.1, unit: 'L' }],
-  M10: [{ name: 'Chicken', qty: 0.1, unit: 'kg' }],
-  M11: [{ name: 'Flour (Atta)', qty: 0.12, unit: 'kg' }],
-  M12: [{ name: 'Sugar', qty: 0.02, unit: 'kg' }],
-  M13: [
-    { name: 'Milk', qty: 0.15, unit: 'L' },
-    { name: 'Tea Leaves', qty: 0.01, unit: 'kg' },
-    { name: 'Sugar', qty: 0.02, unit: 'kg' },
-  ],
-  M14: [{ name: 'Soft Drinks', qty: 1, unit: 'pcs' }],
-  M15: [{ name: 'Mineral Water', qty: 1, unit: 'pcs' }],
-  M16: [
-    { name: 'Sugar', qty: 0.05, unit: 'kg' },
-    { name: 'Milk', qty: 0.05, unit: 'L' },
-  ],
-  M17: [
-    { name: 'Milk', qty: 0.2, unit: 'L' },
-    { name: 'Sugar', qty: 0.05, unit: 'kg' },
-    { name: 'Basmati Rice', qty: 0.03, unit: 'kg' },
-  ],
-  M18: [
-    { name: 'Milk', qty: 0.1, unit: 'L' },
-    { name: 'Sugar', qty: 0.03, unit: 'kg' },
-  ],
-}
-
 const today = new Date()
 const t = (h, m) => {
   const d = new Date(today)

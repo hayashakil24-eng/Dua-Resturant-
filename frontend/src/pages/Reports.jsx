@@ -9,7 +9,7 @@ import KOTView from '../components/KOTView.jsx'
 import DailyReportSlip from '../components/DailyReportSlip.jsx'
 import { monthFigures } from '../utils/accounting.js'
 import { safePrint } from '../utils/print.js'
-import { RECIPE_MAP } from '../data/mockData.js'
+import { calculateDeductions } from '../utils/inventoryFlow.js'
 import { IconPrint, IconWhatsApp } from '../components/Icons.jsx'
 
 const toDayStr = (d) =>
@@ -27,20 +27,18 @@ function topSelling(orderList, n = 5) {
     .slice(0, n)
 }
 
-// Estimated ingredient consumption from the period's orders (via RECIPE_MAP).
-function estimateStockUsed(orderList) {
-  const map = {}
-  orderList.forEach((o) =>
-    o.items.forEach((it) => {
-      ;(RECIPE_MAP[it.id] || []).forEach((r) => {
-        const cur = map[r.name] || { qty: 0, unit: r.unit }
-        cur.qty += r.qty * it.qty
-        map[r.name] = cur
-      })
-    }),
-  )
-  return Object.entries(map)
-    .map(([name, v]) => ({ name, qty: Math.round(v.qty * 10) / 10, unit: v.unit }))
+// Estimated ingredient consumption from the period's orders, via the same
+// approved-recipe deductions that actually drove inventory during the period
+// (calculateDeductions — see inventoryFlow.js). Previously this read a
+// separate, hand-maintained RECIPE_MAP keyed by an old menu's item ids that no
+// longer match INITIAL_MENU, so it silently showed "no consumption" for every
+// real order — items without an approved recipe still contribute nothing,
+// same as live deduction.
+function estimateStockUsed(orderList, inventory, recipes) {
+  const allItems = orderList.flatMap((o) => o.items)
+  const deductions = calculateDeductions(allItems, inventory, recipes)
+  return Object.values(deductions)
+    .map((d) => ({ name: d.itemName, qty: Math.round(d.amount * 10) / 10, unit: d.unit }))
     .sort((a, b) => b.qty - a.qty)
 }
 
@@ -62,7 +60,7 @@ function Row({ label, value, tone = 'text-[#3498DB]', strong }) {
 }
 
 export default function Reports() {
-  const { orders, orderTotal, transactions, staff } = useApp()
+  const { orders, orderTotal, transactions, staff, inventory, recipes } = useApp()
   const { t, lang } = useLang()
   const today = useMemo(() => new Date(), [])
 
@@ -133,7 +131,7 @@ export default function Reports() {
       }, {}),
     ).sort((a, b) => b[1] - a[1])
     const top = topSelling(scopeOrders)
-    const stock = estimateStockUsed(scopeOrders)
+    const stock = estimateStockUsed(scopeOrders, inventory, recipes)
 
     // Full item-wise breakdown — every item sold in the scope, qty + revenue.
     const itemMap = {}
@@ -208,7 +206,7 @@ export default function Reports() {
       items,
       discounts,
     }
-  }, [scopeOrders, type, monthKey, dailyDate, transactions, today, orderTotal, monthOptions, staff])
+  }, [scopeOrders, type, monthKey, dailyDate, transactions, today, orderTotal, monthOptions, staff, inventory, recipes])
 
   const shareWhatsApp = () => {
     const lines = [
@@ -402,7 +400,7 @@ export default function Reports() {
           <div className="my-5 border-t-2 border-dashed border-[#E8DCC4]" />
 
           <div className="flex items-baseline justify-between">
-            <h2 className="text-xl font-bold text-[#C9A961]">{t(report.titleKey)}</h2>
+            <h2 className="font-serif text-xl font-bold text-[#C9A961]">{t(report.titleKey)}</h2>
             <span className="text-sm font-semibold text-[#5D4037]">{report.rangeLabel}</span>
           </div>
           <p className="mt-1 text-[11px] text-[#8D6E63]">

@@ -14,7 +14,12 @@ import {
   IconCheck,
 } from '../components/Icons.jsx'
 
-const ROLES = ['Manager', 'Cashier', 'Waiter', 'Chef']
+// Job titles selectable when adding/editing a staff record. Includes
+// 'Kitchen' so the Kitchen role (the one that actually gets recipe-creation
+// access via permissions.js) can be assigned — it was missing before, which
+// also broke editing the seeded Kitchen employee (no matching <option> for
+// their existing role).
+const ROLES = ['Manager', 'Cashier', 'Waiter', 'Chef', 'Kitchen']
 const SHIFTS = ['Morning', 'Evening']
 
 const ROLE_STYLE = {
@@ -22,6 +27,7 @@ const ROLE_STYLE = {
   Cashier: 'bg-emerald-500/12 text-emerald-300 ring-emerald-500/30',
   Waiter: 'bg-gold/10 text-gold ring-gold/25',
   Chef: 'bg-purple-500/12 text-purple-300 ring-purple-500/30',
+  Kitchen: 'bg-amber-500/12 text-amber-300 ring-amber-500/30',
 }
 
 // Defined at module scope (NOT inside EmployeeModal). If this lived inside the

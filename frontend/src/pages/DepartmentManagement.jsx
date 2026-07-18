@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { useLang } from '../i18n/LanguageContext.jsx'
 import { canModify } from '../config/permissions.js'
+import { PageHeader, EmptyState } from '../components/ui.jsx'
 import ItemAssignmentModal from '../components/ItemAssignmentModal.jsx'
-import { IconDepartments, IconPlus, IconTrash, IconEdit, IconClose } from '../components/Icons.jsx'
+import { IconDepartments, IconPlus, IconTrash, IconEdit, IconClose, IconUsers } from '../components/Icons.jsx'
 
 const EMPTY_FORM = { name: '', nameUrdu: '', description: '', manager: '' }
 
@@ -43,17 +44,11 @@ export default function DepartmentManagement() {
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 font-serif text-3xl font-bold text-cream">
-            <IconDepartments size={26} /> {t('departments.title')}
-          </h1>
-          <p className="mt-1 text-sm text-cream-dim">{t('departments.subtitle')}</p>
-        </div>
+      <PageHeader title={t('departments.title')} subtitle={t('departments.subtitle')}>
         <button onClick={() => { setShowForm((v) => !v); setError('') }} className="btn-gold">
           <IconPlus size={18} /> {t('departments.create')}
         </button>
-      </div>
+      </PageHeader>
 
       {/* Create form */}
       {showForm && (
@@ -125,14 +120,16 @@ export default function DepartmentManagement() {
                 </h3>
                 {dept.description && <p className="mt-1 text-sm text-cream-dim">{dept.description}</p>}
                 {dept.manager && (
-                  <p className="mt-1 text-xs text-gold">👤 {t('departments.managerLabel')}: {dept.manager}</p>
+                  <p className="mt-1 flex items-center gap-1 text-xs text-gold">
+                    <IconUsers size={12} className="shrink-0" /> {t('departments.managerLabel')}: {dept.manager}
+                  </p>
                 )}
               </div>
               {confirmDelete === dept.id ? (
                 <div className="flex shrink-0 items-center gap-1.5">
                   <button
                     onClick={() => { deleteDepartment(dept.id); setConfirmDelete(null) }}
-                    className="rounded-lg bg-rose-500/90 px-2.5 py-1.5 text-xs font-semibold text-white"
+                    className="btn-danger px-2.5 py-1.5 text-xs"
                   >
                     {t('departments.deleteYes')}
                   </button>
@@ -188,9 +185,7 @@ export default function DepartmentManagement() {
       </div>
 
       {departments.length === 0 && (
-        <div className="card p-12 text-center">
-          <p className="text-sm text-cream-dim">{t('departments.empty')}</p>
-        </div>
+        <EmptyState icon={IconDepartments} title={t('departments.empty')} />
       )}
 
       <p className="mt-4 text-xs text-cream-dim">

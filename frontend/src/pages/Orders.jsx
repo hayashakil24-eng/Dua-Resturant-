@@ -5,6 +5,7 @@ import { money, time } from '../utils/format.js'
 import { tableLabel } from '../data/mockData.js'
 import { IconOrders, IconSearch, IconCheck, IconClose, IconWallet, IconPrint } from '../components/Icons.jsx'
 import { canModify, hasAccess } from '../config/permissions.js'
+import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import PaymentModal from '../components/PaymentModal.jsx'
 import MarkAsUdhaarModal from '../components/MarkAsUdhaarModal.jsx'
 import MarkAsComplimentaryModal from '../components/MarkAsComplimentaryModal.jsx'
@@ -36,6 +37,7 @@ function CancelledBadge() {
 function CancelModal({ order, orderTotal, materialLoss = 0, onConfirm, onClose }) {
   const [reason, setReason] = useState('')
   const [notes, setNotes] = useState('')
+  useEscapeKey(onClose)
   const { total } = orderTotal(order.items, order.discount?.amount, order.gstRate)
 
   return (

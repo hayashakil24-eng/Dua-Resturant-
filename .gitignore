@@ -32,3 +32,8 @@ yarn-error.log*
 *.local
 .vite
 .claude/scheduled_tasks.lock
+
+# Backend local SQLite database (dev data, not shared — schema lives in
+# backend/prisma/schema.prisma, migrations are tracked, the .db file isn't)
+*.db
+*.db-journal

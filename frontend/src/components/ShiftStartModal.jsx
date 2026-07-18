@@ -23,7 +23,7 @@ export default function ShiftStartModal({ onStart }) {
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
       <div className="relative z-10 w-full max-w-md animate-fade-up">
         <div className="card p-6">
           <div className="flex items-center gap-3">

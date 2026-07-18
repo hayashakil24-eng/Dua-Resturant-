@@ -1,4 +1,4 @@
-import { RECIPE_MAP } from '../data/mockData.js'
+import { calculateDeductions } from './inventoryFlow.js'
 
 // 'YYYY-MM-DD' local-day key — matches the Reports page's day bucketing so the
 // closing report and the daily report always scope to the same set of orders.
@@ -16,7 +16,7 @@ export const toDayStr = (d) => {
 // channels (each Online payment account by name, plus Card and Udhaar/credit) —
 // NET CASH SALES is what's left as physical cash, and the handover is that cash
 // minus the day's expenses.
-export function buildClosingReport(orders, orderTotal, transactions, dateStr) {
+export function buildClosingReport(orders, orderTotal, transactions, dateStr, inventory = [], recipes = []) {
   const dayOrders = orders.filter((o) => toDayStr(o.createdAt) === dateStr)
   const active = dayOrders.filter((o) => !o.cancelled)
   const cancelled = dayOrders.filter((o) => o.cancelled)
@@ -60,18 +60,11 @@ export function buildClosingReport(orders, orderTotal, transactions, dateStr) {
   // Extras kept for the on-screen detail / saved record (not on the summary sheet).
   const gstCollected = settled.reduce((s, o) => s + totalOf(o).tax, 0)
   const materialLoss = cancelled.reduce((s, o) => s + (o.materialLoss || 0), 0)
-  const invMap = {}
-  active.forEach((o) =>
-    o.items.forEach((it) => {
-      ;(RECIPE_MAP[it.id] || []).forEach((r) => {
-        const cur = invMap[r.name] || { qty: 0, unit: r.unit }
-        cur.qty += r.qty * it.qty
-        invMap[r.name] = cur
-      })
-    }),
-  )
-  const inventoryUsed = Object.entries(invMap)
-    .map(([name, v]) => ({ name, qty: Math.round(v.qty * 10) / 10, unit: v.unit }))
+  // Approved-recipe deductions across the day's items — same source as live
+  // inventory deduction (inventoryFlow.js), not a separate hand-maintained map.
+  const deductions = calculateDeductions(active.flatMap((o) => o.items), inventory, recipes)
+  const inventoryUsed = Object.values(deductions)
+    .map((d) => ({ name: d.itemName, qty: Math.round(d.amount * 10) / 10, unit: d.unit }))
     .sort((a, b) => b.qty - a.qty)
 
   return {

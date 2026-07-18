@@ -62,8 +62,8 @@ export default function KOTView({ dayStr }) {
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard icon={IconOrders} label={t('kot.totalOrders')} value={summary.totalOrders} sub={dateLong(`${dayStr}T00:00:00`)} />
         <StatCard icon={IconCash} label={t('kot.totalAmount')} value={money(summary.totalAmount)} sub={t('kot.grandTotal')} />
-        <StatCard icon={IconCash} label={`💵 ${t('kot.cash')}`} value={money(summary.cash)} />
-        <StatCard icon={IconCash} label={`💳 ${t('kot.card')} / 🌐 ${t('kot.online')}`} value={money(summary.card + summary.online)} />
+        <StatCard icon={IconCash} label={t('kot.cash')} value={money(summary.cash)} />
+        <StatCard icon={IconCash} label={`${t('kot.card')} / ${t('kot.online')}`} value={money(summary.card + summary.online)} />
       </div>
 
       <div id="printable-report" className="card overflow-hidden">

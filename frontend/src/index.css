@@ -115,6 +115,14 @@
     @apply inline-flex items-center justify-center gap-2 rounded-xl border border-ink-line
       bg-ink-soft px-5 py-2.5 font-medium text-cream transition hover:border-gold/60 hover:text-gold;
   }
+  /* Destructive action (reject/delete confirm). Several components used to
+     hand-roll this same rose treatment with slightly different opacity/radius
+     — centralised so they can't drift again. */
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-rose-500/90 px-5 py-2.5
+      font-semibold text-white transition hover:bg-rose-500
+      disabled:cursor-not-allowed disabled:opacity-40;
+  }
   .input {
     @apply w-full rounded-xl border border-ink-line bg-ink-soft px-4 py-2.5 text-cream
       placeholder:text-cream-dim/60 outline-none transition focus:border-gold/70

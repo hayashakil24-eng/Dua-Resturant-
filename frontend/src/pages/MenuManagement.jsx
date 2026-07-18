@@ -5,6 +5,7 @@ import { itemNameLabel, categoryLabel } from '../i18n/dataDict.js'
 import { PageHeader, StatCard } from '../components/ui.jsx'
 import { canModify } from '../config/permissions.js'
 import { money } from '../utils/format.js'
+import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import { MENU_CATEGORIES } from '../data/mockData.js'
 import {
   IconMenuBook,
@@ -15,6 +16,7 @@ import {
   IconEdit,
   IconClose,
   IconCheck,
+  IconAlert,
 } from '../components/Icons.jsx'
 
 const priceLabel = (item) => {
@@ -52,6 +54,7 @@ function ItemModal({ item, categories, onSave, onClose }) {
   const [reusable, setReusable] = useState(item ? item.reusable === true : false)
   const [image, setImage] = useState(item?.image || null) // data URL or existing path
   const [imageError, setImageError] = useState('')
+  useEscapeKey(onClose)
 
   // Read the chosen file into a data URL so it persists in menu state without a
   // backend. Image-only, capped at 2MB.
@@ -474,8 +477,8 @@ export default function MenuManagement() {
             </button>
           </div>
           {categoryError && (
-            <p className="mt-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
-              ❌ {categoryError}
+            <p className="mt-2 flex items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+              <IconAlert size={14} className="shrink-0" /> {categoryError}
             </p>
           )}
           <div className="mt-3 flex flex-wrap gap-1.5">
@@ -645,7 +648,7 @@ export default function MenuManagement() {
               <div className="mt-6 flex gap-3">
                 <button
                   onClick={confirmDeleteCategory}
-                  className="flex-1 rounded-xl bg-rose-500/90 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-500"
+                  className="btn-danger flex-1 px-4 py-2.5 text-sm"
                 >
                   {t('common.delete')}
                 </button>

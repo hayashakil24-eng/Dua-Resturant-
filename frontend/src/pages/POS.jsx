@@ -10,6 +10,7 @@ import KitchenSlips from '../components/KitchenSlips.jsx'
 import { safePrint } from '../utils/print.js'
 import { getRecipeStock, getStockShortfall } from '../utils/inventoryFlow.js'
 import { canModify } from '../config/permissions.js'
+import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import { TABLE_CATEGORIES, tableLabel } from '../data/mockData.js'
 import {
   IconPlus,
@@ -152,6 +153,7 @@ function MostOrdered({ items, onAdd, canManage, onManage }) {
 
 // Quick size/type chooser for items that have variants (Pizza, Steaks).
 function VariantModal({ item, onPick, onClose }) {
+  useEscapeKey(onClose)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { useLang } from '../i18n/LanguageContext.jsx'
 import { money, time, dateShort } from '../utils/format.js'
+import { PageHeader, EmptyState } from '../components/ui.jsx'
 import HandoverApprovalModal from '../components/HandoverApprovalModal.jsx'
 import { IconCash } from '../components/Icons.jsx'
 
@@ -38,12 +39,7 @@ export default function HandoverApprovals() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="flex items-center gap-2 font-serif text-3xl font-bold text-cream">
-          <IconCash size={26} /> {t('handover.pageTitle')}
-        </h1>
-        <p className="mt-1 text-sm text-cream-dim">{t('handover.subtitle')}</p>
-      </div>
+      <PageHeader title={t('handover.pageTitle')} subtitle={t('handover.subtitle')} />
 
       <div className="mb-5 flex gap-2 border-b border-ink-line">
         {tabBtn('pending', t('handover.tabPending'), pending.length)}
@@ -53,9 +49,7 @@ export default function HandoverApprovals() {
       {/* Pending */}
       {tab === 'pending' && (
         <div className="space-y-3">
-          {pending.length === 0 && (
-            <div className="card p-12 text-center text-sm text-cream-dim">{t('handover.noPending')}</div>
-          )}
+          {pending.length === 0 && <EmptyState icon={IconCash} title={t('handover.noPending')} />}
           {pending.map((h) => (
             <div key={h.id} className="card flex flex-wrap items-center justify-between gap-4 border border-amber-500/30 bg-amber-500/[0.05] p-5">
               <div className="min-w-0">

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { money } from '../utils/format.js'
 import { tableLabel } from '../data/mockData.js'
+import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import { IconClose, IconCheck } from './Icons.jsx'
 
 // Mark an unpaid order as complimentary (free / on-the-house). English + LTR to
@@ -24,6 +25,7 @@ export default function MarkAsComplimentaryModal({ order, onClose, onConfirm }) 
   const [reason, setReason] = useState(REASONS[0])
   const [notes, setNotes] = useState('')
   const [error, setError] = useState('')
+  useEscapeKey(onClose)
 
   const confirm = () => {
     if (!orderedBy.trim()) return setError('Enter who authorised the free order.')
@@ -32,7 +34,7 @@ export default function MarkAsComplimentaryModal({ order, onClose, onConfirm }) 
 
   return (
     <div dir="ltr" className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-md animate-fade-up">
         <div className="card p-6">
           <div className="flex items-start justify-between">

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { useT } from '../i18n/LanguageContext.jsx'
+import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import { IconClose, IconPlus, IconTrash, IconAlert } from './Icons.jsx'
 
 // Kitchen recipe builder: pick a menu item, then add ingredient rows drawn from
@@ -13,6 +14,7 @@ export default function RecipeFormModal({ menu, inventory, existingRecipes = [],
   const [menuItemId, setMenuItemId] = useState('')
   const [ingredients, setIngredients] = useState([])
   const [error, setError] = useState('')
+  useEscapeKey(onClose)
 
   // New Ingredient Request inline form states
   const [requestingIngIdx, setRequestingIngIdx] = useState(null)

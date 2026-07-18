@@ -5,6 +5,7 @@ import { PageHeader, StatCard } from '../components/ui.jsx'
 import { dateLong, money } from '../utils/format.js'
 import { unitLabel, categoryLabel, itemNameLabel } from '../i18n/dataDict.js'
 import { canModify } from '../config/permissions.js'
+import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import {
   IconInventory,
   IconAlert,
@@ -46,6 +47,7 @@ function AddItemModal({ categories, onClose, onSave }) {
   const [threshold, setThreshold] = useState('0')
   const [costPerUnit, setCostPerUnit] = useState('0')
   const [error, setError] = useState('')
+  useEscapeKey(onClose)
 
   const valid = name.trim().length > 0
 

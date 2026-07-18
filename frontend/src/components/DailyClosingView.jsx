@@ -3,14 +3,17 @@ import { useApp } from '../context/AppContext.jsx'
 import { useT } from '../i18n/LanguageContext.jsx'
 import { money, dateLong } from '../utils/format.js'
 import { safePrint } from '../utils/print.js'
+import { buildClosingReport, toDayStr } from '../utils/closing.js'
 import { IconPrint } from './Icons.jsx'
 
 // Daily Closing report body — rendered as a tab inside Reports. `dayStr` is a
 // 'YYYY-MM-DD' string supplied by the Reports date picker.
-const toDayStr = (iso) => {
-  const d = new Date(iso)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
+//
+// The revenue figures below are built via the SAME buildClosingReport() the
+// Closing page uses (single source of truth) so this tab can never disagree
+// with the official Day Closing report for the same date — it used to
+// recompute grossSale/netSale/netCashSales independently, which let unpaid
+// orders leak into "Net Sale" and card/online leak into "Net Cash Sales".
 
 function Section({ title, tone, open, onToggle, children }) {
   return (
@@ -39,24 +42,13 @@ function Line({ label, value, tone = 'text-cream', strong, border }) {
 }
 
 export default function DailyClosingView({ dayStr }) {
-  const { orders, orderTotal, transactions, receivables, shiftReconciliations } = useApp()
+  const { orders, orderTotal, transactions, receivables, shiftReconciliations, inventory, recipes } = useApp()
   const t = useT()
   const [openSec, setOpenSec] = useState({ revenue: true, receivables: true, expenses: true, settlement: true })
   const toggle = (k) => setOpenSec((p) => ({ ...p, [k]: !p[k] }))
 
   const data = useMemo(() => {
-    const dayOrders = orders.filter((o) => !o.cancelled && toDayStr(o.createdAt) === dayStr)
-    const grossSale = dayOrders.reduce((s, o) => s + orderTotal(o.items, 0, o.gstRate).total, 0)
-    const discount = dayOrders.reduce((s, o) => s + (o.discount?.amount || 0), 0)
-    const netSale = grossSale - discount
-
-    const paid = dayOrders.filter((o) => o.payment === 'Paid')
-    const byMethod = (m) =>
-      paid.filter((o) => o.method === m).reduce((s, o) => s + orderTotal(o.items, o.discount?.amount, o.gstRate).total, 0)
-    const cash = byMethod('Cash')
-    const card = byMethod('Card')
-    const online = byMethod('Online')
-    const netCashSales = cash + card + online
+    const report = buildClosingReport(orders, orderTotal, transactions, dayStr, inventory, recipes)
 
     const openReceivables = receivables.filter((r) => r.status === 'open')
     const totalReceivable = openReceivables.reduce((s, r) => s + r.balance, 0)
@@ -68,23 +60,38 @@ export default function DailyClosingView({ dayStr }) {
         return acc
       }, {}),
     ).sort((a, b) => b[1] - a[1])
-    const totalExpenses = expenseTxns.reduce((s, tx) => s + tx.amount, 0)
 
-    const closedShift = shiftReconciliations.find(
+    // A day can span more than one cashier shift (each opens/closes its own
+    // drawer) — aggregate every shift that closed on this day instead of
+    // .find()-ing just the first match, so expected/actual reflect the whole
+    // day rather than one arbitrary shift.
+    const dayShifts = shiftReconciliations.filter(
       (s) => s.actualCash != null && toDayStr(s.shiftEndTime || s.shiftStartTime) === dayStr,
     )
-    const expectedCash = closedShift ? closedShift.expectedCash : cash
-    const actualCash = closedShift ? closedShift.actualCash : cash
+    const expectedCash = dayShifts.length
+      ? dayShifts.reduce((s, sh) => s + sh.expectedCash, 0)
+      : report.cash
+    const actualCash = dayShifts.length
+      ? dayShifts.reduce((s, sh) => s + sh.actualCash, 0)
+      : report.cash
     const variance = actualCash - expectedCash
     const varianceStatus = Math.abs(variance) < 10 ? 'match' : variance > 0 ? 'over' : 'short'
-    const remainingToHandover = netCashSales - totalExpenses
 
     return {
-      grossSale, discount, netSale, cash, card, online, netCashSales,
-      openReceivables, totalReceivable, expenseByCat, totalExpenses,
-      expectedCash, actualCash, variance, varianceStatus, remainingToHandover,
+      grossSale: report.grossSale,
+      discount: report.discount,
+      netSale: report.netSale,
+      cash: report.cash,
+      card: report.card,
+      online: report.online,
+      // NET CASH SALES = physical cash only (gross sale less every non-cash
+      // channel), matching the client's printed sheet — see closing.js.
+      netCashSales: report.netCashSales,
+      openReceivables, totalReceivable, expenseByCat, totalExpenses: report.expenses,
+      expectedCash, actualCash, variance, varianceStatus,
+      remainingToHandover: report.remainingHandover,
     }
-  }, [orders, orderTotal, transactions, receivables, shiftReconciliations, dayStr])
+  }, [orders, orderTotal, transactions, receivables, shiftReconciliations, dayStr, inventory, recipes])
 
   const varTone =
     data.varianceStatus === 'match' ? 'text-emerald-300' : data.varianceStatus === 'over' ? 'text-amber-300' : 'text-rose-300'

@@ -126,11 +126,14 @@ function LowStockAlert({ items }) {
 // CASH DRAWER RECONCILIATION  (Admin / Manager)
 // ============================================================================
 
+// Chip colors follow the app-wide translucent badge convention (bg-*-500/12
+// text-*-300 ring-*-500/30), same formula as PaymentBadge/StatusBadge in
+// ui.jsx — this used to be a solid-fill chip, the only one in the app.
 const SHIFT_META = {
-  matched: { label: '✓ Matched', chip: 'bg-emerald-600 text-white', border: 'border-emerald-500/40 bg-emerald-500/[0.06]', diff: 'text-emerald-300' },
-  shortage: { label: 'Shortage', chip: 'bg-rose-600 text-white', border: 'border-rose-500/40 bg-rose-500/[0.06]', diff: 'text-rose-300' },
-  excess: { label: 'Excess', chip: 'bg-sky-600 text-white', border: 'border-sky-500/40 bg-sky-500/[0.06]', diff: 'text-sky-300' },
-  active: { label: '⏳ Active', chip: 'bg-gold/20 text-gold', border: 'border-ink-line bg-ink-soft/50', diff: 'text-cream-dim' },
+  matched: { label: '✓ Matched', chip: 'bg-emerald-500/12 text-emerald-300 ring-1 ring-emerald-500/30', border: 'border-emerald-500/40 bg-emerald-500/[0.06]', diff: 'text-emerald-300' },
+  shortage: { label: 'Shortage', chip: 'bg-rose-500/12 text-rose-300 ring-1 ring-rose-500/30', border: 'border-rose-500/40 bg-rose-500/[0.06]', diff: 'text-rose-300' },
+  excess: { label: 'Excess', chip: 'bg-sky-500/12 text-sky-300 ring-1 ring-sky-500/30', border: 'border-sky-500/40 bg-sky-500/[0.06]', diff: 'text-sky-300' },
+  active: { label: '⏳ Active', chip: 'bg-gold/12 text-gold ring-1 ring-gold/30', border: 'border-ink-line bg-ink-soft/50', diff: 'text-cream-dim' },
 }
 
 function CashReconciliation() {
@@ -505,7 +508,7 @@ function IngredientRequestsPanel({ role }) {
                       setEditingId(null)
                       setError('')
                     }}
-                    className="rounded-lg bg-ink-line px-3 py-1.5 text-xs font-bold text-cream-dim hover:text-cream"
+                    className="btn-ghost px-3 py-1.5 text-xs"
                   >
                     {t('common.cancel')}
                   </button>
@@ -535,13 +538,13 @@ function IngredientRequestsPanel({ role }) {
                       setRejectingId(null)
                     }}
                     disabled={!rejectReason.trim()}
-                    className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-rose-700 disabled:opacity-40"
+                    className="btn-danger px-3 py-1.5 text-xs"
                   >
                     {t('dashboard.confirmReject')}
                   </button>
                   <button
                     onClick={() => setRejectingId(null)}
-                    className="rounded-lg bg-ink-line px-3 py-1.5 text-xs font-bold text-cream-dim hover:text-cream"
+                    className="btn-ghost px-3 py-1.5 text-xs"
                   >
                     {t('common.cancel')}
                   </button>

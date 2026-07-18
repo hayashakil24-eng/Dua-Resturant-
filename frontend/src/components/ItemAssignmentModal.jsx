@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { useLang } from '../i18n/LanguageContext.jsx'
 import { money } from '../utils/format.js'
+import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import { IconClose, IconPlus, IconMinus, IconSearch } from '../components/Icons.jsx'
 
 // Assign / remove menu items for a single department (counter). Assigning an
@@ -11,6 +12,7 @@ export default function ItemAssignmentModal({ department, onClose }) {
   const { menu, departments, assignItemToDepartment, removeItemFromDepartment, getDepartmentForItem } = useApp()
   const { t, lang } = useLang()
   const [query, setQuery] = useState('')
+  useEscapeKey(onClose)
 
   const assigned = useMemo(
     () => department.items.map((id) => menu.find((m) => m.id === id)).filter(Boolean),

@@ -4,6 +4,7 @@ import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader, StatCard } from '../components/ui.jsx'
 import { money, dateShort, monthYear } from '../utils/format.js'
 import { monthAttendance, calcSalary } from '../utils/payroll.js'
+import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import {
   IconWallet,
   IconUsers,
@@ -26,6 +27,7 @@ const DAY_STYLES = {
 
 function DetailsModal({ staff, att, year, month, monthLabel, onClose }) {
   const t = useT()
+  useEscapeKey(onClose)
   const firstDow = new Date(year, month, 1).getDay()
   const cells = [
     ...Array(firstDow).fill(null),
@@ -115,6 +117,7 @@ function EditModal({ staff, att, calculated, advances, onAddAdvance, onDeleteAdv
   const t = useT()
   const [amount, setAmount] = useState('')
   const [reason, setReason] = useState('')
+  useEscapeKey(onClose)
 
   const advTotal = advances.reduce((s, a) => s + a.amount, 0)
   const final = Math.max(0, calculated - advTotal)

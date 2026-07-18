@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { money } from '../utils/format.js'
 import { tableLabel } from '../data/mockData.js'
+import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import { IconClose, IconWallet } from './Icons.jsx'
 
 // Put an unpaid order "on account" (udhaar). The bill is added to a customer's
@@ -16,6 +17,7 @@ export default function MarkAsUdhaarModal({ order, onClose, onConfirm }) {
   const [accountId, setAccountId] = useState(openAccounts[0]?.id || '')
   const [name, setName] = useState('')
   const [error, setError] = useState('')
+  useEscapeKey(onClose)
 
   const confirm = () => {
     if (mode === 'existing') {
@@ -28,7 +30,7 @@ export default function MarkAsUdhaarModal({ order, onClose, onConfirm }) {
 
   return (
     <div dir="ltr" className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-md animate-fade-up">
         <div className="card p-6">
           <div className="flex items-start justify-between">

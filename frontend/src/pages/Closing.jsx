@@ -10,15 +10,15 @@ import ClosingSlip from '../components/ClosingSlip.jsx'
 import { IconPrint, IconCheck } from '../components/Icons.jsx'
 
 export default function Closing() {
-  const { orders, orderTotal, transactions, user, dailyClosings, saveDailyClosing } = useApp()
+  const { orders, orderTotal, transactions, user, dailyClosings, saveDailyClosing, inventory, recipes } = useApp()
   const canClose = user && canModify(user.role, 'closing')
   const todayStr = useMemo(() => toDayStr(new Date()), [])
 
   // Today's figures — same numbers the daily report / receipts show, re-shaped
   // into the client's cash-handover closing sheet.
   const report = useMemo(
-    () => buildClosingReport(orders, orderTotal, transactions, todayStr),
-    [orders, orderTotal, transactions, todayStr],
+    () => buildClosingReport(orders, orderTotal, transactions, todayStr, inventory, recipes),
+    [orders, orderTotal, transactions, todayStr, inventory, recipes],
   )
   const liveMeta = { closedBy: user?.name, closedByRole: user?.role, closingTime: new Date().toISOString() }
 

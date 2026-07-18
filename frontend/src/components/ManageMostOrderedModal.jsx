@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { money } from '../utils/format.js'
+import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import { IconClose, IconSearch, IconCheck } from './Icons.jsx'
 
 // Curate the shared "Most Ordered" list. Toggling an item takes effect
@@ -8,6 +9,7 @@ import { IconClose, IconSearch, IconCheck } from './Icons.jsx'
 export default function ManageMostOrderedModal({ onClose }) {
   const { menu, mostOrderedItemIds, toggleMostOrdered } = useApp()
   const [query, setQuery] = useState('')
+  useEscapeKey(onClose)
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()

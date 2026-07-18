@@ -17,6 +17,7 @@ import {
 } from '../data/mockData.js'
 import { canModify } from '../config/permissions.js'
 import { convertUnit, calculateDeductions, calculateRestocks, ingredientCost, calculateRecipeCost, calculateOrderMaterialCost } from '../utils/inventoryFlow.js'
+import { SHIFT_START_TIMES } from '../utils/attendanceHelpers.js'
 
 const AppContext = createContext(null)
 
@@ -477,6 +478,9 @@ export function AppProvider({ children }) {
 
   // ---- Ingredient Requests (Task 4) ---------------------------------------
   const createIngredientRequest = ({ name, category }) => {
+    if (!user || !canModify(user.role, 'recipeCreate')) {
+      return { error: 'Only Kitchen staff can request new ingredients.' }
+    }
     // Check if ingredient name already exists in active requests to prevent duplicate ingredient requests
     if (ingredientRequests.some((r) => r.name.toLowerCase() === name.toLowerCase() && r.status === 'pending')) {
       return { error: 'A pending request for this ingredient already exists.' }
@@ -676,7 +680,10 @@ export function AppProvider({ children }) {
     ])
   }
 
-  const markPaid = (id, method = 'Cash', onlineAccount = null) =>
+  const markPaid = (id, method = 'Cash', onlineAccount = null) => {
+    // Reachable from Orders (orders permission) and Billing (billing
+    // permission) — accept either so both existing UI gates keep working.
+    if (!user || !(canModify(user.role, 'orders') || canModify(user.role, 'billing'))) return
     setOrders((prev) =>
       prev.map((o) => {
         if (o.id !== id) return o
@@ -696,6 +703,7 @@ export function AppProvider({ children }) {
         }
       }),
     )
+  }
 
   // Running bill: append newly-ordered items to an existing UNPAID order (same
   // id → one combined bill at checkout) instead of opening a second order for
@@ -846,6 +854,7 @@ export function AppProvider({ children }) {
   // Admin/Manager only — apply a flat discount to an order with a reason +
   // audit entry. Clamped to the bill total so it can never go negative.
   const applyDiscount = (id, { amount, reason = '', notes = '' } = {}) => {
+    if (!user || !canModify(user.role, 'discount')) return
     let recorded = null
     setOrders((prev) =>
       prev.map((o) => {
@@ -872,14 +881,31 @@ export function AppProvider({ children }) {
     }
   }
 
-  const removeDiscount = (id) =>
+  const removeDiscount = (id) => {
+    if (!user || !canModify(user.role, 'discount')) return
+    let removed = false
     setOrders((prev) =>
       prev.map((o) => {
         if (o.id !== id || !o.discount) return o
+        removed = true
         const { discount, ...rest } = o
         return rest
       }),
     )
+    if (removed) {
+      setAuditLog((prev) => [
+        {
+          id: `AUD-${Date.now()}`,
+          orderId: id,
+          action: 'DISCOUNT_REMOVED',
+          by: user.name,
+          role: user.role,
+          at: new Date().toISOString(),
+        },
+        ...prev,
+      ])
+    }
+  }
 
   // --- Cash drawer reconciliation -----------------------------------------
   // Cash & card taken in since a shift opened. Orders don't record which
@@ -1083,15 +1109,19 @@ export function AppProvider({ children }) {
   }
 
   // Kitchen Display: Pending → Ready → Served (Served drops off the board)
-  const markReady = (id) =>
+  const markReady = (id) => {
+    if (!user || !canModify(user.role, 'kds')) return
     setOrders((prev) =>
       prev.map((o) => (o.id === id ? { ...o, kitchen: 'Ready' } : o)),
     )
+  }
 
-  const clearKitchen = (id) =>
+  const clearKitchen = (id) => {
+    if (!user || !canModify(user.role, 'kds')) return
     setOrders((prev) =>
       prev.map((o) => (o.id === id ? { ...o, kitchen: 'Served' } : o)),
     )
+  }
 
   // Normal attendance is fed by the biometric machine (seed data / machine
   // sync). These records are read-only in the UI — no manual buttons.
@@ -1136,13 +1166,21 @@ export function AppProvider({ children }) {
     ])
   }
 
-  // Adjust a stock line by a delta (restock or consume); never drops below 0
-  const adjustStock = (id, delta) =>
+  // Adjust a stock line by a delta (restock or consume); never drops below 0.
+  // Reachable via two UI paths gated at different levels (direct +/-
+  // correction vs. restock), so accept either permission.
+  const adjustStock = (id, delta) => {
+    if (
+      !user ||
+      !(canModify(user.role, 'inventoryDirectEdit') || canModify(user.role, 'inventoryAdd'))
+    )
+      return
     setInventory((prev) =>
       prev.map((i) =>
         i.id === id ? { ...i, stock: Math.max(0, i.stock + delta) } : i,
       ),
     )
+  }
 
   const restock = (id, amount = 10) => adjustStock(id, Math.abs(amount))
 
@@ -1197,6 +1235,7 @@ export function AppProvider({ children }) {
 
   // Accounting ledger
   const addTransaction = ({ type, category, description, amount, date }) => {
+    if (!user || !canModify(user.role, 'accounting')) return
     const txn = {
       id: `TXN-${txnSeq}`,
       type,
@@ -1207,11 +1246,31 @@ export function AppProvider({ children }) {
     }
     setTransactions((prev) => [txn, ...prev])
     setTxnSeq((n) => n + 1)
+    setAuditLog((prev) => [
+      {
+        id: `AUD-${Date.now()}`,
+        action: 'TRANSACTION_ADDED',
+        txnId: txn.id,
+        type,
+        category,
+        amount: txn.amount,
+        by: user.name,
+        role: user.role,
+        at: new Date().toISOString(),
+      },
+      ...prev,
+    ])
     return txn
   }
 
-  const deleteTransaction = (id) =>
+  const deleteTransaction = (id) => {
+    if (!user || !canModify(user.role, 'accounting')) return
     setTransactions((prev) => prev.filter((tx) => tx.id !== id))
+    setAuditLog((prev) => [
+      { id: `AUD-${Date.now()}`, action: 'TRANSACTION_DELETED', txnId: id, by: user.name, role: user.role, at: new Date().toISOString() },
+      ...prev,
+    ])
+  }
 
   // Table management (Admin/Manager/Cashier add & edit; delete Admin-only)
   const addTable = ({ id, seats, section }) => {
@@ -1239,11 +1298,17 @@ export function AppProvider({ children }) {
           ),
     )
   }
-  const updateTable = (id, updates) =>
+  const updateTable = (id, updates) => {
+    if (!user || !canModify(user.role, 'tableAdd')) return
     setTables((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)))
+  }
   // Locked tables (Delivery/Takeaway) are fixed order types and can't be removed.
-  const deleteTable = (id) =>
+  // Delete is Admin-only (stricter than 'tableAdd', which Manager also holds),
+  // matching the UI's canDelete check.
+  const deleteTable = (id) => {
+    if (!user || user.role !== 'Admin') return
     setTables((prev) => prev.filter((t) => t.id !== id || t.locked))
+  }
 
   // Employee management (Admin/Manager). Drives Payroll, Attendance, waiters.
   const waiters = useMemo(
@@ -1251,27 +1316,73 @@ export function AppProvider({ children }) {
     [staff],
   )
   const addStaff = (emp) => {
+    if (!user || !canModify(user.role, 'employees')) return
+    const shift = emp.shift || 'Morning'
     const created = {
       role: 'Waiter',
-      shift: 'Morning',
+      shift,
+      // Attendance/Payroll compare check-in time against shiftStartTime, so a
+      // staff record without one always reads as "Absent" — derive it from
+      // the chosen shift the same way the seed data does, rather than relying
+      // on the add-employee form to set it directly.
+      shiftStartTime: SHIFT_START_TIMES[shift] || SHIFT_START_TIMES.Morning,
       baseSalary: 0,
       active: true,
       ...emp,
       id: `S-${Date.now()}`,
     }
     setStaff((prev) => [...prev, created])
+    setAuditLog((prev) => [
+      {
+        id: `AUD-${Date.now()}`,
+        action: 'STAFF_ADDED',
+        staffId: created.id,
+        name: created.name,
+        by: user.name,
+        role: user.role,
+        at: new Date().toISOString(),
+      },
+      ...prev,
+    ])
     return created
   }
-  const updateStaff = (id, updates) =>
-    setStaff((prev) => prev.map((s) => (s.id === id ? { ...s, ...updates } : s)))
-  const deleteStaff = (id) => setStaff((prev) => prev.filter((s) => s.id !== id))
-  const toggleStaff = (id) =>
+  const updateStaff = (id, updates) => {
+    if (!user || !canModify(user.role, 'employees')) return
+    setStaff((prev) =>
+      prev.map((s) => {
+        if (s.id !== id) return s
+        const patch = { ...updates }
+        // Re-derive shiftStartTime when the shift name changes without an
+        // explicit start time — keeps Attendance/Payroll correct after an edit
+        // instead of leaving a stale start time from the old shift.
+        if (patch.shift && patch.shift !== s.shift && patch.shiftStartTime === undefined) {
+          patch.shiftStartTime = SHIFT_START_TIMES[patch.shift] || s.shiftStartTime
+        }
+        return { ...s, ...patch }
+      }),
+    )
+  }
+  // Delete is Admin-only (stricter than the general 'employees' permission,
+  // which Manager also holds) — removing the record outright is one-way,
+  // unlike deactivating via toggleStaff. Matches the UI's canDelete check.
+  const deleteStaff = (id) => {
+    if (!user || user.role !== 'Admin') return
+    setStaff((prev) => prev.filter((s) => s.id !== id))
+    setAuditLog((prev) => [
+      { id: `AUD-${Date.now()}`, action: 'STAFF_DELETED', staffId: id, by: user.name, role: user.role, at: new Date().toISOString() },
+      ...prev,
+    ])
+  }
+  const toggleStaff = (id) => {
+    if (!user || !canModify(user.role, 'employees')) return
     setStaff((prev) =>
       prev.map((s) => (s.id === id ? { ...s, active: s.active === false } : s)),
     )
+  }
 
   // Salary advances — multiple dated entries per staff, deducted at payroll.
   const addAdvance = ({ staffId, amount, reason = '', date }) => {
+    if (!user || !canModify(user.role, 'payroll')) return
     const adv = {
       id: `ADV-${Date.now()}`,
       staffId,
@@ -1283,9 +1394,13 @@ export function AppProvider({ children }) {
     setAdvances((prev) => [adv, ...prev])
     return adv
   }
-  const deleteAdvance = (id) => setAdvances((prev) => prev.filter((a) => a.id !== id))
+  const deleteAdvance = (id) => {
+    if (!user || !canModify(user.role, 'payroll')) return
+    setAdvances((prev) => prev.filter((a) => a.id !== id))
+  }
   // Mark a month's pending advances as recovered (called on payroll confirm).
-  const recoverAdvances = (year, monthIndex) =>
+  const recoverAdvances = (year, monthIndex) => {
+    if (!user || !canModify(user.role, 'payroll')) return
     setAdvances((prev) =>
       prev.map((a) => {
         const d = new Date(a.date)
@@ -1296,20 +1411,31 @@ export function AppProvider({ children }) {
           : a
       }),
     )
+  }
 
   // Menu management — edits here flow straight to the POS.
   const addMenuItem = (item) => {
+    if (!user || !canModify(user.role, 'menu')) return
     const created = { active: true, ...item, id: `MI-${Date.now()}` }
     setMenu((prev) => [...prev, created])
     return created
   }
-  const updateMenuItem = (id, updates) =>
+  const updateMenuItem = (id, updates) => {
+    if (!user || !canModify(user.role, 'menu')) return
     setMenu((prev) => prev.map((m) => (m.id === id ? { ...m, ...updates } : m)))
-  const deleteMenuItem = (id) =>
+  }
+  const deleteMenuItem = (id) => {
+    if (!user || !canModify(user.role, 'menu')) return
     setMenu((prev) => prev.filter((m) => m.id !== id))
-  const toggleMenuItem = (id) =>
+  }
+  const toggleMenuItem = (id) => {
+    if (!user || !canModify(user.role, 'menu')) return
     setMenu((prev) => prev.map((m) => (m.id === id ? { ...m, active: !m.active } : m)))
-  const replaceMenu = (items) => setMenu(items)
+  }
+  const replaceMenu = (items) => {
+    if (!user || !canModify(user.role, 'menu')) return
+    setMenu(items)
+  }
 
   // --- Most Ordered (manual, shared) --------------------------------------
   // Add or remove a menu item from the shared Most Ordered list, with an audit

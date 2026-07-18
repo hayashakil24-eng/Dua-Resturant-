@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { money, time } from '../utils/format.js'
 import { useT } from '../i18n/LanguageContext.jsx'
+import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import { IconClose } from './Icons.jsx'
 
 // Manager/Admin reviews a pending cash handover from a cashier and accepts or
@@ -10,10 +11,11 @@ export default function HandoverApprovalModal({ handover, onAccept, onReject, on
   const t = useT()
   const [rejecting, setRejecting] = useState(false)
   const [reason, setReason] = useState('')
+  useEscapeKey(onClose)
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-md animate-fade-up">
         <div className="card p-6">
           <div className="flex items-start justify-between">
@@ -60,7 +62,7 @@ export default function HandoverApprovalModal({ handover, onAccept, onReject, on
                 <button
                   onClick={() => onReject(handover.id, reason.trim())}
                   disabled={!reason.trim()}
-                  className="flex-1 rounded-xl bg-rose-500/90 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-500 disabled:opacity-40"
+                  className="btn-danger flex-1 py-2.5 text-sm"
                 >
                   ✕ {t('handover.confirmReject')}
                 </button>

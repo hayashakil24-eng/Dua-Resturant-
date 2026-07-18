@@ -51,7 +51,7 @@ export default function ShiftEndModal({ shift, onClose, onComplete }) {
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 flex max-h-[90vh] w-full max-w-lg flex-col animate-fade-up">
         <div className="card flex min-h-0 flex-col p-6">
           <div className="flex items-start justify-between">

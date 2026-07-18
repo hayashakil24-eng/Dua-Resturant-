@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext.jsx'
 import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader } from '../components/ui.jsx'
 import { canModify } from '../config/permissions.js'
+import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import { IconSettings, IconReceipt, IconWallet, IconPlus, IconClose, IconCheck } from '../components/Icons.jsx'
 
 // A gold-themed on/off switch. Controlled — parent owns the value.
@@ -44,6 +45,7 @@ function AccountFormModal({ account, onSave, onClose }) {
   const [type, setType] = useState(account?.type || ACCOUNT_TYPES[0])
   const [number, setNumber] = useState(account?.number || '')
   const [error, setError] = useState('')
+  useEscapeKey(onClose)
 
   const save = () => {
     const res = onSave({ name: name.trim(), type, number: number.trim() })

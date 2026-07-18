@@ -8,6 +8,7 @@ import { safePrint } from '../utils/print.js'
 import { monthFigures } from '../utils/accounting.js'
 import { complimentaryCost, formatCostTotal } from '../utils/cost.js'
 import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from '../data/mockData.js'
+import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import {
   IconChart,
   IconTrend,
@@ -138,6 +139,7 @@ function AddTransactionModal({ onClose, onSave }) {
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  useEscapeKey(onClose)
 
   const cats = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES
   const valid = Number(amount) > 0 && description.trim()

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { money } from '../utils/format.js'
+import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import { IconClose, IconCheck } from './Icons.jsx'
 
 // Round up to the next multiple of `step` (for quick-cash suggestions).
@@ -16,6 +17,7 @@ export default function PaymentModal({ total, onClose, onConfirm, onlineAccounts
   const [method, setMethod] = useState('Cash')
   const [tendered, setTendered] = useState('')
   const [accountId, setAccountId] = useState(activeAccounts[0]?.id || '')
+  useEscapeKey(onClose)
 
   const isCash = method === 'Cash'
   const isOnline = method === 'Online'

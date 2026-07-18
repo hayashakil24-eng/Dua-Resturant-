@@ -6,6 +6,7 @@ import { PageHeader, PaymentBadge } from '../components/ui.jsx'
 import { TABLE_CATEGORIES } from '../data/mockData.js'
 import { canModify, hasAccess } from '../config/permissions.js'
 import { money, time } from '../utils/format.js'
+import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import {
   IconTable,
   IconClose,
@@ -77,6 +78,7 @@ function TableCard({ info, now, onClick }) {
 
 function OrderDetailsModal({ order, tableLabel, orderTotal, onClose, canAddItems, onAddItems }) {
   const t = useT()
+  useEscapeKey(onClose)
   const { subtotal, tax, discount, total } = orderTotal(order.items, order.discount?.amount, order.gstRate)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -154,6 +156,7 @@ function TablesManageModal({ tables, occupied, canDelete, onAdd, onUpdate, onDel
   const [number, setNumber] = useState('')
   const [capacity, setCapacity] = useState('4')
   const [section, setSection] = useState('')
+  useEscapeKey(onClose)
 
   const reset = () => {
     setEditingId(null)

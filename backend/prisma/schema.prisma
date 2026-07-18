@@ -1,0 +1,577 @@
+// Cafe Ali backend — Prisma schema.
+//
+// This is a transcription of frontend/src/data/mockData.js's existing shapes
+// and frontend/src/context/AppContext.jsx's state slices, not a redesign —
+// see backend/docs/00-overview.md ("Alignment with the existing frontend").
+// Field names intentionally match the frontend's object keys wherever
+// possible so the eventual REST payloads need minimal translation.
+//
+// Deliberately avoids Postgres-only types (native enums, arrays, JSON column
+// type) so this same schema keeps working unchanged when the datasource
+// switches to PostgreSQL for the VPS deployment in Phase 4 — SQLite has none
+// of those, so free-form values are stored as `String` with the allowed set
+// documented in a comment, and lists are stored as JSON-encoded `String`
+// fields (suffixed `Json`) rather than native arrays.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Staff & attendance
+// mirrors: mockData.js STAFF, INITIAL_ATTENDANCE
+// ---------------------------------------------------------------------------
+
+model Staff {
+  id             String   @id @default(cuid())
+  name           String
+  // Job title, e.g. "Admin" | "Manager" | "Cashier" | "Waiter" | "Chef" |
+  // "Kitchen" — distinct from the system login role in core/permissions.ts;
+  // the frontend already conflates these two concepts (see Employees.jsx),
+  // preserved as-is rather than "fixed" here.
+  role           String
+  shift          String? // "Morning" | "Evening"
+  shiftStartTime String? // "HH:MM", 24h — drives Late calculation
+  phone          String?
+  email          String?
+  baseSalary     Int      @default(0)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  advances          Advance[]
+  attendanceRecords AttendanceRecord[]
+  shifts            ShiftReconciliation[]
+  auditEntries      AuditLogEntry[]
+
+  @@index([active])
+}
+
+model AttendanceRecord {
+  id      String   @id @default(cuid())
+  staffId String
+  staff   Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  // The calendar day this record is for. The frontend today only ever models
+  // "today" (attendance resets to seed data on reload); a real backend has to
+  // track attendance across many days, so this field is new relative to the
+  // frontend's shape, not a departure from it.
+  date       DateTime
+  checkIn    DateTime?
+  checkOut   DateTime?
+  status     String // "Present" | "Late" | "Checked Out" | "Absent"
+  source     String   @default("machine") // "machine" | "manual"
+  // Populated only when source = "manual" (overrideAttendance in AppContext.jsx)
+  manualBy      String?
+  manualByRole  String?
+  manualReason  String?
+  manualNotes   String?
+  manualAt      DateTime?
+  createdAt  DateTime @default(now())
+
+  @@unique([staffId, date])
+  @@index([date])
+}
+
+model Advance {
+  id      String   @id @default(cuid())
+  staffId String
+  staff   Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  amount  Int
+  reason  String?
+  date    DateTime
+  status  String   @default("pending") // "pending" | "recovered"
+  createdAt DateTime @default(now())
+
+  @@index([staffId, status])
+}
+
+// ---------------------------------------------------------------------------
+// Menu, categories, departments
+// mirrors: mockData.js INITIAL_MENU, MENU_CATEGORIES, INITIAL_DEPARTMENTS
+// ---------------------------------------------------------------------------
+
+model MenuItem {
+  id            String   @id @default(cuid())
+  name          String
+  category      String
+  price         Int
+  image         String?
+  description   String?
+  active        Boolean  @default(true)
+  // Estimated food cost — see FOOD_COST_RATIO in mockData.js. `costEstimated`
+  // is cleared once a real cost is entered for the item.
+  cost          Int?
+  costEstimated Boolean  @default(true)
+  // Can be re-served if an order is cancelled (not booked as material loss).
+  reusable      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // One department owns at most one item — enforced here as a real FK
+  // instead of the frontend's "remove from every other department first"
+  // convention (AppContext.jsx assignItemToDepartment), which the service
+  // layer still replicates in Phase 1 for symmetry, but the schema itself
+  // now makes the invariant impossible to violate.
+  departmentId  String?
+  department    Department?         @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  variants      MenuItemVariant[]
+  recipes       Recipe[]
+  mostOrdered   MostOrderedItem?
+
+  @@index([category])
+  @@index([departmentId])
+}
+
+model MenuItemVariant {
+  id            String   @id @default(cuid())
+  menuItemId    String
+  menuItem      MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  label         String
+  price         Int
+  cost          Int?
+  costEstimated Boolean  @default(true)
+
+  @@index([menuItemId])
+}
+
+// Free-text categories with no menu items yet (AppContext.jsx customCategories
+// / addCategory). Categories that DO have items are derived from
+// MenuItem.category directly, not stored here.
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdBy String?
+  createdAt DateTime @default(now())
+}
+
+model Department {
+  id          String   @id @default(cuid())
+  name        String
+  nameUrdu    String?
+  description String?
+  manager     String?
+  managerId   String?
+  status      String   @default("active")
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items MenuItem[]
+}
+
+// Shared, manually-curated "Most Ordered" list (AppContext.jsx
+// mostOrderedItemIds / toggleMostOrdered) — global, not per-user.
+model MostOrderedItem {
+  id         String   @id @default(cuid())
+  menuItemId String   @unique
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  addedBy    String?
+  addedAt    DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Inventory & recipes
+// mirrors: mockData.js INVENTORY, INITIAL_RECIPES; utils/inventoryFlow.js
+// ---------------------------------------------------------------------------
+
+model InventoryItem {
+  id          String   @id @default(cuid())
+  name        String
+  nameUr      String?
+  category    String
+  stock       Float    @default(0)
+  unit        String
+  threshold   Float    @default(0)
+  costPerUnit Float    @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  recipeIngredients RecipeIngredient[]
+
+  @@index([category])
+}
+
+model Recipe {
+  id             String   @id @default(cuid())
+  menuItemId     String
+  menuItem       MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  menuItemName   String // snapshot, matches frontend convention
+  totalCost      Int
+  status         String   @default("pending") // "pending" | "approved" | "rejected"
+  createdBy      String?
+  createdByRole  String?
+  createdAt      DateTime @default(now())
+  approvedBy     String?
+  approvedAt     DateTime?
+  rejectedBy     String?
+  rejectedAt     DateTime?
+  rejectReason   String?
+
+  ingredients RecipeIngredient[]
+
+  @@index([menuItemId, status])
+}
+
+model RecipeIngredient {
+  id              String        @id @default(cuid())
+  recipeId        String
+  recipe          Recipe        @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  inventoryItemId String
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+  itemName        String // snapshot
+  quantity        Float
+  unit            String
+  // ₨ snapshots at recipe creation, so later price swings don't rewrite old
+  // recipes (see utils/inventoryFlow.js / AppContext.jsx createRecipe).
+  costPerUnit     Int
+  lineCost        Int
+
+  @@index([recipeId])
+}
+
+// Kitchen-authored requests for a new ingredient not yet in InventoryItem
+// (AppContext.jsx createIngredientRequest / approveIngredientRequest).
+model IngredientRequest {
+  id              String    @id @default(cuid())
+  name            String
+  category        String    @default("Other")
+  status          String    @default("pending") // "pending" | "approved" | "rejected"
+  requestedBy     String?
+  requestedAt     DateTime  @default(now())
+  approvedBy      String?
+  approvedAt      DateTime?
+  baseUnit        String?
+  initialStock    Float?
+  threshold       Float?
+  rejectedBy      String?
+  rejectedAt      DateTime?
+  rejectReason    String?
+  // Set once approved and a real InventoryItem is created for this request.
+  inventoryItemId String?
+
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// Tables
+// mirrors: mockData.js generateTables()/TABLES, SPECIAL_TABLE_IDS
+// ---------------------------------------------------------------------------
+
+model Table {
+  // Meaningful business identifier (1..300 physical, 301/302 special), not an
+  // opaque surrogate key — matches the frontend, where order/billing logic
+  // keys directly on this numeric id.
+  id        Int      @id
+  number    String // human label: "A1".."HUT20", "Delivery", "Takeaway"
+  category  String // "A".."G" | "HUT" | "Special"
+  section   String
+  seats     Int      @default(0)
+  orderType String? // "delivery" | "takeaway" — special table types only
+  locked    Boolean  @default(false) // Delivery/Takeaway: fixed, can't be deleted
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// ID sequences — see core/ids.ts and the orderNumber/txnNumber comment below.
+// One row per counter ("order", "transaction"); `value` is incremented
+// atomically inside the same transaction as the record it's numbering.
+// ---------------------------------------------------------------------------
+
+model Sequence {
+  name  String @id
+  value Int    @default(0)
+}
+
+// ---------------------------------------------------------------------------
+// Orders
+// mirrors: AppContext.jsx addOrder/markPaid/cancelOrder/applyDiscount/
+// markOrderUdhaar/markOrderComplimentary and their exact field shapes
+// ---------------------------------------------------------------------------
+
+model Order {
+  id          String @id @default(cuid())
+  // Human-friendly sequential number for display/printing ("ORD-{orderNumber}"),
+  // unique per local server. NOT the primary key — `id` (cuid) is what stays
+  // globally unique once this syncs to a shared VPS in Phase 4, so two
+  // locations minting orderNumber independently can never collide on the key
+  // that matters for sync/foreign keys. See docs/01-phase-0-foundation.md.
+  //
+  // Not DB-autoincrement (SQLite only allows that on the primary key itself,
+  // and this schema has to work unchanged on Postgres too) — populated by the
+  // service layer via core/ids.ts's nextSequence(), which increments the
+  // Sequence table atomically inside the same transaction as the insert.
+  orderNumber Int    @unique
+
+  table  Int
+  waiter String?
+
+  payment String @default("Unpaid") // "Unpaid" | "Paid" | "Udhaar" | "Complimentary"
+  method  String @default("—") // "—" | "Cash" | "Card" | "Online" | "Udhaar" | "Free"
+
+  // Online payment snapshot (AppContext.jsx: onlineAccountId/Name/Type) — kept
+  // even if the source OnlineAccount is later renamed/deactivated.
+  onlineAccountId   String?
+  onlineAccountName String?
+  onlineAccountType String?
+
+  // GST rate locked at creation time (0 = GST was off, or 0%) — editing the
+  // global rate later never rewrites this order's bill.
+  gstRate Float @default(0)
+
+  kitchen String @default("Pending") // "Pending" | "Ready" | "Served"
+
+  shiftId String?
+  shift   ShiftReconciliation? @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+
+  // Orders are never hard-deleted — only transitioned between states. See
+  // ../../CLAUDE.md "Orders never get hard-deleted".
+  cancelled          Boolean   @default(false)
+  cancellationReason String?
+  cancellationNotes  String?
+  cancellationBy     String?
+  cancellationRole   String?
+  cancellationAt     DateTime?
+  materialLoss       Int? // ₨ write-off for wasted (non-reusable) cancelled items
+
+  discountAmount Int?
+  discountReason String?
+  discountNotes  String?
+  discountBy     String?
+  discountRole   String?
+  discountAt     DateTime?
+
+  udhaarCustomerName String?
+  udhaarAccountId    String?
+  udhaarAt           DateTime?
+  udhaarBy           String?
+
+  complimentaryReason         String?
+  complimentaryOrderedBy      String?
+  complimentaryOrderedByRole  String?
+  complimentaryApprovedBy     String?
+  complimentaryAt             DateTime?
+  complimentaryBy             String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items OrderItem[]
+
+  @@index([payment, cancelled])
+  @@index([shiftId])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  // Normalized out of the frontend's "menuId::variantLabel" cart-key string
+  // (see utils/cost.js resolveMenuItem) into two real columns — a safe
+  // adaptation per docs/01-phase-0-foundation.md ("adjusted only where [the
+  // ported logic] assumed in-memory arrays instead of a database").
+  menuItemId   String
+  variantLabel String?
+
+  name          String // snapshot
+  price         Int    // snapshot
+  qty           Int
+  addedAt       DateTime? // set when appended to an already-placed order
+  cost          Int? // snapshot
+  costEstimated Boolean?
+
+  @@index([orderId])
+  @@index([menuItemId])
+}
+
+// ---------------------------------------------------------------------------
+// Cash drawer / shift reconciliation
+// mirrors: AppContext.jsx startShift/endShift/initiateHandover/acceptHandover
+// ---------------------------------------------------------------------------
+
+model ShiftReconciliation {
+  id            String    @id @default(cuid())
+  cashierName   String
+  role          String
+  shiftStartTime DateTime
+  shiftEndTime   DateTime?
+  openingCash    Int
+  totalCashSales Int      @default(0)
+  totalCardSales Int      @default(0)
+  expectedCash   Int
+  actualCash     Int?
+  difference     Int      @default(0)
+  status         String   @default("active") // "active" | "paused" | "matched" | "shortage" | "excess"
+  pausedAt       DateTime?
+  resumedAt      DateTime?
+  resumeCount    Int       @default(0)
+  handedTo       String?
+  handedToName   String?
+  handoverReason String?
+
+  staffId String?
+  staff   Staff?  @relation(fields: [staffId], references: [id], onDelete: SetNull)
+
+  orders    Order[]
+  handovers PendingHandover[]
+
+  @@index([status])
+}
+
+// Mid-shift partial cash handover, cashier → Manager/Admin. Status lifecycle
+// (pending → accepted/rejected) IS the record — no separate "accepted
+// handovers" list, unlike the frontend's activeShift.partialHandovers, which
+// duplicates the accepted ones onto the shift for convenience; here the total
+// handed over is computed by querying accepted rows for the shift instead.
+model PendingHandover {
+  id           String   @id @default(cuid())
+  shiftId      String
+  shift        ShiftReconciliation @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  fromName     String
+  toName       String
+  toRole       String
+  amount       Int
+  reason       String?
+  status       String   @default("pending") // "pending" | "accepted" | "rejected"
+  initiatedAt  DateTime @default(now())
+  resolvedAt   DateTime?
+  resolvedBy   String?
+  rejectReason String?
+
+  @@index([shiftId, status])
+}
+
+// ---------------------------------------------------------------------------
+// Accounting
+// mirrors: mockData.js INITIAL_TRANSACTIONS/INCOME_CATEGORIES/EXPENSE_CATEGORIES
+// ---------------------------------------------------------------------------
+
+model Transaction {
+  id          String   @id @default(cuid())
+  txnNumber   Int      @unique // "TXN-{txnNumber}" display — see Order.orderNumber note on how this is populated
+  type        String // "income" | "expense"
+  category    String
+  description String?
+  amount      Int
+  date        DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([type, date])
+}
+
+// ---------------------------------------------------------------------------
+// Receivables (credit accounts)
+// mirrors: mockData.js INITIAL_RECEIVABLES; AppContext.jsx addReceivable/
+// recordReceivablePayment/markOrderUdhaar
+// ---------------------------------------------------------------------------
+
+model Receivable {
+  id        String   @id @default(cuid())
+  name      String
+  type      String   @default("customer") // "customer" | "hotel" | "business"
+  balance   Int      @default(0)
+  status    String   @default("open") // "open" | "settled"
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ledger ReceivableLedgerEntry[]
+
+  @@index([status])
+}
+
+// Unifies the frontend's two separate arrays (receivable.payments — settlements,
+// receivable.charges — udhaar charges accrued from an order) into one dated
+// ledger with a `type` discriminator, since both are just "a dated entry on
+// this account."
+model ReceivableLedgerEntry {
+  id           String     @id @default(cuid())
+  receivableId String
+  receivable   Receivable @relation(fields: [receivableId], references: [id], onDelete: Cascade)
+  type         String // "payment" | "charge"
+  amount       Int
+  method       String? // payments only: "Cash" | "Card" | etc.
+  notes        String?
+  orderId      String? // charges only: the order this udhaar charge came from
+  by           String?
+  at           DateTime   @default(now())
+
+  @@index([receivableId, type])
+}
+
+// ---------------------------------------------------------------------------
+// Settings
+// mirrors: AppContext.jsx gstEnabled/gstRate/onlineAccounts
+// ---------------------------------------------------------------------------
+
+// Singleton row (id always "singleton") — small, well-known set of settings.
+// If this grows into many unrelated settings later, revisit as a key/value
+// table instead of adding more columns here.
+model AppSettings {
+  id         String @id @default("singleton")
+  gstEnabled Boolean @default(false)
+  gstRate    Float   @default(0.05) // fraction, e.g. 0.05 = 5% — see mockData.js TAX_RATE
+  updatedAt  DateTime @updatedAt
+}
+
+model OnlineAccount {
+  id     String  @id @default(cuid())
+  name   String  @unique
+  type   String // "JazzCash" | "Easypaisa" | "Bank Account" | ...
+  number String?
+  active Boolean @default(true)
+}
+
+// ---------------------------------------------------------------------------
+// Daily closing reports
+// mirrors: AppContext.jsx saveDailyClosing; utils/closing.js buildClosingReport
+// ---------------------------------------------------------------------------
+
+model DailyClosing {
+  id             String   @id @default(cuid())
+  date           String // "YYYY-MM-DD", matches utils/closing.js toDayStr
+  closedBy       String
+  closedByRole   String
+  closingTime    DateTime @default(now())
+  totalSales     Int
+  // The full buildClosingReport() output (grossSale, discount, netSale,
+  // accounts[], cash, card, online, onlineByAccount[], udhaar, netCashSales,
+  // expenses, remainingHandover, gstCollected, materialLoss, inventoryUsed[])
+  // — a frozen historical snapshot, appropriate for JSON storage rather than
+  // one column per field.
+  reportJson     String
+
+  @@index([date])
+}
+
+// ---------------------------------------------------------------------------
+// Audit trail
+// mirrors: AppContext.jsx auditLog — see ../../CLAUDE.md "Audit trail convention"
+// ---------------------------------------------------------------------------
+
+model AuditLogEntry {
+  id     String   @id @default(cuid())
+  action String // e.g. "CANCELLED", "DISCOUNT", "RECIPE_APPROVED", "SHIFT_RECONCILIATION", ...
+  by     String
+  role   String?
+  at     DateTime @default(now())
+
+  staffId String?
+  staff   Staff?  @relation(fields: [staffId], references: [id], onDelete: SetNull)
+
+  // Action-specific extra fields (orderId, amount, reason, recipeId, ...) —
+  // deliberately heterogeneous across ~30 action types in the frontend today,
+  // so stored as a JSON-encoded blob rather than ~30 mostly-null columns.
+  detailsJson String @default("{}")
+
+  @@index([action])
+  @@index([at])
+}
