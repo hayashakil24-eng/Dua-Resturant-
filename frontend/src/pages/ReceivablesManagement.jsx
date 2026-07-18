@@ -16,8 +16,8 @@ function AddAccountModal({ onClose, onSave }) {
   const [error, setError] = useState('')
   useEscapeKey(onClose)
 
-  const submit = () => {
-    const res = onSave({ name: name.trim(), amount: Number(amount) || 0, type })
+  const submit = async () => {
+    const res = await onSave({ name: name.trim(), amount: Number(amount) || 0, type })
     if (res?.error) return setError(res.error)
     onClose()
   }

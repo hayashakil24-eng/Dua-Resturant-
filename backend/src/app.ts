@@ -26,6 +26,7 @@ import { accountingRoutes } from './routes/accounting.routes.js'
 import { settingsRoutes } from './routes/settings.routes.js'
 import { closingRoutes } from './routes/closing.routes.js'
 import { attendanceRoutes } from './routes/attendance.routes.js'
+import { auditRoutes } from './routes/audit.routes.js'
 
 export function buildApp(): FastifyInstance {
   const app = Fastify({
@@ -35,7 +36,10 @@ export function buildApp(): FastifyInstance {
   // The Electron renderer (dev: http://localhost:5173) and any LAN device talk
   // to this over HTTP with a Bearer token — no cookies, so a permissive CORS
   // origin is fine; auth is enforced by the JWT, not the origin.
-  app.register(cors, { origin: true })
+  // Explicit method list — the renderer uses PATCH/PUT/DELETE (edit table,
+  // update menu, remove discount, …); the default preflight advertised only
+  // GET/HEAD/POST, which the browser would use to block the others.
+  app.register(cors, { origin: true, methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'] })
   app.register(sensible)
   app.register(jwt, { secret: env.jwtSecret })
 
@@ -68,6 +72,7 @@ export function buildApp(): FastifyInstance {
   app.register(settingsRoutes)
   app.register(closingRoutes)
   app.register(attendanceRoutes)
+  app.register(auditRoutes)
 
   return app
 }

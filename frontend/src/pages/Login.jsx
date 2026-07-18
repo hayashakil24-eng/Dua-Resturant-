@@ -2,25 +2,26 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Logo from '../components/Logo.jsx'
 import { useApp } from '../context/AppContext.jsx'
-import { ROLES } from '../data/mockData.js'
-import { IconDashboard, IconCash, IconUsers, IconKitchen } from '../components/Icons.jsx'
-
-const ROLE_META = {
-  Admin: { icon: IconDashboard, desc: 'Full access · all modules & reports' },
-  Manager: { icon: IconUsers, desc: 'Operations · orders, staff & attendance' },
-  Cashier: { icon: IconCash, desc: 'POS · billing & receipts' },
-  Kitchen: { icon: IconKitchen, desc: 'Recipes · create & submit for approval' },
-}
 
 export default function Login() {
   const { login } = useApp()
   const navigate = useNavigate()
-  const [role, setRole] = useState('Admin')
-  const [name, setName] = useState('')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault()
-    login({ role, name: name.trim() })
+    if (submitting) return
+    setError('')
+    setSubmitting(true)
+    const res = await login({ username: username.trim(), password })
+    setSubmitting(false)
+    if (res?.error) {
+      setError(res.error)
+      return
+    }
     navigate('/', { replace: true })
   }
 
@@ -71,66 +72,39 @@ export default function Login() {
 
           <form onSubmit={submit} className="mt-8 space-y-6">
             <div>
-              <label className="mb-2 block text-xs uppercase tracking-widest text-cream-dim">
-                Select your role
-              </label>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {ROLES.map((r) => {
-                  const Meta = ROLE_META[r]
-                  const active = role === r
-                  return (
-                    <button
-                      type="button"
-                      key={r}
-                      onClick={() => setRole(r)}
-                      className={`flex flex-col items-start gap-2 rounded-2xl border p-4 text-left transition ${
-                        active
-                          ? 'border-gold/60 bg-gold/10 shadow-gold'
-                          : 'border-ink-line bg-ink-soft hover:border-gold/30'
-                      }`}
-                    >
-                      <span
-                        className={`grid h-9 w-9 place-items-center rounded-lg ${
-                          active ? 'bg-gold-grad text-ink' : 'bg-white/5 text-cream-dim'
-                        }`}
-                      >
-                        <Meta.icon size={18} />
-                      </span>
-                      <span className={`text-sm font-semibold ${active ? 'text-gold' : 'text-cream'}`}>
-                        {r}
-                      </span>
-                      <span className="text-[11px] leading-snug text-cream-dim">{Meta.desc}</span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-xs uppercase tracking-widest text-cream-dim">
-                Display name <span className="text-cream-dim">(optional)</span>
-              </label>
+              <label className="mb-2 block text-xs uppercase tracking-widest text-cream-dim">Username</label>
               <input
                 className="input"
-                placeholder={`e.g. ${role} User`}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. admin"
+                autoFocus
+                autoComplete="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
               />
             </div>
 
             <div>
-              <label className="mb-2 block text-xs uppercase tracking-widest text-cream-dim">
-                Password
-              </label>
-              <input className="input" type="password" placeholder="••••••••" defaultValue="demo" />
-              <p className="mt-2 text-[11px] text-cream-dim">
-                Demo build — any password works.
-              </p>
+              <label className="mb-2 block text-xs uppercase tracking-widest text-cream-dim">Password</label>
+              <input
+                className="input"
+                type="password"
+                placeholder="••••••••"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
             </div>
 
-            <button type="submit" className="btn-gold w-full py-3 text-base">
-              Sign in as {role}
+            {error && (
+              <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</p>
+            )}
+
+            <button type="submit" disabled={submitting} className="btn-gold w-full py-3 text-base disabled:opacity-60">
+              {submitting ? 'Signing in…' : 'Sign in'}
             </button>
+            <p className="text-center text-[11px] text-cream-dim">
+              Demo logins: admin · manager · cashier · kitchen (password 1234)
+            </p>
           </form>
         </div>
       </div>

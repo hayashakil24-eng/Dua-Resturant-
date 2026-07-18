@@ -1,6 +1,6 @@
 # Phase 1 — Single-Device Backend
 
-**Status: 🚧 in progress.** The entire backend is built — every `AppContext.jsx` mutator now has a permission-gated, audited REST route, all tested against the running server (`npm test` → 56 green, 85 endpoints). The **only** remaining Phase 1 work is the frontend swap (`AppContext.jsx` `localStorage` → `fetch()`). See "Progress" at the bottom.
+**Status: ✅ built, pending manual QA.** The backend is complete (every `AppContext.jsx` mutator has a permission-gated, audited REST route; `npm test` → 56 green, 86 endpoints) **and the frontend is wired to it** — `AppContext.jsx` now hydrates from the backend and every mutator hits a route; `Login.jsx` does real username/password auth. What's left is hands-on QA in the running Electron app (and the one deferred call: whether the still-local `attendance` slice becomes backend-fed). See "Progress" at the bottom.
 
 Replaces `localStorage` with the real local server. One device, no multi-device sync yet (that's Phase 2) — the milestone here is "durable, server-enforced data" not "multiple screens see the same thing live."
 
@@ -60,5 +60,8 @@ This is the phase where `AppContext.jsx` itself changes:
 - Config domains — `services/{menu,tables,staff,departments,accounting,settings,closing,attendance}.service.ts` + routes: menu/categories/mostOrdered, tables, staff+advances, departments (FK-based routing), accounting transactions (server-side txnNumber), settings (GST + online accounts), server-built daily closing, attendance override.
 - Tests: `test/domains.api.test.ts` (9 tests) covers each domain's happy path, a permission denial, and the settings→order GST-lock. Total `npm test` → **56 green**.
 
+- Frontend swap (task #6): `frontend/src/api/client.js` (fetch wrapper + JWT storage); `AppContext.jsx` rewritten to hydrate every slice from the backend on mount and `await` a REST call + refetch in each mutator (pure/derived helpers kept local; `attendance` stays a local mock); `Login.jsx` now real username/password. Added a read-only `GET /api/audit` (Orders page consumes the audit trail). Orders/transactions normalized on fetch to keep human ids (`ORD-…`/`TXN-…`) in the UI while mutators use the server cuid. Ten page call-sites that read a mutator result synchronously were made `async`/`await`; all other pages/components untouched. Verified: `frontend` prod build green, all 20 boot endpoints return 200 for Admin (403-tolerant for restricted roles), CORS allows GET/POST/PUT/PATCH/DELETE.
+
 **Remaining:**
-- Frontend swap: rewrite `AppContext.jsx` (`localStorage` → `fetch()`) + real login in `Login.jsx`. Pages/components untouched. This is the last Phase 1 step (task #6).
+- Hands-on QA in the Electron app (place/pay/cancel an order, shift open/close, recipe approve, etc.) — the one thing not coverable by the automated suite.
+- Decide whether the still-local `attendance` slice should become backend-fed (needs a machine-attendance source; payroll still uses the deterministic generator).

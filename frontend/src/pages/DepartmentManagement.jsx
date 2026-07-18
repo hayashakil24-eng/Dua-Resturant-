@@ -29,8 +29,8 @@ export default function DepartmentManagement() {
     )
   }
 
-  const submit = () => {
-    const res = addDepartment(form)
+  const submit = async () => {
+    const res = await addDepartment(form)
     if (res?.error) {
       setError(res.error)
       return

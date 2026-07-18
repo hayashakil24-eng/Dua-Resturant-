@@ -452,8 +452,8 @@ export default function Orders() {
       {udhaarTarget && (
         <MarkAsUdhaarModal
           order={udhaarTarget}
-          onConfirm={(data) => {
-            const res = markOrderUdhaar(udhaarTarget.id, data)
+          onConfirm={async (data) => {
+            const res = await markOrderUdhaar(udhaarTarget.id, data)
             if (res?.error) return
             setUdhaarTarget(null)
           }}
@@ -465,8 +465,8 @@ export default function Orders() {
       {compTarget && (
         <MarkAsComplimentaryModal
           order={compTarget}
-          onConfirm={(data) => {
-            const res = markOrderComplimentary(compTarget.id, data)
+          onConfirm={async (data) => {
+            const res = await markOrderComplimentary(compTarget.id, data)
             if (res?.error) return
             setCompTarget(null)
           }}

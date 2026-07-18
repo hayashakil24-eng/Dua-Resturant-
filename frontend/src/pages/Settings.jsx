@@ -47,8 +47,8 @@ function AccountFormModal({ account, onSave, onClose }) {
   const [error, setError] = useState('')
   useEscapeKey(onClose)
 
-  const save = () => {
-    const res = onSave({ name: name.trim(), type, number: number.trim() })
+  const save = async () => {
+    const res = await onSave({ name: name.trim(), type, number: number.trim() })
     if (res?.error) return setError(res.error)
     onClose()
   }
@@ -144,8 +144,8 @@ export default function Settings() {
   const [rateInput, setRateInput] = useState(String(ratePct))
   const [rateError, setRateError] = useState('')
   const [rateSaved, setRateSaved] = useState(false)
-  const saveRate = () => {
-    const res = setGstRate(rateInput)
+  const saveRate = async () => {
+    const res = await setGstRate(rateInput)
     if (res?.error) {
       setRateSaved(false)
       return setRateError(res.error)

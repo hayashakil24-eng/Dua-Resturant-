@@ -34,8 +34,8 @@ export default function Closing() {
   const printRecord = (rec) =>
     armAndPrint(rec, { closedBy: rec.closedBy, closedByRole: rec.closedByRole, closingTime: rec.closingTime })
 
-  const onSave = () => {
-    const res = saveDailyClosing(report)
+  const onSave = async () => {
+    const res = await saveDailyClosing(report)
     if (res?.error) {
       setSaved(false)
       return setError(res.error)

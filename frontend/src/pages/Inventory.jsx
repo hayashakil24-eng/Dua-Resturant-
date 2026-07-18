@@ -51,8 +51,8 @@ function AddItemModal({ categories, onClose, onSave }) {
 
   const valid = name.trim().length > 0
 
-  const submit = () => {
-    const res = onSave({
+  const submit = async () => {
+    const res = await onSave({
       name: name.trim(),
       nameUr: nameUr.trim(),
       category,

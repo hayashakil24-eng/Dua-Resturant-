@@ -393,8 +393,8 @@ export default function POS() {
     setWaiter('')
   }
 
-  const placeOrder = ({ payment, method, onlineAccount = null }) => {
-    const order = addOrder({
+  const placeOrder = async ({ payment, method, onlineAccount = null }) => {
+    const order = await addOrder({
       table: Number(table),
       waiter,
       items: items.map(({ key, name, price, qty, cost, costEstimated }) => ({
@@ -409,6 +409,7 @@ export default function POS() {
       method,
       onlineAccount,
     })
+    if (order?.error) return order
     resetForm()
     return order
   }
@@ -431,19 +432,21 @@ export default function POS() {
 
   // Confirmed in the payment modal → mark paid, then auto-open receipt to print.
   // `account` is the online destination when method === 'Online' (else null).
-  const confirmPayment = (method, _amount, account = null) => {
-    const order = placeOrder({ payment: 'Paid', method, onlineAccount: account })
+  const confirmPayment = async (method, _amount, account = null) => {
+    const order = await placeOrder({ payment: 'Paid', method, onlineAccount: account })
     setShowPayment(false)
+    if (order?.error) return setError(order.error)
     printKitchenSlips(order)
     setActiveReceipt(order)
   }
 
   // "Place as Unpaid" — send to kitchen now, collect payment later at billing.
-  const placeUnpaid = () => {
+  const placeUnpaid = async () => {
     const err = validate()
     if (err) return setError(err)
     setError('')
-    const order = placeOrder({ payment: 'Unpaid', method: '—' })
+    const order = await placeOrder({ payment: 'Unpaid', method: '—' })
+    if (order?.error) return setError(order.error)
     printKitchenSlips(order)
     setToast(order)
     setTimeout(() => setToast(null), 4000)
@@ -473,7 +476,7 @@ export default function POS() {
 
   // Running bill: append the cart's new items to the existing order, then return
   // to the floor. The combined bill is settled later at billing/checkout.
-  const addToOrder = () => {
+  const addToOrder = async () => {
     if (items.length === 0) return setError('Add at least one new item to append.')
     setError('')
     const newItems = items.map(({ key, name, price, qty, cost, costEstimated }) => ({
@@ -484,7 +487,8 @@ export default function POS() {
       cost,
       costEstimated,
     }))
-    appendOrderItems(continuingOrder.id, newItems)
+    const res = await appendOrderItems(continuingOrder.id, newItems)
+    if (res?.error) return setError(res.error)
     // Fire kitchen slips for the appended items only (a fresh KOT per counter).
     // Delay the navigate so the slips render + print before POS unmounts.
     printKitchenSlips({

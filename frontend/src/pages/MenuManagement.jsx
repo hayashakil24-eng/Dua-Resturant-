@@ -348,27 +348,27 @@ export default function MenuManagement() {
     return counts
   }, [menu])
 
-  const submitCategory = () => {
+  const submitCategory = async () => {
     setCategoryError('')
-    const result = addCategory(newCategory)
+    const result = await addCategory(newCategory)
     if (result?.error) return setCategoryError(result.error)
     flash(`Category “${newCategory.trim()}” added.`)
     setNewCategory('')
   }
 
   // Non-empty → block immediately with the counted error. Empty → confirm first.
-  const requestDeleteCategory = (cat) => {
+  const requestDeleteCategory = async (cat) => {
     setCategoryError('')
     if ((categoryCounts[cat.toLowerCase()] || 0) > 0) {
-      const result = deleteCategory(cat)
+      const result = await deleteCategory(cat)
       if (result?.error) setCategoryError(result.error)
       return
     }
     setConfirmingDelete(cat)
   }
 
-  const confirmDeleteCategory = () => {
-    const result = deleteCategory(confirmingDelete)
+  const confirmDeleteCategory = async () => {
+    const result = await deleteCategory(confirmingDelete)
     if (result?.error) setCategoryError(result.error)
     else flash(`Category “${confirmingDelete}” deleted.`)
     setConfirmingDelete(null)

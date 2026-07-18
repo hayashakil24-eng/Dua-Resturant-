@@ -50,8 +50,28 @@ export async function buildReport(dateStr?: string) {
   return buildClosingReport(closingOrders, closingTxns, day, inv, rec)
 }
 
+// Return each saved closing with its frozen report merged back in (the frontend
+// renders a saved record as if it *were* the report — grossSale/netSale/accounts
+// etc. — plus the closedBy/closingTime metadata columns).
 export async function listClosings() {
-  return prisma.dailyClosing.findMany({ orderBy: { closingTime: 'desc' } })
+  const rows = await prisma.dailyClosing.findMany({ orderBy: { closingTime: 'desc' } })
+  return rows.map((r) => {
+    let report: Record<string, unknown> = {}
+    try {
+      report = JSON.parse(r.reportJson)
+    } catch {
+      /* leave empty */
+    }
+    return {
+      ...report,
+      id: r.id,
+      date: r.date,
+      closedBy: r.closedBy,
+      closedByRole: r.closedByRole,
+      closingTime: r.closingTime.toISOString(),
+      totalSales: r.totalSales,
+    }
+  })
 }
 
 export async function saveDailyClosing(ctx: Ctx, dateStr?: string) {

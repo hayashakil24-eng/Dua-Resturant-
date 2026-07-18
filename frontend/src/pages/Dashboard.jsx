@@ -487,9 +487,9 @@ function IngredientRequestsPanel({ role }) {
 
                 <div className="mt-4 flex gap-2 justify-end">
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       if (!baseUnit) return setError(t('dashboard.baseUnitRequired'))
-                      const res = approveIngredientRequest(req.id, {
+                      const res = await approveIngredientRequest(req.id, {
                         baseUnit,
                         initialStock: Number(initialStock) || 0,
                         threshold: Number(threshold) || 10,
