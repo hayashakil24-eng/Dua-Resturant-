@@ -10,10 +10,15 @@
 //
 // Idempotent: wipes and reseeds every run (dev convenience), not additive.
 
+import { pathToFileURL } from 'node:url'
 import { prisma } from '../src/db/client.js'
 import { nextSequence } from '../src/core/ids.js'
+import { hashPassword } from '../src/auth/password.js'
 
-async function main() {
+// Exported so tests can reset the DB to a known state in-process (see
+// test/orders.api.test.ts) using the same shared prisma client — the direct-run
+// block at the bottom is the only place that disconnects.
+export async function seed() {
   console.log('Wiping existing data...')
   // Delete in FK-dependency order (children before parents).
   await prisma.auditLogEntry.deleteMany()
@@ -60,8 +65,27 @@ async function main() {
     { id: 'S08', name: 'Kamran Shah', role: 'Cashier', shift: 'Evening', shiftStartTime: '16:00', phone: '0307-8899001', baseSalary: 36000 },
     { id: 'K01', name: 'Ahmed Chef', role: 'Kitchen', shift: 'Morning', shiftStartTime: '09:00', phone: '0308-9900112', baseSalary: 45000 },
   ]
+  // Demo login credentials for the four permission (system) roles — Phase 1
+  // replaces the frontend's "pick a role, any password" Login.jsx with real
+  // auth. Only staff who actually sign in get a username/passwordHash +
+  // systemRole; waiters/chefs (no system access) leave them null. Passwords are
+  // the dev default "1234" (change before any real deployment — Phase 3).
+  const credentials: Record<string, { username: string; systemRole: string }> = {
+    S00: { username: 'admin', systemRole: 'Admin' },
+    S01: { username: 'manager', systemRole: 'Manager' },
+    S02: { username: 'cashier', systemRole: 'Cashier' },
+    K01: { username: 'kitchen', systemRole: 'Kitchen' },
+  }
+  const demoHash = await hashPassword('1234')
   for (const s of staffSeed) {
-    await prisma.staff.create({ data: { ...s, active: true } })
+    const cred = credentials[s.id]
+    await prisma.staff.create({
+      data: {
+        ...s,
+        active: true,
+        ...(cred ? { username: cred.username, systemRole: cred.systemRole, passwordHash: demoHash } : {}),
+      },
+    })
   }
 
   console.log('Seeding Tables (A-G x40, HUT x20, Delivery/Takeaway)...')
@@ -332,11 +356,15 @@ async function main() {
   console.log('Seed complete.')
 }
 
-main()
-  .catch((e) => {
-    console.error(e)
-    process.exitCode = 1
-  })
-  .finally(async () => {
-    await prisma.$disconnect()
-  })
+// Only run + disconnect when invoked directly (`tsx prisma/seed.ts`), not when
+// imported by a test that manages the prisma client's lifecycle itself.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  seed()
+    .catch((e) => {
+      console.error(e)
+      process.exitCode = 1
+    })
+    .finally(async () => {
+      await prisma.$disconnect()
+    })
+}

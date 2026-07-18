@@ -3,8 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Cafe Ali backend — see docs/00-overview.md. Phase 0: schema + ported business logic only, no HTTP server yet.",
+  "description": "Cafe Ali backend — see docs/00-overview.md. Phase 1 in progress: Fastify HTTP server + JWT auth + orders domain (localStorage parity being ported route-by-route).",
   "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
     "build": "tsc -p tsconfig.json",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -16,6 +18,9 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@fastify/cors": "^11.3.0",
+    "@fastify/jwt": "^10.2.0",
+    "@fastify/sensible": "^6.0.4",
     "@prisma/client": "^6.3.1",
     "fastify": "^5.2.1"
   },

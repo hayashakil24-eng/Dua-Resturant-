@@ -1,0 +1,75 @@
+// Daily closing — port of AppContext.jsx's saveDailyClosing, but the report is
+// built server-side (authoritative) via core/closing.ts buildClosingReport
+// rather than trusting a client-computed figure. The frontend computed the
+// report in the Reports page and passed it in; here we recompute from the
+// day's orders + transactions so a saved closing can't be tampered with.
+
+import { prisma } from '../db/client.js'
+import { buildClosingReport, toDayStr, type ClosingOrder, type ClosingTransaction } from '../core/closing.js'
+import type { InventoryItemLike, RecipeLike } from '../core/inventoryFlow.js'
+import { writeAudit } from '../lib/audit.js'
+import type { Actor } from '../lib/actor.js'
+
+interface Ctx {
+  actor: Actor
+}
+
+async function gather() {
+  const [orders, transactions, inventory, recipes] = await Promise.all([
+    prisma.order.findMany({ include: { items: true } }),
+    prisma.transaction.findMany(),
+    prisma.inventoryItem.findMany(),
+    prisma.recipe.findMany({ where: { status: 'approved' }, include: { ingredients: true } }),
+  ])
+
+  const closingOrders: ClosingOrder[] = orders.map((o) => ({
+    createdAt: o.createdAt,
+    cancelled: o.cancelled,
+    payment: o.payment,
+    method: o.method,
+    items: o.items.map((it) => ({ price: it.price, qty: it.qty, menuItemId: it.menuItemId, name: it.name })),
+    discountAmount: o.discountAmount ?? 0,
+    gstRate: o.gstRate,
+    onlineAccountName: o.onlineAccountName,
+    materialLoss: o.materialLoss ?? 0,
+  }))
+  const closingTxns: ClosingTransaction[] = transactions.map((t) => ({ type: t.type, amount: t.amount, date: t.date }))
+  const inv: InventoryItemLike[] = inventory.map((i) => ({ id: i.id, unit: i.unit, stock: i.stock, threshold: i.threshold, costPerUnit: i.costPerUnit }))
+  const rec: RecipeLike[] = recipes.map((r) => ({
+    menuItemId: r.menuItemId,
+    status: r.status,
+    ingredients: r.ingredients.map((ing) => ({ inventoryItemId: ing.inventoryItemId, itemName: ing.itemName, quantity: ing.quantity, unit: ing.unit })),
+  }))
+  return { closingOrders, closingTxns, inv, rec }
+}
+
+// Preview the closing figures for a date without saving (Reports page).
+export async function buildReport(dateStr?: string) {
+  const day = dateStr || toDayStr(new Date())
+  const { closingOrders, closingTxns, inv, rec } = await gather()
+  return buildClosingReport(closingOrders, closingTxns, day, inv, rec)
+}
+
+export async function listClosings() {
+  return prisma.dailyClosing.findMany({ orderBy: { closingTime: 'desc' } })
+}
+
+export async function saveDailyClosing(ctx: Ctx, dateStr?: string) {
+  const report = await buildReport(dateStr)
+  const closingTime = new Date()
+  const record = await prisma.$transaction(async (tx) => {
+    const saved = await tx.dailyClosing.create({
+      data: {
+        date: report.date,
+        closedBy: ctx.actor.name,
+        closedByRole: ctx.actor.role,
+        closingTime,
+        totalSales: report.netSale,
+        reportJson: JSON.stringify(report),
+      },
+    })
+    await writeAudit(tx, { action: 'DAY_CLOSED', actor: ctx.actor, at: closingTime, details: { date: report.date, totalSales: report.netSale } })
+    return saved
+  })
+  return { record, report }
+}

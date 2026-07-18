@@ -1,5 +1,7 @@
 # Phase 1 — Single-Device Backend
 
+**Status: 🚧 in progress.** The entire backend is built — every `AppContext.jsx` mutator now has a permission-gated, audited REST route, all tested against the running server (`npm test` → 56 green, 85 endpoints). The **only** remaining Phase 1 work is the frontend swap (`AppContext.jsx` `localStorage` → `fetch()`). See "Progress" at the bottom.
+
 Replaces `localStorage` with the real local server. One device, no multi-device sync yet (that's Phase 2) — the milestone here is "durable, server-enforced data" not "multiple screens see the same thing live."
 
 ## Goal
@@ -44,3 +46,19 @@ This is the phase where `AppContext.jsx` itself changes:
 - A single device can do everything today's app does — place orders, take payment, manage inventory/recipes/staff/tables, run shift reconciliation, view reports — against the local server instead of `localStorage`.
 - Killing and restarting the local server (or the device) doesn't lose data.
 - A permission-denied action is rejected server-side even if somehow triggered without the matching UI gate (test this directly against the API, not just through the UI).
+
+## Progress
+
+**Done:**
+- HTTP + auth foundation: `src/app.ts` (Fastify assembly, error→HTTP mapping) + `src/server.ts` (listen); `@fastify/jwt` + `@fastify/cors` + `@fastify/sensible`; `src/env.ts` config; `src/auth/password.ts` (scrypt, no native dep); `src/auth/guard.ts` (`authenticate` / `requirePermission` / `requireAnyPermission` re-checking `core/permissions.ts` server-side); `src/lib/{errors,actor,audit}.ts`.
+- Auth: `Staff` gained `username` / `passwordHash` / `systemRole` (migration `20260718120000_add_staff_auth`); seed adds demo logins **admin/manager/cashier/kitchen**, password `1234`. Routes `POST /api/auth/login`, `GET /api/auth/me`.
+- Orders domain (`src/services/orders.service.ts` + `src/routes/orders.routes.ts`): `addOrder`, `appendOrderItems`, `markPaid`, `cancelOrder`, `updateOrderItemQty`, `applyDiscount`, `removeDiscount`, `markOrderUdhaar`, `markOrderComplimentary`, `markReady`, `clearKitchen`, plus list/get. Recipe-driven deduction/restock, shiftId attribution, GST-rate lock, and audit rows all inside Prisma transactions.
+- Tests: `test/orders.api.test.ts` drives login → JWT → order placement → the known-good `2× Karahi → 1kg chicken + 0.2L oil` deduction, plus permission denials (Kitchen can't place, Cashier can't cancel, Admin can). `npm test` → 47 green. Server boot verified (`/api/health`, `/api/auth/login`).
+
+- Inventory (`adjustStock`/`restock`/`addInventoryItem`) + recipes (`createRecipe`/`approveRecipe`/`rejectRecipe`) + ingredient requests (`create`/`approve`/`reject`) — `services/{inventory,recipes}.service.ts` + routes. Separation of duties enforced (Manager-only stock add, Admin-only recipe/request approval).
+- Shifts (`startShift`/`pauseShift`/`resumeShift`/`endShift`/`calculateShiftSales`) + handovers (`initiate`/`accept`/`reject`) + receivables (`addReceivable`/`recordReceivablePayment`) — `services/{shifts,receivables}.service.ts` + routes. shiftId-attribution and accepted-handover-query model per schema.
+- Config domains — `services/{menu,tables,staff,departments,accounting,settings,closing,attendance}.service.ts` + routes: menu/categories/mostOrdered, tables, staff+advances, departments (FK-based routing), accounting transactions (server-side txnNumber), settings (GST + online accounts), server-built daily closing, attendance override.
+- Tests: `test/domains.api.test.ts` (9 tests) covers each domain's happy path, a permission denial, and the settings→order GST-lock. Total `npm test` → **56 green**.
+
+**Remaining:**
+- Frontend swap: rewrite `AppContext.jsx` (`localStorage` → `fetch()`) + real login in `Login.jsx`. Pages/components untouched. This is the last Phase 1 step (task #6).

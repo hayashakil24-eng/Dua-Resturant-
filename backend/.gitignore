@@ -1,0 +1,8 @@
+node_modules/
+dist/
+# SQLite dev database + Prisma journal files — local only, never committed.
+prisma/dev.db
+prisma/dev.db-journal
+# Local secrets. .env holds a dev-only JWT secret + DATABASE_URL; keep it out
+# of version control so a real secret is never committed by accident.
+.env

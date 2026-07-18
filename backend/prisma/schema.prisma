@@ -35,6 +35,16 @@ model Staff {
   // the frontend already conflates these two concepts (see Employees.jsx),
   // preserved as-is rather than "fixed" here.
   role           String
+  // Login credentials (Phase 1). Only staff who actually sign in have these —
+  // waiters/chefs without system access leave them null. `systemRole` is the
+  // permission role (Admin|Manager|Cashier|Kitchen) the JWT carries and every
+  // route checks against core/permissions.ts, deliberately separate from the
+  // job-title `role` above (the frontend conflates the two; the backend needs
+  // a clean permission role for auth). `passwordHash` is scrypt (see
+  // auth/password.ts) — never a plaintext PIN.
+  username       String?  @unique
+  passwordHash   String?
+  systemRole     String? // "Admin" | "Manager" | "Cashier" | "Kitchen"
   shift          String? // "Morning" | "Evening"
   shiftStartTime String? // "HH:MM", 24h — drives Late calculation
   phone          String?
