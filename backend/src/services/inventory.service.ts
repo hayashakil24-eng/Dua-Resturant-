@@ -10,6 +10,7 @@ import { prisma } from '../db/client.js'
 import { writeAudit } from '../lib/audit.js'
 import { ServiceError } from '../lib/errors.js'
 import type { Actor } from '../lib/actor.js'
+import { enqueueOutbox } from '../sync/outbox.js'
 
 interface Ctx {
   actor: Actor
@@ -42,6 +43,7 @@ export async function adjustStock(ctx: Ctx, id: string, delta: number) {
       actor: ctx.actor,
       details: { inventoryItemId: id, name: item.name, delta: Number(delta) || 0, from: item.stock, to: next },
     })
+    await enqueueOutbox(tx, 'InventoryItem', updated.id, updated)
     return updated
   })
 }

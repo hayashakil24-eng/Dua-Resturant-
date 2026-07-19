@@ -24,6 +24,7 @@ import { writeAudit } from '../lib/audit.js'
 import { NotFoundError, ServiceError } from '../lib/errors.js'
 import type { Actor } from '../lib/actor.js'
 import { broadcastEvent } from '../realtime/broadcast.js'
+import { enqueueOutbox } from '../sync/outbox.js'
 
 type Tx = Prisma.TransactionClient
 type OrderWithItems = Prisma.OrderGetPayload<{ include: { items: true } }>
@@ -324,6 +325,13 @@ export async function addOrder(ctx: Ctx, input: AddOrderInput) {
     // frontend: the single creation point for both paid & unpaid orders).
     await deductForItems(tx, items.map((it) => ({ menuItemId: it.menuItemId, qty: it.qty })), ctx.actor)
 
+    // Outbox stores the raw scalar row (`items` stripped), not the UI-shaped
+    // serializeOrder() DTO — the VPS side does a plain prisma.order.upsert(),
+    // which needs exactly the schema's own field shape, not a computed
+    // displayId or the frontend's cart-key item format. Order items aren't
+    // synced yet (see docs/05-phase-4-vps-sync.md's scope note on this).
+    const { items: _orderItems, ...orderRow } = created
+    await enqueueOutbox(tx, 'Order', created.id, orderRow)
     return serializeOrder(created)
   }).then((order) => {
     // No audit row for plain order placement (see broadcast.ts header) — this
@@ -396,6 +404,8 @@ export async function markPaid(ctx: Ctx, orderId: string, method = 'Cash', onlin
       },
       include: { items: true },
     })
+    const { items: _orderItems, ...orderRow } = updated
+    await enqueueOutbox(tx, 'Order', updated.id, orderRow)
     return serializeOrder(updated)
   }).then((order) => {
     broadcastEvent({ action: 'ORDER_PAID', actor: ctx.actor, details: { orderId: order.id, table: order.table } })
@@ -443,6 +453,8 @@ export async function cancelOrder(ctx: Ctx, orderId: string, opts: { reason?: st
       include: { items: true },
     })
     await writeAudit(tx, { action: 'CANCELLED', actor: ctx.actor, at, details: { orderId, reason, notes, materialLoss } })
+    const { items: _orderItems, ...orderRow } = updated
+    await enqueueOutbox(tx, 'Order', updated.id, orderRow)
     return serializeOrder(updated)
   })
 }

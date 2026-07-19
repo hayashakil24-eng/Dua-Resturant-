@@ -585,3 +585,33 @@ model AuditLogEntry {
   @@index([action])
   @@index([at])
 }
+
+// ---------------------------------------------------------------------------
+// Phase 4 — VPS sync outbox
+// backend/docs/05-phase-4-vps-sync.md. One row per locally-written entity
+// that needs to eventually land in the central Postgres store. Deliberately
+// NOT one row per audit-log action (those are heterogeneous per-action
+// deltas); this stores the entity's full current state (entity + entityId +
+// a JSON snapshot), so a push is a plain upsert on the VPS side — safe to
+// retry, safe to arrive out of order, no diffing/replay logic needed on
+// either end. See src/sync/outbox.ts for what enqueues these.
+// ---------------------------------------------------------------------------
+
+model OutboxEntry {
+  id          String   @id @default(cuid())
+  entity      String // Prisma model name on the VPS side, e.g. "Order", "Transaction"
+  entityId    String
+  payloadJson String // full current-state snapshot, JSON-encoded
+  status      String   @default("pending") // pending | synced | failed
+  attempts    Int      @default(0)
+  lastError   String?
+  // Exponential-backoff bookkeeping: a failed row is only retried once
+  // lastAttemptAt + backoff(attempts) has passed (src/sync/job.ts), so a
+  // flapping connection doesn't get hammered every single sync-interval tick.
+  lastAttemptAt DateTime?
+  createdAt   DateTime @default(now())
+  syncedAt    DateTime?
+
+  @@index([status])
+  @@index([entity, entityId])
+}

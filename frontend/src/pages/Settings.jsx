@@ -85,6 +85,22 @@ function ServerHealthPanel() {
                 {health?.lastBackupAt ? new Date(health.lastBackupAt).toLocaleString() : t('settings.noBackupYet', 'None yet')}
               </span>
             </div>
+            {/* Phase 4 (docs/05-phase-4-vps-sync.md): only shown once VPS sync
+                is actually configured — a plain local-only deployment has no
+                VPS to report on, so hiding the row beats showing a permanent "—". */}
+            {health?.vpsConfigured && (
+              <div className="flex items-center justify-between">
+                <span className="text-cream-dim">{t('settings.lastSync', 'Last VPS sync')}</span>
+                <span className="text-cream">
+                  {health.lastSyncAt ? new Date(health.lastSyncAt).toLocaleString() : t('settings.noSyncYet', 'None yet')}
+                  {health.pendingSyncCount > 0 && (
+                    <span className="ml-2 text-xs text-gold">
+                      ({health.pendingSyncCount} {t('settings.pending', 'pending')})
+                    </span>
+                  )}
+                </span>
+              </div>
+            )}
           </>
         )}
       </div>

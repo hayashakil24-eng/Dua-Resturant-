@@ -25,4 +25,20 @@ export const env = {
   backupDir: process.env.BACKUP_DIR ?? 'backups',
   // 24h clock hour (0-23) the daily backup runs at, local server time.
   backupHour: Number(process.env.BACKUP_HOUR ?? 3),
+  // Phase 4 (docs/05-phase-4-vps-sync.md): all optional so a plain local-only
+  // run (Phases 1-3, or `npm test`) never needs these. The local server's
+  // background sync job (src/sync/*) and the VPS's receiving endpoint
+  // (src/vps/*) are the only things that read them.
+  vps: {
+    // Where the local sync job pushes to — e.g. https://cafeali-vps.example.com.
+    url: process.env.VPS_URL ?? null,
+    // Shared secret both sides know: the local server signs a short-lived
+    // service JWT with it, the VPS verifies with the same key. Deliberately
+    // separate from JWT_SECRET (staff sessions) — a leaked staff token must
+    // never double as server-to-server credentials, and vice versa.
+    syncSecret: process.env.VPS_SYNC_SECRET ?? null,
+    port: Number(process.env.VPS_PORT ?? 5000),
+    // How often the local server checks connectivity + pushes pending rows.
+    syncIntervalMs: Number(process.env.VPS_SYNC_INTERVAL_MS ?? 30_000),
+  },
 }

@@ -7,6 +7,7 @@ import { nextSequence } from '../core/ids.js'
 import { writeAudit } from '../lib/audit.js'
 import { ServiceError } from '../lib/errors.js'
 import type { Actor } from '../lib/actor.js'
+import { enqueueOutbox } from '../sync/outbox.js'
 
 interface Ctx {
   actor: Actor
@@ -37,6 +38,7 @@ export async function addTransaction(ctx: Ctx, input: { type?: string; category?
       actor: ctx.actor,
       details: { txnId: `TXN-${txnNumber}`, type: txn.type, category: txn.category, amount: txn.amount },
     })
+    await enqueueOutbox(tx, 'Transaction', txn.id, txn)
     return txn
   })
 }
