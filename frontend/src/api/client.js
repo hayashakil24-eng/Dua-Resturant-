@@ -47,7 +47,7 @@ export async function api(method, path, body) {
     res = await fetch(BASE + path, {
       method,
       headers: {
-        'Content-Type': 'application/json',
+        ...(body != null ? { 'Content-Type': 'application/json' } : {}),
         ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
       },
       body: body != null ? JSON.stringify(body) : undefined,
