@@ -1,10 +1,96 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader } from '../components/ui.jsx'
 import { canModify } from '../config/permissions.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
-import { IconSettings, IconReceipt, IconWallet, IconPlus, IconClose, IconCheck } from '../components/Icons.jsx'
+import { IconSettings, IconReceipt, IconWallet, IconPlus, IconClose, IconCheck, IconClock, IconRefresh } from '../components/Icons.jsx'
+import { apiGet } from '../api/client.js'
+
+// Phase 3 "basic operational visibility" (backend/docs/04-phase-3-deployment-
+// hardening.md) — is the server up, when did it last back up. Admin-only,
+// same gate as the rest of this page. Polls rather than using AppContext's
+// FETCHERS/socket-refetch machinery: this is ops information about the
+// server process itself, not app data any other page or role needs.
+function ServerHealthPanel() {
+  const t = useT()
+  const [health, setHealth] = useState(null)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
+
+  const load = () => {
+    setLoading(true)
+    apiGet('/api/system/health')
+      .then((d) => {
+        setHealth(d)
+        setError('')
+      })
+      .catch(() => setError(t('settings.serverUnreachable', 'Cannot reach the local server.')))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    load()
+    const id = setInterval(load, 60_000)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const formatUptime = (s) => {
+    const h = Math.floor(s / 3600)
+    const m = Math.floor((s % 3600) / 60)
+    return h > 0 ? `${h}h ${m}m` : `${m}m`
+  }
+
+  return (
+    <div className="card max-w-2xl p-6">
+      <div className="flex items-center justify-between gap-3 border-b border-ink-line pb-4">
+        <div className="flex items-center gap-3">
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-gold/10 text-gold ring-1 ring-gold/25">
+            <IconClock size={20} />
+          </span>
+          <div>
+            <h3 className="font-serif text-xl text-cream">{t('settings.serverHealth', 'Server Health')}</h3>
+            <p className="text-xs text-cream-dim">{t('settings.serverHealthDesc', 'Local server status.')}</p>
+          </div>
+        </div>
+        <button
+          onClick={load}
+          title={t('common.refresh', 'Refresh')}
+          className="grid h-9 w-9 place-items-center rounded-lg border border-ink-line text-cream-dim transition hover:text-cream"
+        >
+          <IconRefresh size={16} />
+        </button>
+      </div>
+
+      <div className="mt-5 space-y-3 text-sm">
+        {error ? (
+          <p className="text-rose-300">{error}</p>
+        ) : (
+          <>
+            <div className="flex items-center justify-between">
+              <span className="text-cream-dim">{t('settings.serverStatus', 'Status')}</span>
+              <span className="flex items-center gap-1.5 font-semibold text-emerald-300">
+                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                {loading ? t('common.loading', 'Checking…') : t('settings.online', 'Online')}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-cream-dim">{t('settings.serverUptime', 'Up for')}</span>
+              <span className="text-cream">{health ? formatUptime(health.uptimeSeconds) : '—'}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-cream-dim">{t('settings.lastBackup', 'Last backup')}</span>
+              <span className="text-cream">
+                {health?.lastBackupAt ? new Date(health.lastBackupAt).toLocaleString() : t('settings.noBackupYet', 'None yet')}
+              </span>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
 
 // A gold-themed on/off switch. Controlled — parent owns the value.
 function Toggle({ checked, onChange, disabled, labelOn, labelOff }) {
@@ -304,6 +390,8 @@ export default function Settings() {
           </ul>
         )}
       </div>
+
+      {canEdit && <ServerHealthPanel />}
 
       {formFor && (
         <AccountFormModal

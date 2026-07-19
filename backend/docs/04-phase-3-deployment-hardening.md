@@ -1,5 +1,7 @@
 # Phase 3 — Local Deployment Hardening
 
+**Status: ✅ built and verified as far as this dev sandbox allows.** See `deployment-setup.md` for the one-time on-site setup steps and "Verification notes" below for exactly what was and wasn't testable from a Linux/WSL dev container rather than the actual target Windows restaurant PC.
+
 Makes the local server survive real-world restaurant conditions without a technical person on-site babysitting it. No new features for staff — this phase is about the server being trustworthy, not about doing more.
 
 ## Goal
@@ -22,3 +24,25 @@ Minimal — mostly a settings/admin-panel surface to show server health (last ba
 - The server PC can be rebooted and the backend comes back up on its own, with all connected devices reconnecting automatically (leaning on Phase 2's Socket.IO reconnect behavior).
 - A backup file from the previous day exists on the external drive without anyone having triggered it manually.
 - A new device can join the LAN and start talking to the server without manual IP configuration.
+
+## What was built
+
+- **Process supervision**: `backend/ecosystem.config.cjs` (PM2). `npm run service:start/stop/restart/logs/status`. PM2 chosen over `node-windows` specifically — it's cross-platform (Windows via `pm2-windows-startup`, see `deployment-setup.md`), so the exact same config and restart-on-crash behavior is verifiable in a Linux dev sandbox and still correct for the real Windows target.
+- **LAN discovery**: `backend/src/realtime/discovery.ts` — a UDP responder on port 41234 answering a broadcast `CAFE_ALI_DISCOVER` request with `{name, port}`. The client side lives in Electron's main process (`frontend/electron/main.js`'s `discover-server` IPC handler, using Node's `dgram` — a renderer/browser can't open raw UDP sockets), exposed to the renderer via `preload.js`'s `window.electron.discoverServer()`. `src/api/client.js`'s `discoverAndSetBase()` calls it once at startup (`main.jsx`, before the first render) and overrides the default `localhost:4000` base URL if a server answers — a no-op if `VITE_API_URL` is explicitly set, or if not running inside Electron.
+- **Local backup**: `backend/src/backup/` — `runBackup()` copies the live SQLite file to `env.backupDir` (env `BACKUP_DIR`, standing in for the external-drive mount path) as `dev-YYYY-MM-DD.db`; `startBackupSchedule()` checks every 15 minutes whether today's file exists yet and the configured hour (`env.backupHour`, default 3am) has passed, so a server that was off at 3am and comes back at 9am still backs up that same morning instead of waiting for the next day.
+- **Operational visibility**: `GET /api/system/health` (Admin-only, same gate as `/api/settings`) returns `{uptimeSeconds, lastBackupAt}`; surfaced in `Settings.jsx`'s new "Server Health" card, polling every 60s with a manual refresh button.
+
+## Verification notes
+
+This dev environment is Linux/WSL, not the actual restaurant Windows PC, so verification split into two tiers:
+
+**Fully verified, real end-to-end:**
+- PM2 auto-restart: killed the live process (`kill -9`), confirmed PM2 spawned a new PID and the server (including Socket.IO) was serving again within seconds.
+- Backup job: ran it live, confirmed a valid SQLite file (`file` command identified it correctly) landed at the configured path, and `/api/system/health` reported the correct timestamp.
+- LAN discovery: sent a real UDP broadcast and got the correct reply from the backend responder. Then launched the **actual Electron app** (via `xvfb-run`, not just the browser dev server — the IPC/contextBridge wiring only exists there) and called `window.electron.discoverServer()` for real: it returned the machine's actual LAN-facing IP (`192.168.100.152:4000`), not just localhost — as close to a real second-device scenario as one machine allows.
+- Settings health panel: confirmed it renders correct live data for Admin and is fully inaccessible (nav item doesn't even appear) for Manager.
+
+**Not verifiable here, needs the real hardware:**
+- Surviving an actual OS reboot (`pm2 startup`/`pm2 save` is documented in `deployment-setup.md` but deliberately not run in this shared dev sandbox, since it registers a boot-time service on whatever machine runs it).
+- Discovery being found by a genuinely separate physical device on a real LAN (only one machine was available here).
+- Writing to a real external/USB drive (verified against a local directory standing in for that mount path — the copy mechanism itself doesn't care what filesystem `BACKUP_DIR` points at).

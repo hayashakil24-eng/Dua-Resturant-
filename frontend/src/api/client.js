@@ -4,7 +4,32 @@
 // Phase 2/3). The JWT is held in localStorage and sent as a Bearer token; the
 // backend enforces every permission, so nothing here needs to know about roles.
 
-export const BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
+// `let`, not `const`: discoverAndSetBase() (below) can override this once at
+// startup when running in Electron with no explicit VITE_API_URL — a live
+// ESM binding, so every import of BASE (AppContext.jsx's socket connection
+// included) sees the update without needing its own setter.
+export let BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
+
+export function setBase(url) {
+  BASE = url
+}
+
+// Phase 3 LAN discovery (backend/docs/04-phase-3-deployment-hardening.md): in
+// the packaged Electron app, find the server PC's IP via main.js's UDP
+// broadcast (window.electron.discoverServer, preload.js) instead of requiring
+// a staff member to type it in. A no-op everywhere else — explicit
+// VITE_API_URL always wins, and the browser-only dev server (no
+// window.electron) keeps hitting the existing localhost default.
+export async function discoverAndSetBase() {
+  if (import.meta.env.VITE_API_URL) return
+  if (typeof window === 'undefined' || !window.electron?.discoverServer) return
+  try {
+    const found = await window.electron.discoverServer()
+    if (found?.host && found?.port) setBase(`http://${found.host}:${found.port}`)
+  } catch {
+    // Keep the existing default BASE — same as "no server found".
+  }
+}
 
 const TOKEN_KEY = 'token'
 let token = null

@@ -1,6 +1,7 @@
-import { app, BrowserWindow, Menu, shell } from 'electron'
+import { app, BrowserWindow, Menu, shell, ipcMain } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import dgram from 'node:dgram'
 import serve from 'electron-serve'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -96,6 +97,40 @@ async function createWindow() {
     await loadProdApp(win)
   }
 }
+
+// LAN server discovery (backend/docs/04-phase-3-deployment-hardening.md) — a
+// new POS/KDS device finds the server PC's IP without a staff member typing
+// it in. UDP broadcast/reply is a `dgram` (Node) API, unavailable to the
+// renderer's browser sandbox, hence this lives in the main process and is
+// exposed to the renderer via preload.js/contextBridge like any other
+// privileged capability (never by flipping nodeIntegration on).
+const DISCOVERY_PORT = 41234
+const DISCOVERY_TIMEOUT_MS = 1500
+
+ipcMain.handle('discover-server', () => {
+  return new Promise((resolve) => {
+    const socket = dgram.createSocket('udp4')
+    const finish = (result) => {
+      socket.close()
+      resolve(result)
+    }
+    const timer = setTimeout(() => finish(null), DISCOVERY_TIMEOUT_MS)
+    socket.on('message', (msg, rinfo) => {
+      clearTimeout(timer)
+      try {
+        const { port } = JSON.parse(msg.toString())
+        finish({ host: rinfo.address, port })
+      } catch {
+        finish(null)
+      }
+    })
+    socket.on('error', () => finish(null))
+    socket.bind(() => {
+      socket.setBroadcast(true)
+      socket.send('CAFE_ALI_DISCOVER', DISCOVERY_PORT, '255.255.255.255')
+    })
+  })
+})
 
 app.whenReady().then(createWindow)
 

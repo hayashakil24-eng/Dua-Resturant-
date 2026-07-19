@@ -1,10 +1,12 @@
-import { contextBridge } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 
-// Placeholder bridge — the renderer currently only reads/writes localStorage
-// (see AppContext.jsx) and needs no privileged APIs yet. This exists so future
-// features that do (local file storage, direct printer access, IPC to a local
-// backend process) have a contextIsolation-safe place to add them, without the
-// renderer ever getting raw Node/Electron access (nodeIntegration stays off).
+// discoverServer() is the renderer's only privileged API so far — it needs
+// main.js's UDP dgram socket (unavailable in the browser sandbox) to find the
+// local server's IP without a staff member typing it in (see main.js and
+// backend/docs/04-phase-3-deployment-hardening.md). Everything else the
+// renderer needs (reads/writes) still goes through localStorage/fetch, no
+// nodeIntegration, contextIsolation stays on.
 contextBridge.exposeInMainWorld('electron', {
   platform: process.platform,
+  discoverServer: () => ipcRenderer.invoke('discover-server'),
 })

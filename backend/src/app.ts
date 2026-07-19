@@ -27,6 +27,7 @@ import { settingsRoutes } from './routes/settings.routes.js'
 import { closingRoutes } from './routes/closing.routes.js'
 import { attendanceRoutes } from './routes/attendance.routes.js'
 import { auditRoutes } from './routes/audit.routes.js'
+import { systemRoutes } from './routes/system.routes.js'
 
 export function buildApp(): FastifyInstance {
   const app = Fastify({
@@ -73,6 +74,7 @@ export function buildApp(): FastifyInstance {
   app.register(closingRoutes)
   app.register(attendanceRoutes)
   app.register(auditRoutes)
+  app.register(systemRoutes)
 
   return app
 }

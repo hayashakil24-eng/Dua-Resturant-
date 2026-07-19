@@ -5,6 +5,8 @@
 import { buildApp } from './app.js'
 import { env } from './env.js'
 import { attachSocket } from './realtime/socket.js'
+import { startDiscoveryResponder } from './realtime/discovery.js'
+import { startBackupSchedule } from './backup/schedule.js'
 
 const app = buildApp()
 
@@ -12,6 +14,8 @@ app
   .listen({ port: env.port, host: env.host })
   .then(() => {
     attachSocket(app.server)
+    startDiscoveryResponder()
+    startBackupSchedule()
     app.log.info(`Cafe Ali backend listening on http://${env.host}:${env.port}`)
   })
   .catch((err) => {
