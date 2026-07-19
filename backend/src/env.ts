@@ -3,6 +3,22 @@
 // values our own code needs — kept here so a missing secret fails loudly at
 // boot instead of producing unverifiable tokens at runtime.
 
+// Load backend/.env into process.env before reading anything below. Prisma
+// pulls DATABASE_URL from .env on its own, but everything else here (HOST,
+// PORT, JWT_SECRET, VPS_*) reads process.env directly — without this, every
+// value in .env *except* the database URL was silently ignored, so e.g.
+// HOST=0.0.0.0 never took effect and the server bound loopback-only, unreachable
+// from other LAN devices (and from the Electron app's own discovery, which
+// reports the server's LAN IP). Guarded: no .env present (vitest, or the
+// Control Panel embedding this module from its own cwd) is fine — real env
+// vars / the fallbacks below take over. `loadEnvFile` is Node ≥20.12 built-in;
+// the optional call keeps older/typeless runtimes from throwing.
+try {
+  ;(process as { loadEnvFile?: (path?: string) => void }).loadEnvFile?.()
+} catch {
+  /* no .env file — rely on real environment variables */
+}
+
 function required(name: string, fallback?: string): string {
   const v = process.env[name] ?? fallback
   if (v == null || v === '') {

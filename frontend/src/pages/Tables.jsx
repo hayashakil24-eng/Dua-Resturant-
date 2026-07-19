@@ -154,6 +154,10 @@ function TablesManageModal({ tables, occupied, canDelete, onAdd, onUpdate, onDel
   const t = useT()
   const [editingId, setEditingId] = useState(null)
   const [number, setNumber] = useState('')
+  // `name` is the table's display label (data field `number`, e.g. "A1"), kept
+  // separate from the numeric `id` above so a table can be renamed without
+  // changing its identity.
+  const [name, setName] = useState('')
   const [capacity, setCapacity] = useState('4')
   const [section, setSection] = useState('')
   useEscapeKey(onClose)
@@ -161,6 +165,7 @@ function TablesManageModal({ tables, occupied, canDelete, onAdd, onUpdate, onDel
   const reset = () => {
     setEditingId(null)
     setNumber('')
+    setName('')
     setCapacity('4')
     setSection('')
   }
@@ -170,10 +175,11 @@ function TablesManageModal({ tables, occupied, canDelete, onAdd, onUpdate, onDel
 
   const submit = () => {
     if (!valid) return
+    const label = name.trim()
     if (editingId != null) {
-      onUpdate(editingId, { seats: Number(capacity), section })
+      onUpdate(editingId, { number: label || String(editingId), seats: Number(capacity), section })
     } else {
-      onAdd({ id: Number(number), seats: Number(capacity), section })
+      onAdd({ id: Number(number), number: label, seats: Number(capacity), section })
     }
     reset()
   }
@@ -181,6 +187,7 @@ function TablesManageModal({ tables, occupied, canDelete, onAdd, onUpdate, onDel
   const startEdit = (tbl) => {
     setEditingId(tbl.id)
     setNumber(String(tbl.id))
+    setName(tbl.number || '')
     setCapacity(String(tbl.seats))
     setSection(tbl.section || '')
   }
@@ -202,7 +209,7 @@ function TablesManageModal({ tables, occupied, canDelete, onAdd, onUpdate, onDel
             <p className="mb-3 text-[11px] uppercase tracking-wider text-cream-dim">
               {editingId != null ? `${t('tables.editTable')} ${editingId}` : t('tables.addATable')}
             </p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <input
                 type="number"
                 min={1}
@@ -211,6 +218,12 @@ function TablesManageModal({ tables, occupied, canDelete, onAdd, onUpdate, onDel
                 value={number}
                 disabled={editingId != null}
                 onChange={(e) => setNumber(e.target.value)}
+              />
+              <input
+                className="input py-2"
+                placeholder={t('tables.name')}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
               />
               <input
                 type="number"

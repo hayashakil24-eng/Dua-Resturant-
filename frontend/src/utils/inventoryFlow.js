@@ -16,6 +16,16 @@ export const CONVERSIONS = {
   'kg_tbsp': 1 / 0.015,
   'tsp_kg': 0.005,
   'kg_tsp': 1 / 0.005,
+  // Spoons → liquid volume, so a recipe measured in spoons (oil, essence, …)
+  // can deduct from an inventory item stored in ml/L. 1 tbsp = 15 ml, 1 tsp = 5 ml.
+  'tbsp_ml': 15,
+  'ml_tbsp': 1 / 15,
+  'tbsp_l': 0.015,
+  'l_tbsp': 1 / 0.015,
+  'tsp_ml': 5,
+  'ml_tsp': 1 / 5,
+  'tsp_l': 0.005,
+  'l_tsp': 1 / 0.005,
   'cup_ml': 240,
   'ml_cup': 1 / 240,
   'cup_l': 0.24,

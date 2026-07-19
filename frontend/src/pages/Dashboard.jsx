@@ -449,12 +449,13 @@ function IngredientRequestsPanel({ role }) {
                       value={baseUnit}
                       onChange={(e) => setBaseUnit(e.target.value)}
                     >
+                      {/* Base unit = how the item is *stocked* (bulk), so only
+                          bulk units here — spoons/cups belong on the recipe, not
+                          the inventory record. Matches Inventory.jsx's UNITS. */}
                       <option value="kg">kg</option>
                       <option value="g">g</option>
                       <option value="L">L</option>
                       <option value="ml">ml</option>
-                      <option value="tbsp">tbsp</option>
-                      <option value="tsp">tsp</option>
                       <option value="pcs">pcs</option>
                       <option value="packs">packs</option>
                     </select>

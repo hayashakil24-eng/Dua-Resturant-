@@ -12,6 +12,20 @@ export async function recipeRoutes(app: FastifyInstance): Promise<void> {
     return { recipe: await recipes.createRecipe(ctx(req), req.body as recipes.CreateRecipeInput) }
   })
 
+  // Edit ingredients — Kitchen (authoring gate); the service resets it to pending.
+  app.patch('/api/recipes/:id', { preHandler: requirePermission('recipeCreate') }, async (req) => {
+    const { id } = req.params as { id: string }
+    const { ingredients } = (req.body ?? {}) as { ingredients?: recipes.CreateRecipeInput['ingredients'] }
+    return { recipe: await recipes.updateRecipe(ctx(req), id, { ingredients: ingredients ?? [] }) }
+  })
+
+  // Delete — Admin only (destructive, stricter than authoring).
+  app.delete('/api/recipes/:id', { preHandler: requireRole('Admin') }, async (req) => {
+    const { id } = req.params as { id: string }
+    const { reason } = (req.body ?? {}) as { reason?: string }
+    return await recipes.deleteRecipe(ctx(req), id, reason ?? '')
+  })
+
   app.post('/api/recipes/:id/approve', { preHandler: requirePermission('recipeApproval') }, async (req) => {
     const { id } = req.params as { id: string }
     return { recipe: await recipes.approveRecipe(ctx(req), id) }

@@ -8,7 +8,13 @@
 // startup when running in Electron with no explicit VITE_API_URL — a live
 // ESM binding, so every import of BASE (AppContext.jsx's socket connection
 // included) sees the update without needing its own setter.
-export let BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
+//
+// Default host is 127.0.0.1, not `localhost`: the backend binds to IPv4
+// 127.0.0.1 (env.host default), but Chromium/Electron resolves `localhost` to
+// IPv6 ::1 first — nothing listens there, so fetch throws and the UI shows
+// "Cannot reach the server." Pinning IPv4 keeps the same-machine default
+// deterministic; LAN devices get the real IP via VITE_API_URL or discovery.
+export let BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:4000'
 
 export function setBase(url) {
   BASE = url

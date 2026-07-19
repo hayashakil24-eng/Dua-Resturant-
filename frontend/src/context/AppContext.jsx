@@ -38,6 +38,8 @@ const ACTION_REFETCH_MAP = {
   MOST_ORDERED_ADDED: ['mostOrdered'],
   MOST_ORDERED_REMOVED: ['mostOrdered'],
   RECIPE_SUBMITTED: ['recipes'],
+  RECIPE_UPDATED: ['recipes'],
+  RECIPE_DELETED: ['recipes'],
   RECIPE_APPROVED: ['recipes'],
   RECIPE_REJECTED: ['recipes'],
   INGREDIENT_REQUESTED: ['ingredientRequests'],
@@ -435,6 +437,24 @@ export function AppProvider({ children }) {
       return toError(e)
     }
   }
+  const updateRecipe = async (recipeId, { ingredients }) => {
+    try {
+      const { recipe } = await apiPatch(`/api/recipes/${recipeId}`, { ingredients })
+      await refresh(['recipes'])
+      return recipe
+    } catch (e) {
+      return toError(e)
+    }
+  }
+  const deleteRecipe = async (recipeId, reason = '') => {
+    try {
+      await apiDelete(`/api/recipes/${recipeId}`, { reason })
+      await refresh(['recipes'])
+      return { success: true }
+    } catch (e) {
+      return toError(e)
+    }
+  }
   const approveRecipe = async (recipeId) => {
     try {
       await apiPost(`/api/recipes/${recipeId}/approve`)
@@ -527,9 +547,9 @@ export function AppProvider({ children }) {
   }
 
   // ---- Tables ------------------------------------------------------------
-  const addTable = async ({ id, seats, section }) => {
+  const addTable = async ({ id, number, seats, section }) => {
     try {
-      await apiPost('/api/tables', { id: Number(id), seats, section })
+      await apiPost('/api/tables', { id: Number(id), number, seats, section })
       await refresh(['tables'])
     } catch (e) {
       return toError(e)
@@ -929,6 +949,8 @@ export function AppProvider({ children }) {
     deleteTransaction,
     recipes,
     createRecipe,
+    updateRecipe,
+    deleteRecipe,
     approveRecipe,
     rejectRecipe,
     ingredientRequests,
