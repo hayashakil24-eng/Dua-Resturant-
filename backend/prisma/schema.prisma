@@ -313,11 +313,21 @@ model Order {
   // locations minting orderNumber independently can never collide on the key
   // that matters for sync/foreign keys. See docs/01-phase-0-foundation.md.
   //
+  // Deliberately NOT @unique (fixed post-Phase-4 verification, see
+  // docs/05-phase-4-vps-sync.md's "real design gap" note): uniqueness here is
+  // already guaranteed per local database by nextSequence()'s atomic
+  // increment below, not by a DB constraint — so a schema-level @unique
+  // constraint added nothing for local correctness, but DID make the VPS's
+  // upsert-by-id fail whenever two independently-seeded databases (two
+  // locations, or the same location reseeded) legitimately produce the same
+  // orderNumber for two DIFFERENT orders (different ids). `id` is the only
+  // key that ever needs to be unique for sync purposes.
+  //
   // Not DB-autoincrement (SQLite only allows that on the primary key itself,
   // and this schema has to work unchanged on Postgres too) — populated by the
   // service layer via core/ids.ts's nextSequence(), which increments the
   // Sequence table atomically inside the same transaction as the insert.
-  orderNumber Int    @unique
+  orderNumber Int
 
   table  Int
   waiter String?
@@ -466,7 +476,9 @@ model PendingHandover {
 
 model Transaction {
   id          String   @id @default(cuid())
-  txnNumber   Int      @unique // "TXN-{txnNumber}" display — see Order.orderNumber note on how this is populated
+  // "TXN-{txnNumber}" display — see Order.orderNumber's comment for why this
+  // is deliberately NOT @unique (local-only display field; `id` is the sync key).
+  txnNumber   Int
   type        String // "income" | "expense"
   category    String
   description String?
