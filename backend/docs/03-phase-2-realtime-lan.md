@@ -1,5 +1,9 @@
 # Phase 2 — Multi-Device Real-Time (LAN)
 
+**Status: ✅ built and verified.** A Socket.IO server (`backend/src/realtime/`) is attached to the same Fastify HTTP server, authenticated with the same JWT the REST API uses. Every state-changing action broadcasts one `'audit'` event to a single shared room (`shop`) — most via the existing `writeAudit()` hook (`src/lib/audit.ts`), plus a handful of hot-path mutations that don't write audit rows but still must broadcast (`addOrder`, `markPaid`, `markReady`, `clearKitchen`, `updateTable`/`deleteTable`, `startShift`/`pauseShift`/`resumeShift`) — see the header comment in `src/realtime/broadcast.ts` for why those needed a direct call instead of relying on the audit hook alone. The frontend (`AppContext.jsx`) opens one socket per logged-in session, maps each action to the `FETCHERS` key(s) it affects via `ACTION_REFETCH_MAP`, and does a full `refreshAll()` on reconnect. Verified with two real browser sessions (different roles): an order placed on one device appeared on another's KDS and Tables screens within ~1s with zero manual reload.
+
+**Deliberately simplified vs. the original plan below:** one global broadcast room instead of per-department Socket.IO rooms. Scoping broadcasts by room was framed as a "nice to have" (avoiding a KDS screen receiving accounting events it doesn't care about) rather than the hard acceptance bar — and at this app's scale (a handful of LAN devices, small JSON payloads), the frontend already ignores event types it doesn't map in `ACTION_REFETCH_MAP`, so there's no real UX or performance cost to not scoping server-side yet. Revisit with real per-room scoping only if that assumption stops holding.
+
 This is the phase that actually satisfies `requirements.md` §9 ("visible in real time to all cashiers") and §10 (kitchen display updates in real time). Phase 1 alone is single-device; this is what makes multiple devices share one live picture.
 
 ## Goal

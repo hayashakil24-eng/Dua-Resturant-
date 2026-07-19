@@ -1,9 +1,68 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { io } from 'socket.io-client'
 import { INITIAL_ATTENDANCE, MENU_CATEGORIES, TAX_RATE } from '../data/mockData.js'
 import { calculateOrderMaterialCost } from '../utils/inventoryFlow.js'
-import { apiGet, apiPost, apiPatch, apiPut, apiDelete, setToken, getToken, ApiError } from '../api/client.js'
+import { apiGet, apiPost, apiPatch, apiPut, apiDelete, setToken, getToken, ApiError, BASE } from '../api/client.js'
 
 const AppContext = createContext(null)
+
+// Phase 2 (LAN real-time): the backend broadcasts one 'audit' socket event per
+// state-changing action — see backend/src/realtime/broadcast.ts. This maps
+// each action name to the FETCHERS key(s) that need a refetch so another
+// device's screen updates without a manual refresh. An action not listed here
+// simply doesn't trigger a live refetch (nothing in the UI depends on it
+// updating cross-device yet) — safe default, not a bug if one is missing.
+const ACTION_REFETCH_MAP = {
+  ORDER_PLACED: ['orders'],
+  ORDER_PAID: ['orders'],
+  ORDER_READY: ['orders'],
+  ORDER_SERVED: ['orders'],
+  ORDER_ITEMS_ADDED: ['orders'],
+  ORDER_QTY_UPDATED: ['orders'],
+  CANCELLED: ['orders'],
+  DISCOUNT: ['orders'],
+  DISCOUNT_REMOVED: ['orders'],
+  ORDER_UDHAAR: ['orders', 'receivables'],
+  ORDER_COMPLIMENTARY: ['orders'],
+  INVENTORY_AUTO_DEDUCTED: ['inventory'],
+  INVENTORY_RESTOCKED: ['inventory'],
+  STOCK_ADJUSTED: ['inventory'],
+  INVENTORY_ITEM_CREATED: ['inventory'],
+  TABLE_ADDED: ['tables'],
+  TABLE_UPDATED: ['tables'],
+  TABLE_DELETED: ['tables'],
+  STAFF_ADDED: ['staff'],
+  STAFF_DELETED: ['staff'],
+  CATEGORY_ADDED: ['categories', 'menu'],
+  CATEGORY_DELETED: ['categories', 'menu'],
+  MOST_ORDERED_ADDED: ['mostOrdered'],
+  MOST_ORDERED_REMOVED: ['mostOrdered'],
+  RECIPE_SUBMITTED: ['recipes'],
+  RECIPE_APPROVED: ['recipes'],
+  RECIPE_REJECTED: ['recipes'],
+  INGREDIENT_REQUESTED: ['ingredientRequests'],
+  INGREDIENT_REQUEST_APPROVED: ['ingredientRequests', 'inventory'],
+  INGREDIENT_REQUEST_REJECTED: ['ingredientRequests'],
+  TRANSACTION_ADDED: ['transactions'],
+  TRANSACTION_DELETED: ['transactions'],
+  RECEIVABLE_ADDED: ['receivables'],
+  RECEIVABLE_SETTLED: ['receivables'],
+  RECEIVABLE_PAYMENT: ['receivables'],
+  SHIFT_STARTED: ['shifts', 'activeShift'],
+  SHIFT_PAUSED: ['shifts', 'activeShift'],
+  SHIFT_RESUMED: ['shifts', 'activeShift'],
+  SHIFT_RECONCILIATION: ['shifts', 'activeShift'],
+  HANDOVER_INITIATED: ['handovers'],
+  HANDOVER_ACCEPTED: ['handovers', 'activeShift'],
+  HANDOVER_REJECTED: ['handovers'],
+  ONLINE_ACCOUNT_ADDED: ['onlineAccounts'],
+  ONLINE_ACCOUNT_UPDATED: ['onlineAccounts'],
+  ONLINE_ACCOUNT_TOGGLED: ['onlineAccounts'],
+  GST_ENABLED: ['settings'],
+  GST_DISABLED: ['settings'],
+  GST_RATE_CHANGED: ['settings'],
+  DAY_CLOSED: ['dailyClosings'],
+}
 
 // Map any thrown ApiError to the { error } shape the existing UI already reads
 // (pages do `const res = await fn(); if (res?.error) ...`). Success paths return
@@ -98,6 +157,33 @@ export function AppProvider({ children }) {
     )
   }
   const refreshAll = () => refresh(Object.keys(FETCHERS))
+
+  // refresh/refreshAll close over state setters that are stable across
+  // renders, but the functions themselves are re-created every render — kept
+  // in a ref so the socket effect below can always call the latest version
+  // without reconnecting every render (it only depends on `user`).
+  const refreshRef = useRef({ refresh, refreshAll })
+  refreshRef.current = { refresh, refreshAll }
+
+  // Phase 2: one Socket.IO connection per logged-in session, joining the
+  // backend's single broadcast room (realtime/socket.ts). Reconnect (e.g.
+  // after the beach-WiFi drop docs/03-phase-2 calls out) triggers a full
+  // refreshAll() rather than trying to replay whatever was missed while
+  // offline — simplest correct way to resync.
+  useEffect(() => {
+    if (!user) return
+    const socket = io(BASE, { auth: { token: getToken() } })
+    socket.on('audit', (event) => {
+      const keys = ACTION_REFETCH_MAP[event?.action]
+      if (keys?.length) refreshRef.current.refresh(keys).catch(() => {})
+    })
+    socket.io.on('reconnect', () => {
+      refreshRef.current.refreshAll().catch(() => {})
+    })
+    return () => {
+      socket.disconnect()
+    }
+  }, [user])
 
   // Restore a session from a stored token on first mount.
   useEffect(() => {

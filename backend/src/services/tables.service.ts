@@ -8,6 +8,7 @@ import { prisma } from '../db/client.js'
 import { writeAudit } from '../lib/audit.js'
 import { ServiceError } from '../lib/errors.js'
 import type { Actor } from '../lib/actor.js'
+import { broadcastEvent } from '../realtime/broadcast.js'
 
 interface Ctx {
   actor: Actor
@@ -36,20 +37,23 @@ export async function addTable(ctx: Ctx, input: { id?: number; number?: string; 
   })
 }
 
-export async function updateTable(_ctx: Ctx, id: number, updates: { number?: string; category?: string; section?: string; seats?: number }) {
+export async function updateTable(ctx: Ctx, id: number, updates: { number?: string; category?: string; section?: string; seats?: number }) {
   const data: Record<string, unknown> = {}
   if (updates.number != null) data.number = updates.number
   if (updates.category != null) data.category = updates.category
   if (updates.section != null) data.section = updates.section
   if (updates.seats != null) data.seats = Number(updates.seats) || 0
-  return prisma.table.update({ where: { id: Number(id) }, data })
+  const table = await prisma.table.update({ where: { id: Number(id) }, data })
+  broadcastEvent({ action: 'TABLE_UPDATED', actor: ctx.actor, details: { table: id } })
+  return table
 }
 
-export async function deleteTable(_ctx: Ctx, id: number) {
+export async function deleteTable(ctx: Ctx, id: number) {
   const table = await prisma.table.findUnique({ where: { id: Number(id) } })
   if (!table) throw new ServiceError('Table not found.', 404)
   // Locked tables (Delivery/Takeaway) are fixed order types and can't be removed.
   if (table.locked) throw new ServiceError('This table is fixed and cannot be deleted.')
   await prisma.table.delete({ where: { id: Number(id) } })
+  broadcastEvent({ action: 'TABLE_DELETED', actor: ctx.actor, details: { table: id } })
   return { success: true }
 }

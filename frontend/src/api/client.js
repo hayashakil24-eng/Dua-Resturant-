@@ -4,7 +4,7 @@
 // Phase 2/3). The JWT is held in localStorage and sent as a Bearer token; the
 // backend enforces every permission, so nothing here needs to know about roles.
 
-const BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
+export const BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
 const TOKEN_KEY = 'token'
 let token = null

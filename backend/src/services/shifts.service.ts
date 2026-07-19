@@ -18,6 +18,7 @@ import { orderTotal } from '../core/orderTotal.js'
 import { writeAudit } from '../lib/audit.js'
 import { ServiceError, NotFoundError } from '../lib/errors.js'
 import type { Actor } from '../lib/actor.js'
+import { broadcastEvent } from '../realtime/broadcast.js'
 
 type Tx = Prisma.TransactionClient
 interface Ctx {
@@ -67,7 +68,7 @@ export async function listPendingHandovers() {
 
 export async function startShift(ctx: Ctx, openingCash: number) {
   const opening = Math.max(0, Number(openingCash) || 0)
-  return prisma.$transaction(async (tx) => {
+  const shift = await prisma.$transaction(async (tx) => {
     // Single drawer: refuse to open a second concurrent shift.
     if (await activeShift(tx)) throw new ServiceError('A shift is already open. Close it before starting a new one.')
     return tx.shiftReconciliation.create({
@@ -82,18 +83,22 @@ export async function startShift(ctx: Ctx, openingCash: number) {
       },
     })
   })
+  broadcastEvent({ action: 'SHIFT_STARTED', actor: ctx.actor, details: { shiftId: shift.id, cashierName: shift.cashierName } })
+  return shift
 }
 
-export async function pauseShift(_ctx: Ctx) {
-  return prisma.$transaction(async (tx) => {
+export async function pauseShift(ctx: Ctx) {
+  const shift = await prisma.$transaction(async (tx) => {
     const shift = await activeShift(tx)
     if (!shift) throw new ServiceError('No active shift to pause.')
     return tx.shiftReconciliation.update({ where: { id: shift.id }, data: { status: 'paused', pausedAt: new Date() } })
   })
+  broadcastEvent({ action: 'SHIFT_PAUSED', actor: ctx.actor, details: { shiftId: shift.id } })
+  return shift
 }
 
-export async function resumeShift(_ctx: Ctx) {
-  return prisma.$transaction(async (tx) => {
+export async function resumeShift(ctx: Ctx) {
+  const shift = await prisma.$transaction(async (tx) => {
     const paused = await tx.shiftReconciliation.findFirst({ where: { status: 'paused' }, orderBy: { shiftStartTime: 'desc' } })
     if (!paused) throw new ServiceError('No paused shift to resume.')
     return tx.shiftReconciliation.update({
@@ -101,6 +106,8 @@ export async function resumeShift(_ctx: Ctx) {
       data: { status: 'active', resumedAt: new Date(), resumeCount: paused.resumeCount + 1 },
     })
   })
+  broadcastEvent({ action: 'SHIFT_RESUMED', actor: ctx.actor, details: { shiftId: shift.id } })
+  return shift
 }
 
 export async function endShift(

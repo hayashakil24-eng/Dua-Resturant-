@@ -10,6 +10,7 @@
 
 import type { Prisma, PrismaClient } from '@prisma/client'
 import type { Actor } from './actor.js'
+import { broadcastEvent } from '../realtime/broadcast.js'
 
 type TxClient = Prisma.TransactionClient | PrismaClient
 
@@ -36,4 +37,11 @@ export async function writeAudit(tx: TxClient, input: AuditInput): Promise<void>
       ...(input.at ? { at: input.at } : {}),
     },
   })
+  // Fire-and-forget: see docs/03-phase-2-realtime-lan.md — Phase 2 broadcasts
+  // on the same actions this file already logs. Emitted before the
+  // surrounding transaction is guaranteed committed (writeAudit runs inside
+  // it), which is an accepted simplification for a LAN convenience feature —
+  // not a financial ledger — since audit rows are always the last write in a
+  // mutation's transaction.
+  broadcastEvent(input)
 }

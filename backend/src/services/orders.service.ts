@@ -23,6 +23,7 @@ import {
 import { writeAudit } from '../lib/audit.js'
 import { NotFoundError, ServiceError } from '../lib/errors.js'
 import type { Actor } from '../lib/actor.js'
+import { broadcastEvent } from '../realtime/broadcast.js'
 
 type Tx = Prisma.TransactionClient
 type OrderWithItems = Prisma.OrderGetPayload<{ include: { items: true } }>
@@ -324,6 +325,11 @@ export async function addOrder(ctx: Ctx, input: AddOrderInput) {
     await deductForItems(tx, items.map((it) => ({ menuItemId: it.menuItemId, qty: it.qty })), ctx.actor)
 
     return serializeOrder(created)
+  }).then((order) => {
+    // No audit row for plain order placement (see broadcast.ts header) — this
+    // is the one broadcast every other device's Tables/KDS screen depends on.
+    broadcastEvent({ action: 'ORDER_PLACED', actor: ctx.actor, details: { orderId: order.id, table: order.table } })
+    return order
   })
 }
 
@@ -391,6 +397,9 @@ export async function markPaid(ctx: Ctx, orderId: string, method = 'Cash', onlin
       include: { items: true },
     })
     return serializeOrder(updated)
+  }).then((order) => {
+    broadcastEvent({ action: 'ORDER_PAID', actor: ctx.actor, details: { orderId: order.id, table: order.table } })
+    return order
   })
 }
 
@@ -568,12 +577,14 @@ export async function markOrderComplimentary(ctx: Ctx, orderId: string, opts: { 
   })
 }
 
-export async function markReady(_ctx: Ctx, orderId: string) {
+export async function markReady(ctx: Ctx, orderId: string) {
   const updated = await prisma.order.update({ where: { id: orderId }, data: { kitchen: 'Ready' }, include: { items: true } })
+  broadcastEvent({ action: 'ORDER_READY', actor: ctx.actor, details: { orderId, table: updated.table } })
   return serializeOrder(updated)
 }
 
-export async function clearKitchen(_ctx: Ctx, orderId: string) {
+export async function clearKitchen(ctx: Ctx, orderId: string) {
   const updated = await prisma.order.update({ where: { id: orderId }, data: { kitchen: 'Served' }, include: { items: true } })
+  broadcastEvent({ action: 'ORDER_SERVED', actor: ctx.actor, details: { orderId, table: updated.table } })
   return serializeOrder(updated)
 }
