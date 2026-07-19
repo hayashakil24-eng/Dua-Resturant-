@@ -6,15 +6,17 @@ import RecipeStatusBadge from '../components/RecipeStatusBadge.jsx'
 import RecipeFormModal from '../components/RecipeFormModal.jsx'
 import { dateLong, time } from '../utils/format.js'
 import { canModify } from '../config/permissions.js'
-import { IconKitchen, IconClock, IconCheck, IconMenuBook, IconPlus } from '../components/Icons.jsx'
+import { IconKitchen, IconClock, IconCheck, IconMenuBook, IconPlus, IconEdit, IconTrash } from '../components/Icons.jsx'
 
 // A single recipe card. When the viewer may approve (Admin) and the recipe is
 // still pending, it shows inline Approve/Reject actions — so approvals happen
 // right here, no separate Dashboard section needed. Reject requires a reason.
-function RecipeCard({ recipe: r, canApprove, onApprove, onReject }) {
+function RecipeCard({ recipe: r, canApprove, canEdit, canDelete, onApprove, onReject, onEdit, onDelete }) {
   const t = useT()
   const [rejecting, setRejecting] = useState(false)
   const [reason, setReason] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [deleteReason, setDeleteReason] = useState('')
   const isPending = r.status === 'pending'
 
   const confirmReject = () => {
@@ -22,6 +24,13 @@ function RecipeCard({ recipe: r, canApprove, onApprove, onReject }) {
     onReject(r.id, reason.trim())
     setRejecting(false)
     setReason('')
+  }
+
+  const confirmDelete = () => {
+    if (!deleteReason.trim()) return
+    onDelete(r.id, deleteReason.trim())
+    setDeleting(false)
+    setDeleteReason('')
   }
 
   return (
@@ -98,21 +107,76 @@ function RecipeCard({ recipe: r, canApprove, onApprove, onReject }) {
           </div>
         )
       )}
+
+      {/* Edit (Kitchen) / Delete (Admin). Editing sends the recipe back to
+          pending for re-approval; deleting is Admin-only and needs a reason. */}
+      {(canEdit || canDelete) && (
+        deleting ? (
+          <div className="mt-3 flex flex-col gap-2 border-t border-ink-line pt-3 sm:flex-row">
+            <input
+              value={deleteReason}
+              onChange={(e) => setDeleteReason(e.target.value)}
+              placeholder={t('kitchen.deleteReasonPh')}
+              className="input flex-1"
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={confirmDelete}
+                disabled={!deleteReason.trim()}
+                className="rounded-xl bg-rose-500/90 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-500 disabled:opacity-40"
+              >
+                {t('kitchen.confirmDelete')}
+              </button>
+              <button
+                onClick={() => {
+                  setDeleting(false)
+                  setDeleteReason('')
+                }}
+                className="btn-ghost px-4 py-2.5 text-sm"
+              >
+                {t('common.cancel')}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-3 flex gap-2 border-t border-ink-line pt-3">
+            {canEdit && (
+              <button onClick={() => onEdit(r)} className="btn-ghost flex-1 px-4 py-2 text-sm">
+                <IconEdit size={14} /> {t('kitchen.editRecipe')}
+              </button>
+            )}
+            {canDelete && (
+              <button
+                onClick={() => setDeleting(true)}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-300 transition hover:bg-rose-500/20"
+              >
+                <IconTrash size={14} /> {t('common.delete')}
+              </button>
+            )}
+          </div>
+        )
+      )}
     </div>
   )
 }
 
 export default function Kitchen() {
-  const { recipes, createRecipe, approveRecipe, rejectRecipe, menu, inventory, user } = useApp()
+  const { recipes, createRecipe, updateRecipe, deleteRecipe, approveRecipe, rejectRecipe, menu, inventory, user } = useApp()
   const t = useT()
   const [showModal, setShowModal] = useState(false)
+  const [editingRecipe, setEditingRecipe] = useState(null)
 
   // Only Kitchen staff create recipes. Admin/Manager have 'view' access to this
   // dashboard (to watch recipe status) but must not see the create control —
   // Admin's job is Approve/Reject, Manager's is neither.
   const canCreate = user ? canModify(user.role, 'recipeCreate') : false
+  // Editing is authoring, so it rides the same gate as create (Kitchen).
+  const canEdit = canCreate
   // Admin approves/rejects pending recipes right on this page.
   const canApprove = user ? canModify(user.role, 'recipeApproval') : false
+  // Delete is destructive → Admin only (stricter than authoring).
+  const canDelete = user?.role === 'Admin'
 
   const counts = recipes.reduce(
     (acc, r) => {
@@ -160,23 +224,36 @@ export default function Kitchen() {
               key={r.id}
               recipe={r}
               canApprove={canApprove}
+              canEdit={canEdit}
+              canDelete={canDelete}
               onApprove={approveRecipe}
               onReject={rejectRecipe}
+              onEdit={setEditingRecipe}
+              onDelete={deleteRecipe}
             />
           ))}
         </div>
       )}
 
-      {showModal && canCreate && (
+      {(showModal || editingRecipe) && canCreate && (
         <RecipeFormModal
           menu={menu}
           inventory={inventory}
           existingRecipes={recipes}
-          onSave={(data) => {
-            createRecipe(data)
+          editingRecipe={editingRecipe}
+          onSave={async (data) => {
+            if (editingRecipe) {
+              await updateRecipe(editingRecipe.id, { ingredients: data.ingredients })
+            } else {
+              await createRecipe(data)
+            }
             setShowModal(false)
+            setEditingRecipe(null)
           }}
-          onClose={() => setShowModal(false)}
+          onClose={() => {
+            setShowModal(false)
+            setEditingRecipe(null)
+          }}
         />
       )}
     </div>

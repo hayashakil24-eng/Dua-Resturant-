@@ -94,6 +94,84 @@ export async function createRecipe(ctx: Ctx, input: CreateRecipeInput) {
   })
 }
 
+// Kitchen edits an existing recipe's ingredients. Any edit sends the recipe
+// back to 'pending' and clears prior approve/reject stamps, so a change to a
+// live recipe can't silently alter inventory deductions without a fresh Admin
+// approval (same separation-of-duties gate as creating one).
+export async function updateRecipe(
+  ctx: Ctx,
+  recipeId: string,
+  input: { ingredients: CreateRecipeInput['ingredients'] },
+) {
+  if (!input?.ingredients?.length) {
+    throw new ServiceError('A recipe needs at least one ingredient.')
+  }
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.recipe.findUnique({ where: { id: recipeId } })
+    if (!existing) throw new ServiceError('Recipe not found.', 404)
+    const inventory = await loadInventoryLike(tx)
+    const ings: RecipeIngredientLike[] = input.ingredients.map((ing) => ({
+      inventoryItemId: ing.inventoryItemId,
+      itemName: ing.itemName ?? inventory.find((x) => x.id === ing.inventoryItemId)?.name ?? '',
+      quantity: Number(ing.quantity) || 0,
+      unit: ing.unit,
+    }))
+    for (const ing of ings) {
+      if (!inventory.some((x) => x.id === ing.inventoryItemId)) {
+        throw new ServiceError(`Unknown inventory item: ${ing.inventoryItemId}`)
+      }
+    }
+    // Replace ingredient rows wholesale (simpler + audit-clearer than diffing).
+    await tx.recipeIngredient.deleteMany({ where: { recipeId } })
+    const updated = await tx.recipe.update({
+      where: { id: recipeId },
+      data: {
+        totalCost: Math.round(calculateRecipeCost(ings, inventory)),
+        status: 'pending',
+        approvedBy: null,
+        approvedAt: null,
+        rejectedBy: null,
+        rejectedAt: null,
+        rejectReason: null,
+        ingredients: {
+          create: ings.map((ing) => ({
+            inventoryItemId: ing.inventoryItemId,
+            itemName: ing.itemName,
+            quantity: ing.quantity,
+            unit: ing.unit,
+            costPerUnit: Math.round(inventory.find((x) => x.id === ing.inventoryItemId)?.costPerUnit ?? 0),
+            lineCost: Math.round(ingredientCost(ing, inventory)),
+          })),
+        },
+      },
+      include: { ingredients: true },
+    })
+    await writeAudit(tx, {
+      action: 'RECIPE_UPDATED',
+      actor: ctx.actor,
+      details: { recipeId, recipeName: existing.menuItemName },
+    })
+    return updated
+  })
+}
+
+// Admin-only hard delete. Destructive, so it's gated tighter than authoring and
+// records a reason in the audit log. RecipeIngredient's FK is onDelete: Cascade,
+// so the ingredient rows go with the recipe.
+export async function deleteRecipe(ctx: Ctx, recipeId: string, reason = '') {
+  return prisma.$transaction(async (tx) => {
+    const r = await tx.recipe.findUnique({ where: { id: recipeId } })
+    if (!r) throw new ServiceError('Recipe not found.', 404)
+    await tx.recipe.delete({ where: { id: recipeId } })
+    await writeAudit(tx, {
+      action: 'RECIPE_DELETED',
+      actor: ctx.actor,
+      details: { recipeId, recipeName: r.menuItemName, reason },
+    })
+    return { success: true }
+  })
+}
+
 export async function approveRecipe(ctx: Ctx, recipeId: string) {
   return prisma.$transaction(async (tx) => {
     const r = await tx.recipe.findUnique({ where: { id: recipeId } })

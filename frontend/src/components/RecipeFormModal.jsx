@@ -5,14 +5,44 @@ import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import { IconClose, IconPlus, IconTrash, IconAlert } from './Icons.jsx'
 
 // Kitchen recipe builder: pick a menu item, then add ingredient rows drawn from
-// live inventory. Each ingredient's unit is taken from the chosen inventory item
-// (deduction subtracts from that item's `stock` in its own unit), so we show the
-// unit as a fixed label rather than letting it be mis-picked.
-export default function RecipeFormModal({ menu, inventory, existingRecipes = [], onSave, onClose }) {
+// live inventory. Each ingredient defaults to its inventory item's own unit, but
+// the chef can pick a smaller measuring unit (tbsp/tsp/cup) from the same
+// weight/volume family — deduction converts it back into the item's base unit
+// (inventoryFlow.js's convertUnit) before subtracting stock, so e.g. "4 tbsp" of
+// a masala stored in kg still deducts correctly.
+
+// Measuring units a chef may pick per ingredient, grouped by the base unit its
+// inventory item is stored in. Every option has a convertUnit() path into that
+// base unit, so the deduction can always translate the chosen unit back to the
+// item's own kg/L. Count-based items (pcs/packs) have no such conversion and
+// stay locked to their own unit.
+const MEASURE_UNITS = {
+  weight: ['kg', 'g', 'tbsp', 'tsp', 'cup'],
+  volume: ['L', 'ml', 'tbsp', 'tsp', 'cup'],
+}
+function unitsForInventory(inv) {
+  const u = String(inv?.unit || '').toLowerCase()
+  if (u === 'kg' || u === 'g') return MEASURE_UNITS.weight
+  if (u === 'l' || u === 'ml') return MEASURE_UNITS.volume
+  return inv?.unit ? [inv.unit] : []
+}
+
+export default function RecipeFormModal({ menu, inventory, existingRecipes = [], editingRecipe = null, onSave, onClose }) {
   const { ingredientRequests, createIngredientRequest } = useApp()
   const t = useT()
-  const [menuItemId, setMenuItemId] = useState('')
-  const [ingredients, setIngredients] = useState([])
+  const isEditing = !!editingRecipe
+  // In edit mode, hydrate from the existing recipe; the dish itself is fixed
+  // (you edit *its* recipe), so only the ingredient rows are mutable.
+  const [menuItemId, setMenuItemId] = useState(editingRecipe?.menuItemId || '')
+  const [ingredients, setIngredients] = useState(() =>
+    (editingRecipe?.ingredients || []).map((ing, i) => ({
+      id: ing.id || `${Date.now()}-${i}`,
+      inventoryItemId: ing.inventoryItemId,
+      itemName: ing.itemName,
+      quantity: String(ing.quantity),
+      unit: ing.unit,
+    })),
+  )
   const [error, setError] = useState('')
   useEscapeKey(onClose)
 
@@ -25,9 +55,12 @@ export default function RecipeFormModal({ menu, inventory, existingRecipes = [],
 
   const menuItems = menu.filter((m) => m.active !== false)
 
-  // Menu items that already have an approved or pending recipe — flag to avoid dupes.
+  // Menu items that already have an approved or pending recipe — flag to avoid
+  // dupes. The recipe being edited is excluded so its own dish isn't flagged.
   const takenIds = new Set(
-    existingRecipes.filter((r) => r.status !== 'rejected').map((r) => r.menuItemId),
+    existingRecipes
+      .filter((r) => r.status !== 'rejected' && r.id !== editingRecipe?.id)
+      .map((r) => r.menuItemId),
   )
 
   const addRow = () =>
@@ -116,7 +149,8 @@ export default function RecipeFormModal({ menu, inventory, existingRecipes = [],
             <select
               value={menuItemId}
               onChange={(e) => setMenuItemId(e.target.value)}
-              className="input"
+              disabled={isEditing}
+              className="input disabled:opacity-60"
             >
               <option value="">{t('recipe.selectMenuItem')}</option>
               {menuItems.map((m) => (
@@ -146,7 +180,10 @@ export default function RecipeFormModal({ menu, inventory, existingRecipes = [],
             )}
 
             <div className="space-y-2">
-              {ingredients.map((row, idx) => (
+              {ingredients.map((row, idx) => {
+                const invItem = inventory.find((x) => x.id === row.inventoryItemId)
+                const unitOpts = invItem ? unitsForInventory(invItem) : row.unit ? [row.unit] : []
+                return (
                 <div key={row.id} className="flex items-center gap-2">
                   <select
                     value={row.inventoryItemId}
@@ -175,9 +212,21 @@ export default function RecipeFormModal({ menu, inventory, existingRecipes = [],
                     placeholder={t('recipe.qty')}
                     className="input w-20"
                   />
-                  <span className="w-10 shrink-0 text-center text-xs text-cream-dim">
-                    {row.unit || '—'}
-                  </span>
+                  {/* Unit picker: defaults to the item's base unit but lets the chef
+                      measure in tbsp/tsp/cup; deduction converts it back on order.
+                      Locked (single option) for count-based items with no conversion. */}
+                  <select
+                    value={row.unit || ''}
+                    onChange={(e) => updateRow(idx, 'unit', e.target.value)}
+                    disabled={unitOpts.length <= 1}
+                    title={t('recipe.unit')}
+                    className="input w-20 shrink-0 px-2 disabled:opacity-60"
+                  >
+                    {unitOpts.length === 0 && <option value="">—</option>}
+                    {unitOpts.map((u) => (
+                      <option key={u} value={u}>{u}</option>
+                    ))}
+                  </select>
                   <button
                     onClick={() => removeRow(idx)}
                     className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-ink-line bg-ink-soft text-cream-dim transition hover:border-rose-500/40 hover:text-rose-300"
@@ -186,7 +235,8 @@ export default function RecipeFormModal({ menu, inventory, existingRecipes = [],
                     <IconTrash size={14} />
                   </button>
                 </div>
-              ))}
+                )
+              })}
             </div>
           </div>
 
