@@ -1,6 +1,6 @@
 # Backend Architecture Overview
 
-Status: **planning only** — no backend code exists yet. This document and the phase files beside it are the agreed plan; implementation starts at [Phase 0](01-phase-0-foundation.md).
+Status: **Phases 0–4 built and verified** (Phase 4 against a local stand-in for the VPS — no real Supabase/Postgres credentials available yet). Phase 5 is unstarted scope, not yet broken into sub-tasks. See the phase index below for each phase's own status line, and `../README.md` for how to run what exists today. An alternative on-site deployment, `../../control-panel/` (a single Electron app embedding this same backend), also exists alongside the PM2-based deployment Phase 3 describes — see `../../control-panel/README.md`.
 
 ## Why a backend at all
 
@@ -49,12 +49,12 @@ One open decision carried into Phase 0: the frontend currently mints sequential 
 
 ## Phase index
 
-0. [Foundation](01-phase-0-foundation.md) — scaffolding, schema, ported business logic. No user-facing change.
-1. [Single-device backend](02-phase-1-single-device-backend.md) — replaces `localStorage`, one device, full feature parity.
-2. [Multi-device real-time (LAN)](03-phase-2-realtime-lan.md) — the actual "multiple cashiers/KDS see live data" requirement.
-3. [Local deployment hardening](04-phase-3-deployment-hardening.md) — background service, backups, device pairing.
-4. [VPS + sync](05-phase-4-vps-sync.md) — central store, offline-resilient sync.
-5. [Cloud-facing features](06-phase-5-cloud-features.md) — only possible once Phase 4 exists.
+0. [Foundation](01-phase-0-foundation.md) — scaffolding, schema, ported business logic. No user-facing change. ✅ complete.
+1. [Single-device backend](02-phase-1-single-device-backend.md) — replaces `localStorage`, one device, full feature parity. ✅ complete, manual QA done, frontend wired.
+2. [Multi-device real-time (LAN)](03-phase-2-realtime-lan.md) — the actual "multiple cashiers/KDS see live data" requirement. ✅ built and verified.
+3. [Local deployment hardening](04-phase-3-deployment-hardening.md) — background service, backups, device pairing. ✅ built and verified (bar a few reboot/real-LAN/USB checks that need the real hardware).
+4. [VPS + sync](05-phase-4-vps-sync.md) — central store, offline-resilient sync. ✅ built and verified against a local stand-in for the VPS.
+5. [Cloud-facing features](06-phase-5-cloud-features.md) — only possible once Phase 4 exists. Not started — candidate list only, not yet scoped.
 
 Each phase ships something usable on its own — stopping after Phase 1 or 2 is already a strict improvement over today's `localStorage`-only app, not a half-finished feature.
 

@@ -222,6 +222,10 @@ export function AppProvider({ children }) {
     }
   }
   const logout = () => {
+    // Best-effort, not awaited: revokes this session server-side (keeps the
+    // Control Panel's connected-devices list accurate) but must never block
+    // or fail the actual logout if the server is unreachable.
+    apiPost('/api/auth/logout').catch(() => {})
     setToken(null)
     setUser(null)
   }

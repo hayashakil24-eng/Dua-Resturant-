@@ -1,7 +1,12 @@
 # Cafe Ali — Management System (Frontend)
 
 A premium, luxury-themed restaurant management frontend for **Cafe Ali**.
-Built with **React + Vite + Tailwind CSS**. Frontend-only (mock data, no backend).
+Built with **React + Vite + Tailwind CSS**, packaged as an Electron desktop
+app. Talks to the `../backend/` Fastify/Prisma server over REST + Socket.IO —
+see the root `../README.md` and `../CLAUDE.md` for how the two fit together.
+This README covers the frontend on its own; the backend must be running
+(`cd ../backend && npm run dev`) or the app shows a "Cannot reach the server"
+state.
 
 ## Palette & Design
 - Background: black `#0B0B0D`
@@ -10,40 +15,55 @@ Built with **React + Vite + Tailwind CSS**. Frontend-only (mock data, no backend
 - Serif display font (Cormorant Garamond) for headings, Inter for body
 - Fully responsive: desktop / tablet / mobile
 
-## Roles & Access (role-based sidebar)
-| Screen              | Admin | Manager | Cashier |
-|---------------------|:-----:|:-------:|:-------:|
-| Dashboard           | ✅ | ✅ | ✅ |
-| New Order (POS)     | ✅ | ✅ | ✅ |
-| Orders              | ✅ | ✅ | ✅ |
-| Attendance          | ✅ | ✅ | — |
-| Billing & Receipts  | ✅ | — | ✅ |
+## Roles & Access
 
-## Screens
-1. **Login** — role selector (Admin / Manager / Cashier), any password works (demo).
-2. **Dashboard** — today's orders, revenue, active tables, staff present, revenue-by-hour chart, recent orders, on-duty staff.
-3. **POS / New Order** — searchable menu grid + categories, cart with qty controls, assign table + waiter, payment status (Paid/Unpaid) & method, checkout.
-4. **Orders** — table/cards with Order ID, Table, Waiter, Items, Total, payment badge, time; filter + search + mark-as-paid.
-5. **Attendance** — staff list with check-in / check-out and daily status badges.
-6. **Billing & Receipts** — receipt cards + printable thermal-style receipt view (`Print`).
+Role-based sidebar, gated by `src/config/permissions.js` (`hasAccess`/`canModify`/`getAccessLevel`) both client-side and — independently — on every backend route:
+
+| Role | Can access |
+|------|-----------|
+| **Admin** | Everything — reports, settings, closing, staff, recipe/request approval, all money actions |
+| **Manager** | Operations, staff, finance, day closing, inventory restock (view-level on some Admin-only actions) |
+| **Cashier** | POS / New Order, orders, billing, tables |
+| **Kitchen** | Kitchen dashboard (create recipes) + Kitchen Display (KDS) only |
+
+## Pages (`src/pages/`)
+
+`Login`, `Dashboard`, `POS`, `Orders`, `Kitchen`, `KitchenDisplay` (`/kds`, fullscreen), `Tables`, `Inventory`, `MenuManagement`, `DepartmentManagement`, `Employees`, `Attendance`, `Payroll`, `Billing`, `Accounting`, `ReceivablesManagement`, `HandoverApprovals`, `Closing`, `Reports`, `Settings`.
 
 ## Run
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173
-npm run build    # production build → dist/
-npm run preview  # preview the production build
+npm run dev      # opens the Electron app (dev), Vite dev server on http://localhost:5173
+npm run build    # production build → dist/ (renderer) + dist-electron/ (main/preload)
+npm run dist     # build + package a Windows installer → release/
+npm run preview  # preview the built renderer in a plain browser (rarely needed)
 ```
+
+There is no lint, format, or test tooling configured here (no ESLint/Prettier
+config, no test runner) — verify changes by running the dev server.
+
+## Logging in
+
+Real username/password auth (`POST /api/auth/login` → JWT, stored in
+`localStorage`). Demo accounts seeded by the backend: `admin` / `manager` /
+`cashier` / `kitchen`, password `1234`.
 
 ## Structure
 ```
 src/
-  context/AppContext.jsx   # auth + orders + attendance state (mock)
-  data/mockData.js         # menu, staff, tables, seed orders
-  config/nav.js            # role-based navigation
-  components/              # Layout, Logo, Icons, shared UI
-  pages/                   # Login, Dashboard, POS, Orders, Attendance, Billing
+  context/AppContext.jsx   # single global state — hydrates from the backend on mount,
+                            # every mutator posts to a permission-gated route then refetches
+  api/client.js             # fetch wrapper + JWT storage (only thing left in localStorage)
+  data/mockData.js          # seed reference only, no longer the live data source
+  config/                   # permissions.js, nav.js
+  components/                # Layout, Logo, Icons, shared UI
+  pages/                      # see "Pages" above
+  i18n/                        # LanguageContext.jsx — custom en/ur dot-path translation
 ```
 
-> Data is in-memory only — refreshing the page resets to seed data.
+> Data lives in the backend's database, not the browser — it survives a
+> restart and is shared live across every device on the LAN (Socket.IO). Only
+> the JWT and the UI language preference are kept in `localStorage`. One
+> slice, `attendance`, is still frontend-local/seed-only for now since no real
+> machine-attendance source exists yet.

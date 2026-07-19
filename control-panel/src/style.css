@@ -1,0 +1,91 @@
+* { box-sizing: border-box; }
+body {
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: #16130f;
+  color: #f2ead9;
+  margin: 0;
+  padding: 24px;
+}
+.brand { text-align: center; margin-bottom: 20px; }
+.brand h1 { font-size: 22px; margin: 0; color: #d4a94e; }
+.brand p { margin: 2px 0 0; font-size: 12px; color: #a89a83; letter-spacing: 0.1em; text-transform: uppercase; }
+
+.hidden { display: none !important; }
+
+.card {
+  background: #211c16;
+  border: 1px solid #3a3226;
+  border-radius: 14px;
+  padding: 20px;
+}
+.card h2 { margin-top: 0; font-size: 16px; }
+.hint { font-size: 12px; color: #a89a83; line-height: 1.5; }
+.hint.small { margin-top: 14px; }
+
+.field { display: block; margin: 16px 0; }
+.field span { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #a89a83; margin-bottom: 6px; }
+.row { display: flex; gap: 8px; }
+input[type="text"] {
+  flex: 1;
+  background: #16130f;
+  border: 1px solid #3a3226;
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #f2ead9;
+  font-size: 13px;
+}
+
+button {
+  font-size: 13px;
+  border-radius: 8px;
+  padding: 10px 16px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+}
+button.primary { background: linear-gradient(180deg, #e0b559, #b6862c); color: #16130f; width: 100%; margin-top: 8px; }
+button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+button.secondary { background: #3a3226; color: #f2ead9; }
+
+.error { color: #e08a8a; font-size: 12px; margin-top: 10px; }
+
+.status-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.dot { width: 12px; height: 12px; border-radius: 50%; background: #666; }
+.dot.online { background: #4ade80; box-shadow: 0 0 8px #4ade80; }
+.dot.stopped { background: #666; }
+.dot.starting { background: #eab308; }
+.dot.error { background: #ef4444; }
+#status-text { font-size: 15px; font-weight: 600; }
+
+.info-row { display: flex; justify-content: space-between; font-size: 13px; padding: 6px 0; border-bottom: 1px solid #3a3226; color: #cbbfa8; }
+.info-row span:last-child { color: #f2ead9; }
+
+input[type="password"] {
+  width: 100%;
+  background: #16130f;
+  border: 1px solid #3a3226;
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #f2ead9;
+  font-size: 13px;
+}
+
+.devices-heading { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: #a89a83; margin: 20px 0 10px; }
+
+.devices-list { display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; }
+
+.device-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: #16130f;
+  border: 1px solid #3a3226;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.device-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.device-name { font-size: 13px; font-weight: 600; color: #f2ead9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.device-role { font-weight: 400; color: #a89a83; }
+.device-meta { font-size: 11px; color: #a89a83; }
+.device-disconnect { flex-shrink: 0; padding: 6px 10px; font-size: 12px; }

@@ -11,7 +11,7 @@ import type { Role } from '../core/permissions.js'
 
 const VALID_ROLES: Role[] = ['Admin', 'Manager', 'Cashier', 'Kitchen']
 
-export async function authenticateCredentials(username: unknown, password: unknown): Promise<JwtPayload> {
+export async function authenticateCredentials(username: unknown, password: unknown): Promise<Omit<JwtPayload, 'jti'>> {
   const uname = String(username ?? '').trim().toLowerCase()
   const pass = String(password ?? '')
   if (!uname || !pass) throw new ServiceError('Username and password are required.', 400)

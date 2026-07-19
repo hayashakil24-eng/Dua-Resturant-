@@ -10,11 +10,13 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import { canModify, hasAccess, type PageKey, type Role } from '../core/permissions.js'
 import type { Actor } from '../lib/actor.js'
+import { isSessionValid } from './sessions.js'
 
 export interface JwtPayload {
   sub: string // Staff.id
   name: string
   role: Role // systemRole
+  jti: string // session id — checked against the active-session registry, see sessions.ts
 }
 
 // Populate req.actor from a verified token, or 401. Every guarded route runs
@@ -27,6 +29,10 @@ export async function authenticate(req: FastifyRequest, reply: FastifyReply): Pr
     return
   }
   const p = req.user as JwtPayload
+  if (!isSessionValid(p.jti)) {
+    reply.code(401).send({ error: 'This session has been disconnected. Please log in again.' })
+    return
+  }
   req.actor = { id: p.sub, name: p.name, role: p.role }
 }
 

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Cafe Ali Control Panel</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="brand">
+      <h1>Cafe Ali</h1>
+      <p>Control Panel</p>
+    </div>
+
+    <!-- First-run setup wizard — hidden once setup is complete -->
+    <section id="setup" class="card hidden">
+      <h2>First-time setup</h2>
+      <p class="hint">This only happens once. No terminal, no typing IPs — just pick where backups should be saved and set a password for this panel.</p>
+
+      <label class="field">
+        <span>Backup folder</span>
+        <div class="row">
+          <input id="backup-dir-display" type="text" readonly placeholder="Not selected yet" />
+          <button id="pick-folder-btn" class="secondary">Choose…</button>
+        </div>
+      </label>
+
+      <label class="field">
+        <span>Panel password</span>
+        <input id="setup-password" type="password" placeholder="At least 4 characters" />
+      </label>
+      <label class="field">
+        <span>Confirm password</span>
+        <input id="setup-password-confirm" type="password" placeholder="Re-type it" />
+      </label>
+      <p class="hint">Whoever knows this password can start/stop the server and disconnect devices — keep it to whoever manages the restaurant's setup. It also becomes the first staff login for the actual app: username <b>admin</b>, this same password — sign in with that and add real staff accounts from Settings.</p>
+
+      <button id="complete-setup-btn" class="primary" disabled>Complete Setup</button>
+      <p id="setup-error" class="error hidden"></p>
+    </section>
+
+    <!-- Lock screen — shown at every launch after setup, until unlocked -->
+    <section id="lock" class="card hidden">
+      <h2>Enter panel password</h2>
+      <label class="field">
+        <span>Password</span>
+        <input id="lock-password" type="password" />
+      </label>
+      <button id="unlock-btn" class="primary">Unlock</button>
+      <p id="lock-error" class="error hidden"></p>
+    </section>
+
+    <!-- Dashboard — the normal, day-to-day view -->
+    <section id="dashboard" class="card hidden">
+      <div class="status-row">
+        <span id="status-dot" class="dot"></span>
+        <span id="status-text">Checking…</span>
+      </div>
+
+      <div class="info-row">
+        <span>Last backup</span>
+        <span id="last-backup">—</span>
+      </div>
+      <div class="info-row">
+        <span>Backup folder</span>
+        <span id="backup-dir-shown">—</span>
+      </div>
+
+      <button id="toggle-server-btn" class="primary">Stop Server</button>
+      <p class="hint small">Other devices on this WiFi network connect automatically — nothing to configure on them.</p>
+
+      <h2 class="devices-heading">Connected devices (<span id="device-count">0</span>)</h2>
+      <div id="devices-list" class="devices-list">
+        <p class="hint">No devices connected right now.</p>
+      </div>
+    </section>
+
+    <script src="app.js"></script>
+  </body>
+</html>

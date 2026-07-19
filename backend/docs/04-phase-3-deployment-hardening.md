@@ -2,6 +2,8 @@
 
 **Status: ✅ built and verified as far as this dev sandbox allows.** See `deployment-setup.md` for the one-time on-site setup steps and "Verification notes" below for exactly what was and wasn't testable from a Linux/WSL dev container rather than the actual target Windows restaurant PC.
 
+**Alternative on-site deployment now also exists**: `control-panel/` is a single Electron app that embeds this same backend directly (no PM2, no manual `.env`/service setup — see `control-panel/README.md`), for whoever wants the simplest possible install at the cost of PM2's independent crash-supervision. The PM2 path documented below is unchanged and still the more resilient option; neither replaces the other, they're two supported ways to run the same local server. The Control Panel also adds an admin surface this plain PM2 path doesn't have: a password-gated window showing live connected devices (name/role/IP/connected-since) with a real disconnect button — see `control-panel/README.md`'s "Operations available in the panel". That disconnect is backed by a new session registry (`src/auth/sessions.ts` — see `02-phase-1-single-device-backend.md`'s auth section), not something control-panel-specific, so the same "restart requires re-login" consequence applies to this PM2 deployment too.
+
 Makes the local server survive real-world restaurant conditions without a technical person on-site babysitting it. No new features for staff — this phase is about the server being trustworthy, not about doing more.
 
 ## Goal

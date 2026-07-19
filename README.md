@@ -6,8 +6,11 @@ accounting, cash-drawer reconciliation, online-payment accounts, GST, and an
 end-of-day **Day Closing** report.
 
 Built with **React + Vite + Tailwind CSS**, packaged as a Windows desktop app
-with **Electron**. It currently runs on mock data (no backend yet) — all data
-lives in the browser's `localStorage`, so it works fully offline.
+with **Electron**, backed by a **TypeScript/Fastify/Prisma** server (`backend/`)
+that all devices on the restaurant's LAN talk to — real login, real persistence,
+and live updates across devices (an order placed on one screen shows up on
+another's within about a second). The backend must be running for the app to
+work; see step 4 below.
 
 ---
 
@@ -33,31 +36,53 @@ lives in the browser's `localStorage`, so it works fully offline.
 
 ```bash
 git clone https://github.com/hayashakil24-eng/Dua-Resturant-.git
-cd "Dua-Resturant-/frontend"
+cd Dua-Resturant-
 ```
 
-> **Important:** all commands below run from inside the **`frontend/`** folder
-> (the app lives there — there is no root `package.json`). Always `cd frontend`
-> first.
+> **Important:** there is no root `package.json` — `frontend/` and `backend/`
+> are separate npm projects, each with their own commands below.
 
 ---
 
 ## 3. Install dependencies
 
 ```bash
-npm install
+cd backend && npm install
+cd ../frontend && npm install
 ```
 
-This downloads everything the app needs (React, Vite, Electron, Tailwind, …).
-Run it once after cloning, and again whenever `package.json` changes.
+This downloads everything each side needs (Fastify/Prisma for the backend;
+React, Vite, Electron, Tailwind for the frontend). Run it once after cloning,
+and again whenever a `package.json` changes.
 
 ---
 
-## 4. Run the app
+## 4. Run the backend (zaroori — pehle ye chalayein)
+
+The frontend needs the backend running or it shows a "Cannot reach the
+server" state.
+
+```bash
+cd backend
+cp .env.example .env
+npm run prisma:migrate   # applies migrations + seeds demo data (once)
+npm run dev               # listens on :4000
+```
+
+Leave this running in its own terminal. See `backend/README.md` for the full
+backend docs, test suite, and the alternative `control-panel/` app (a single
+Electron installer with no terminal/PM2 needed) that runs the same backend.
+
+---
+
+## 5. Run the app
+
+With the backend still running in its own terminal (step 4):
 
 ### A) Development mode (for testing / editing)
 
 ```bash
+cd frontend
 npm run dev
 ```
 
@@ -85,15 +110,19 @@ program — **no Node.js or terminal needed on that PC.**
 
 ---
 
-## 5. Logging in
+## 6. Logging in
 
-This is a **demo build** with no real authentication:
+Real username/password login, backed by the database (`Staff.username` /
+`passwordHash`, checked server-side):
 
-1. On the login screen, pick a **role** — Admin, Manager, Cashier, or Kitchen.
-2. Type **any password** (any text works).
+1. On the login screen, enter a **username** and **password**.
+2. Demo accounts seeded by `npm run prisma:migrate`: `admin`, `manager`,
+   `cashier`, `kitchen` — all with password `1234`.
 3. Click **Sign in**.
 
-Each role sees a different set of pages (see the role guide below).
+Each role sees a different set of pages (see the role guide below); the
+backend independently re-checks every permission server-side, not just in
+the UI.
 
 | Role | Can access |
 |------|-----------|
@@ -104,20 +133,23 @@ Each role sees a different set of pages (see the role guide below).
 
 ---
 
-## 6. About the data (zaroori baat)
+## 7. About the data (zaroori baat)
 
-- There is **no backend / database yet** — the app is fully offline and stores
-  everything in the desktop app's local storage.
-- Some data (orders, inventory, recipes, transactions, shifts, online accounts,
-  saved closings…) **persists** across restarts.
-- Some data (menu, tables, staff, attendance) is **seed/demo data** that resets
-  on reload — this is intentional for the demo.
-- **To reset all data:** clear the app's storage (in dev you can open DevTools →
-  Application → Local Storage → clear; a fresh install starts clean).
+- Data lives in the **backend's SQLite database** (`backend/prisma/dev.db`),
+  not the browser — it survives closing the app, restarting the backend, or
+  running a completely different device on the LAN.
+- Multiple devices see the same data live: an order placed on one screen
+  shows up on another's within about a second, no manual refresh (Socket.IO).
+- Only the login JWT is kept in the frontend's `localStorage` — clearing it
+  just logs you out, it doesn't touch any real data.
+- One slice, `attendance`, is still frontend-local/seed-only for now (no
+  real machine-attendance source exists yet) and resets on reload.
+- **To reset all data:** stop the backend, delete `backend/prisma/dev.db`,
+  and re-run `npm run prisma:migrate` to get a fresh seeded database.
 
 ---
 
-## 7. Troubleshooting
+## 8. Troubleshooting
 
 **`npm run dev` crashes with**
 `"The requested module 'electron' does not provide an export named 'BrowserWindow'"`
@@ -145,24 +177,28 @@ previously running dev instance.
 
 ---
 
-## 8. Project layout
+## 9. Project layout
 
 ```
 Dua-Resturant-/
-├─ frontend/            ← the app (run all npm commands here)
+├─ frontend/            ← the Electron/React app
 │  ├─ electron/         ← Electron shell (main.js, preload)
 │  ├─ src/              ← React app (pages, components, context, i18n)
-│  │  ├─ pages/         ← POS, Orders, Reports, Closing, Settings, …
-│  │  ├─ context/       ← AppContext.jsx (single global state, all logic)
+│  │  ├─ pages/         ← POS, Orders, Kitchen, KDS, Inventory, Reports, Closing, Settings, …
+│  │  ├─ context/       ← AppContext.jsx (single global state, talks to the backend)
+│  │  ├─ api/client.js  ← fetch wrapper + JWT storage
 │  │  ├─ config/        ← permissions.js, nav.js
-│  │  └─ data/mockData.js  ← the seed "database"
+│  │  └─ data/mockData.js  ← seed reference only, no longer the live data source
 │  └─ package.json      ← scripts & dependencies
+├─ backend/             ← TypeScript/Fastify/Prisma server (see backend/README.md)
+│  ├─ src/               ← core business logic, routes/services, realtime, sync, VPS instance
+│  ├─ prisma/            ← schema + migrations + seed
+│  └─ docs/              ← phase-by-phase architecture + build docs, start at 00-overview.md
+├─ control-panel/        ← alternative Electron app embedding the same backend (no PM2/terminal)
 ├─ requirements.md      ← client requirements (Roman Urdu scope)
+├─ requirements-conflicts.md ← open ambiguities needing client sign-off
 └─ README.md            ← this file
 ```
-
-A future `backend/` will replace the mock-data layer; that's a swap inside
-`AppContext.jsx` (localStorage → API calls) and doesn't affect the Electron shell.
 
 ---
 
@@ -171,16 +207,24 @@ A future `backend/` will replace the mock-data layer; that's a swap inside
 ```bash
 # 1. Repo clone karein
 git clone https://github.com/hayashakil24-eng/Dua-Resturant-.git
-cd "Dua-Resturant-/frontend"
+cd Dua-Resturant-
 
-# 2. Dependencies install karein (ek dafa)
-npm install
+# 2. Dependencies install karein (ek dafa) — backend aur frontend dono
+cd backend && npm install && cd ../frontend && npm install && cd ..
 
-# 3. App chalayein (desktop window khulegi)
+# 3. Backend chalayein (alag terminal mein, isay chalta hi rehne dein)
+cd backend
+cp .env.example .env
+npm run prisma:migrate
 npm run dev
 
-# 4. Client ke PC ke liye Windows installer banayein
+# 4. Frontend chalayein (naya terminal, desktop window khulegi)
+cd frontend
+npm run dev
+
+# 5. Client ke PC ke liye Windows installer banayein
+cd frontend
 npm run dist      # → frontend/release/ mein .exe milega
 ```
 
-Login: koi bhi role chunein (Admin/Manager/Cashier/Kitchen) + koi bhi password → Sign in.
+Login: username + password daalein — demo accounts: `admin`/`manager`/`cashier`/`kitchen`, password `1234`.

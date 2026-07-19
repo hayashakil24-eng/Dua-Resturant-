@@ -3,6 +3,8 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
   "description": "Cafe Ali backend — see docs/00-overview.md. Phase 1 in progress: Fastify HTTP server + JWT auth + orders domain (localStorage parity being ported route-by-route).",
   "scripts": {
     "dev": "tsx watch src/server.ts",

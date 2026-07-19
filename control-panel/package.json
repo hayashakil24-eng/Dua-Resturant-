@@ -1,0 +1,39 @@
+{
+  "name": "@cafe-ali/control-panel",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "electron/main.js",
+  "description": "Cafe Ali Control Panel — runs the local backend in-process (no separate Node/PM2 install), with a first-run setup wizard and a live online/offline status view. See backend/docs/04-phase-3-deployment-hardening.md.",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "dependencies": {
+    "@cafe-ali/backend": "file:../backend"
+  },
+  "devDependencies": {
+    "electron": "^43.1.1",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.cafeali.controlpanel",
+    "productName": "Cafe Ali Control Panel",
+    "files": [
+      "electron/**",
+      "src/**",
+      "node_modules/**"
+    ],
+    "asarUnpack": [
+      "node_modules/@cafe-ali/backend/**",
+      "node_modules/@prisma/**",
+      "node_modules/.prisma/**"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": "nsis"
+    }
+  }
+}
