@@ -36,6 +36,14 @@ export async function orderRoutes(app: FastifyInstance): Promise<void> {
     return { order: await orders.updateOrderItemQty(ctx(req), id, String(itemKey), qty ?? 0) }
   })
 
+  // Move a running order to another table (re-seat) — same gate as editing a
+  // running order's lines, since it's the same class of running-order change.
+  app.post('/api/orders/:id/table', { preHandler: requireAnyPermission(['pos', 'orders', 'billing']) }, async (req) => {
+    const { id } = req.params as { id: string }
+    const { table } = (req.body ?? {}) as { table?: number | string }
+    return { order: await orders.shiftOrderTable(ctx(req), id, table as number | string) }
+  })
+
   // Take payment.
   app.post('/api/orders/:id/pay', { preHandler: requireAnyPermission(['orders', 'billing']) }, async (req) => {
     const { id } = req.params as { id: string }

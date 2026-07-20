@@ -5,6 +5,7 @@ import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader, PaymentBadge } from '../components/ui.jsx'
 import { TABLE_CATEGORIES } from '../data/mockData.js'
 import { canModify, hasAccess } from '../config/permissions.js'
+import ShiftTableModal from '../components/ShiftTableModal.jsx'
 import { money, time } from '../utils/format.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import {
@@ -76,7 +77,7 @@ function TableCard({ info, now, onClick }) {
   )
 }
 
-function OrderDetailsModal({ order, tableLabel, orderTotal, onClose, canAddItems, onAddItems }) {
+function OrderDetailsModal({ order, tableLabel, orderTotal, onClose, canAddItems, onAddItems, canShiftTable, onShiftTable }) {
   const t = useT()
   useEscapeKey(onClose)
   const { subtotal, tax, discount, total } = orderTotal(order.items, order.discount?.amount, order.gstRate)
@@ -142,6 +143,13 @@ function OrderDetailsModal({ order, tableLabel, orderTotal, onClose, canAddItems
           {canAddItems && order.payment === 'Unpaid' && (
             <button onClick={onAddItems} className="btn-gold mt-5 w-full py-2.5 text-sm">
               <IconPlus size={16} /> {t('tables.addMoreItems')}
+            </button>
+          )}
+
+          {/* Party moved seats: re-seat this running order onto another table. */}
+          {canShiftTable && order.payment === 'Unpaid' && (
+            <button onClick={onShiftTable} className="btn-ghost mt-2 w-full py-2.5 text-sm">
+              <IconTable size={16} /> {t('tables.shiftTable')}
             </button>
           )}
         </div>
@@ -314,13 +322,14 @@ const TABS = [
 ]
 
 export default function Tables() {
-  const { orders, orderTotal, tables, addTable, updateTable, deleteTable, user } = useApp()
+  const { orders, orderTotal, tables, addTable, updateTable, deleteTable, shiftOrderTable, user } = useApp()
   const t = useT()
   const navigate = useNavigate()
   const [tab, setTab] = useState('all')
   const [cat, setCat] = useState('All') // 'All' | 'A'…'H' | 'Special'
   const [q, setQ] = useState('')
   const [detail, setDetail] = useState(null)
+  const [shiftTarget, setShiftTarget] = useState(null) // running order → move to another table
   const [manage, setManage] = useState(false)
   const [now, setNow] = useState(() => Date.now())
   const catScrollRef = useRef(null)
@@ -361,6 +370,8 @@ export default function Tables() {
   // needs POS access (Cashier + Admin — Manager has no POS).
   const canManageTables = user && canModify(user.role, 'tableAdd')
   const canAddItems = user && hasAccess(user.role, 'pos')
+  // Re-seating a running order is a running-order edit (same gate as Orders page).
+  const canShiftTable = user && canModify(user.role, 'orders')
 
   const onCardClick = (info) => {
     if (info.status === 'in-use') setDetail(info.order)
@@ -497,7 +508,24 @@ export default function Tables() {
           orderTotal={orderTotal}
           canAddItems={canAddItems}
           onAddItems={() => continueOrder(detail)}
+          canShiftTable={canShiftTable}
+          onShiftTable={() => {
+            setShiftTarget(detail)
+            setDetail(null)
+          }}
           onClose={() => setDetail(null)}
+        />
+      )}
+
+      {shiftTarget && (
+        <ShiftTableModal
+          order={shiftTarget}
+          onConfirm={async (tableId) => {
+            const res = await shiftOrderTable(shiftTarget.id, tableId)
+            if (res?.error) return
+            setShiftTarget(null)
+          }}
+          onClose={() => setShiftTarget(null)}
         />
       )}
 

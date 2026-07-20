@@ -483,6 +483,32 @@ export async function updateOrderItemQty(ctx: Ctx, orderId: string, itemKey: str
   })
 }
 
+// Move a running order to a different table (e.g. the party physically moved
+// seats after ordering). A pure re-seat: nothing about money/inventory changes,
+// only the `table` column — so it's a lightweight status-transition-style edit,
+// not a cancel-and-recreate. Blocked once the bill is settled/cancelled so a
+// closed order's table can never be silently rewritten.
+export async function shiftOrderTable(ctx: Ctx, orderId: string, newTable: number | string) {
+  const table = Number(newTable)
+  if (!Number.isFinite(table)) throw new ServiceError('A valid destination table is required.')
+
+  return prisma.$transaction(async (tx) => {
+    const o = await fetchOrder(tx, orderId)
+    if (o.cancelled || o.payment !== 'Unpaid') throw new ServiceError('Only a running (unpaid) order can be moved to another table.')
+    if (o.table === table) throw new ServiceError('The order is already on this table.')
+    const dest = await tx.table.findUnique({ where: { id: table } })
+    if (!dest) throw new NotFoundError('Destination table not found.')
+
+    const from = o.table
+    const at = new Date()
+    const updated = await tx.order.update({ where: { id: orderId }, data: { table }, include: { items: true } })
+    await writeAudit(tx, { action: 'ORDER_TABLE_SHIFTED', actor: ctx.actor, at, details: { orderId, from, to: table } })
+    const { items: _orderItems, ...orderRow } = updated
+    await enqueueOutbox(tx, 'Order', updated.id, orderRow)
+    return serializeOrder(updated)
+  })
+}
+
 export async function applyDiscount(ctx: Ctx, orderId: string, opts: { amount?: number | string; reason?: string; notes?: string } = {}) {
   return prisma.$transaction(async (tx) => {
     const o = await fetchOrder(tx, orderId)
