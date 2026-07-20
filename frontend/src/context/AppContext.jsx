@@ -766,9 +766,20 @@ export function AppProvider({ children }) {
 
   const lowStock = useMemo(() => inventory.filter((i) => i.stock <= i.threshold), [inventory])
 
+  // Business-day "session" boundary — the most recent closing's time. Live
+  // figures (Dashboard revenue, Closing preview) scope to orders after this so
+  // the screen resets the moment a day is closed (demand.md #9). Null before the
+  // first ever closing = whole history counts as the current session.
+  const lastClosingAt = useMemo(() => {
+    if (!dailyClosings.length) return null
+    return dailyClosings.reduce((max, c) => (c.closingTime > max ? c.closingTime : max), dailyClosings[0].closingTime)
+  }, [dailyClosings])
+
   const stats = useMemo(() => {
+    const sinceMs = lastClosingAt ? new Date(lastClosingAt).getTime() : null
+    const inSession = (o) => sinceMs === null || new Date(o.createdAt).getTime() > sinceMs
     const revenue = orders
-      .filter((o) => o.payment === 'Paid' && !o.cancelled)
+      .filter((o) => o.payment === 'Paid' && !o.cancelled && inSession(o))
       .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount, o.gstRate).total, 0)
     const pending = orders.filter((o) => o.payment === 'Unpaid' && !o.cancelled).length
     const activeTables = new Set(orders.filter((o) => o.payment === 'Unpaid' && !o.cancelled).map((o) => o.table)).size
@@ -783,7 +794,7 @@ export function AppProvider({ children }) {
       lowStockCount: lowStock.length,
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orders, attendance, lowStock, staff, gstEnabled, gstRate])
+  }, [orders, attendance, lowStock, staff, gstEnabled, gstRate, lastClosingAt])
 
   // ---- Cash drawer (reads are computed locally; writes hit the backend) ---
   const shiftSalesForShift = (shiftId) => {
@@ -987,6 +998,7 @@ export function AppProvider({ children }) {
     updateOnlineAccount,
     toggleOnlineAccount,
     dailyClosings,
+    lastClosingAt,
     saveDailyClosing,
     attendance,
     overrideAttendance,

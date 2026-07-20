@@ -16,8 +16,15 @@ export const toDayStr = (d) => {
 // channels (each Online payment account by name, plus Card and Udhaar/credit) —
 // NET CASH SALES is what's left as physical cash, and the handover is that cash
 // minus the day's expenses.
-export function buildClosingReport(orders, orderTotal, transactions, dateStr, inventory = [], recipes = []) {
-  const dayOrders = orders.filter((o) => toDayStr(o.createdAt) === dateStr)
+// `sinceIso` is the business-day "session" boundary (the last closing's time):
+// when set, the report covers everything created AFTER it instead of the whole
+// calendar day, so the live figures reset the moment a day is closed and a
+// second closing the same day only reports that session (demand.md #9). Null =
+// legacy whole-day scoping (must mirror backend/src/core/closing.ts).
+export function buildClosingReport(orders, orderTotal, transactions, dateStr, inventory = [], recipes = [], sinceIso = null) {
+  const sinceMs = sinceIso ? new Date(sinceIso).getTime() : null
+  const inSession = (d) => (sinceMs !== null ? new Date(d).getTime() > sinceMs : toDayStr(d) === dateStr)
+  const dayOrders = orders.filter((o) => inSession(o.createdAt))
   const active = dayOrders.filter((o) => !o.cancelled)
   const cancelled = dayOrders.filter((o) => o.cancelled)
 
@@ -52,7 +59,7 @@ export function buildClosingReport(orders, orderTotal, transactions, dateStr, in
   const grossSale = netSale + discount
   const netCashSales = cash // = NET SALE − accounts (all non-cash channels)
 
-  const dayExpenses = (transactions || []).filter((tx) => tx.type === 'expense' && toDayStr(tx.date) === dateStr)
+  const dayExpenses = (transactions || []).filter((tx) => tx.type === 'expense' && inSession(tx.date))
   const expenses = dayExpenses.reduce((s, tx) => s + tx.amount, 0)
   // Per-category breakdown (e.g. Maintenance/Construction) — same grouping as
   // Accounting.jsx's ExpenseBreakdown, just scoped to this one day instead of
