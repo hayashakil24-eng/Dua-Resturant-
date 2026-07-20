@@ -93,8 +93,16 @@ export function buildClosingReport(
   dateStr: string,
   inventory: InventoryItemLike[] = [],
   recipes: RecipeLike[] = [],
+  // Business-day "session" boundary: when set, the report covers everything
+  // created AFTER the last closing instead of the whole calendar day, so a
+  // second closing the same day only reports that session and the live figures
+  // reset the moment a day is closed (demand.md #9). Null = legacy whole-day.
+  sinceIso: string | null = null,
 ): ClosingReport {
-  const dayOrders = orders.filter((o) => toDayStr(o.createdAt) === dateStr)
+  const sinceMs = sinceIso ? new Date(sinceIso).getTime() : null
+  const inSession = (d: Date | string) =>
+    sinceMs !== null ? new Date(d).getTime() > sinceMs : toDayStr(d) === dateStr
+  const dayOrders = orders.filter((o) => inSession(o.createdAt))
   const active = dayOrders.filter((o) => !o.cancelled)
   const cancelled = dayOrders.filter((o) => o.cancelled)
 
@@ -129,7 +137,7 @@ export function buildClosingReport(
   const grossSale = netSale + discount
   const netCashSales = cash // = NET SALE − accounts (all non-cash channels)
 
-  const dayExpenses = (transactions || []).filter((tx) => tx.type === 'expense' && toDayStr(tx.date) === dateStr)
+  const dayExpenses = (transactions || []).filter((tx) => tx.type === 'expense' && inSession(tx.date))
   const expenses = dayExpenses.reduce((s, tx) => s + tx.amount, 0)
   // Per-category breakdown (e.g. Maintenance/Construction) — same grouping as
   // the frontend's Accounting.jsx ExpenseBreakdown, scoped to this one day.

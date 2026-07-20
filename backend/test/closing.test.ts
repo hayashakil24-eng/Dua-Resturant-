@@ -108,3 +108,26 @@ describe('buildClosingReport', () => {
     expect(report.inventoryUsed).toHaveLength(2)
   })
 })
+
+// Business-day "session" boundary (demand.md #9): with a `sinceIso` the report
+// covers only what was created AFTER the last closing, so a second closing the
+// same day reports just that session and the live figures reset on close.
+describe('buildClosingReport session boundary', () => {
+  it('counts only orders/expenses created after the boundary', () => {
+    const since = todayAt(11, 30).toISOString() // between the 11:10 and 12:00 orders
+    const report = buildClosingReport(orders, transactions, dateStr, inventory, recipes, since)
+    expect(report.totalOrders).toBe(1) // only the 12:00 card order
+    expect(report.cash).toBe(0) // 11:10 cash order is before the boundary
+    expect(report.card).toBe(450)
+    expect(report.netSale).toBe(450)
+    expect(report.expenses).toBe(0) // 09:00 expense is before the boundary
+  })
+
+  it('reports an empty session when the boundary is after all activity', () => {
+    const since = todayAt(23, 0).toISOString()
+    const report = buildClosingReport(orders, transactions, dateStr, inventory, recipes, since)
+    expect(report.totalOrders).toBe(0)
+    expect(report.netSale).toBe(0)
+    expect(report.expenses).toBe(0)
+  })
+})

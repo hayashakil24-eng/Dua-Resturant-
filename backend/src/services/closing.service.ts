@@ -7,6 +7,7 @@
 import { prisma } from '../db/client.js'
 import { buildClosingReport, toDayStr, type ClosingOrder, type ClosingTransaction } from '../core/closing.js'
 import type { InventoryItemLike, RecipeLike } from '../core/inventoryFlow.js'
+import { getActiveShift } from './shifts.service.js'
 import { writeAudit } from '../lib/audit.js'
 import { ServiceError } from '../lib/errors.js'
 import type { Actor } from '../lib/actor.js'
@@ -44,11 +45,22 @@ async function gather() {
   return { closingOrders, closingTxns, inv, rec }
 }
 
-// Preview the closing figures for a date without saving (Reports page).
+// The business-day "session" boundary: the moment the day was last closed.
+// Everything after it belongs to the open session; null before the first ever
+// closing. A single timestamp (not per-date) so a forgotten-then-caught-up
+// close spanning two calendar days still reports one continuous session.
+async function getBoundaryIso(): Promise<string | null> {
+  const last = await prisma.dailyClosing.findFirst({ orderBy: { closingTime: 'desc' } })
+  return last ? last.closingTime.toISOString() : null
+}
+
+// Preview the closing figures for the current open session, without saving
+// (Reports/Closing page). Scoped to everything since the last closing.
 export async function buildReport(dateStr?: string) {
   const day = dateStr || toDayStr(new Date())
+  const sinceIso = await getBoundaryIso()
   const { closingOrders, closingTxns, inv, rec } = await gather()
-  return buildClosingReport(closingOrders, closingTxns, day, inv, rec)
+  return buildClosingReport(closingOrders, closingTxns, day, inv, rec, sinceIso)
 }
 
 // Return each saved closing with its frozen report merged back in (the frontend
@@ -77,27 +89,52 @@ export async function listClosings() {
 
 // UI-only checks aren't enough (CLAUDE.md's audit-trail convention — every
 // mutating check gets an independent server-side re-check, not just a
-// frontend gate) — a same-day Unpaid order must be resolved to Udhaar or
-// Complimentary before that day can be closed, checked here regardless of
-// whether the request came through the Closing page's own block.
-async function assertNoPendingOrders(day: string): Promise<void> {
+// frontend gate) — a still-open Unpaid order in this session must be resolved
+// to Udhaar or Complimentary before the day can be closed, checked here
+// regardless of whether the request came through the Closing page's own block.
+async function assertNoPendingOrders(sinceIso: string | null): Promise<void> {
   const candidates = await prisma.order.findMany({
     where: { payment: 'Unpaid', cancelled: false },
     select: { id: true, createdAt: true },
   })
-  const pending = candidates.filter((o) => toDayStr(o.createdAt) === day)
+  const sinceMs = sinceIso ? new Date(sinceIso).getTime() : null
+  const today = toDayStr(new Date())
+  const pending = candidates.filter((o) =>
+    sinceMs !== null ? o.createdAt.getTime() > sinceMs : toDayStr(o.createdAt) === today,
+  )
   if (pending.length > 0) {
     throw new ServiceError(
-      `${pending.length} bill(s) are still unpaid for ${day} — mark each as Udhaar or Complimentary before closing.`,
+      `${pending.length} bill(s) are still unpaid — mark each as Udhaar or Complimentary before closing.`,
       409,
     )
   }
 }
 
+// The cash drawer must be reconciled (shift ended) before the business day is
+// closed, so the day's cash is accounted for — mirrors the "close the drawer
+// first" half of the Full Business-Day Close (demand.md #9).
+async function assertNoActiveShift(): Promise<void> {
+  const open = await getActiveShift() // active OR paused
+  if (open) {
+    throw new ServiceError('A cash drawer is still open — end the shift (reconcile the drawer) before closing the day.', 409)
+  }
+}
+
+// "Day lock": once closed, there's nothing to close again until new activity
+// happens — an empty session (no settled sale, no expense) can't be re-closed.
+function assertHasActivity(report: { totalOrders: number; expenses: number }): void {
+  if (report.totalOrders === 0 && report.expenses === 0) {
+    throw new ServiceError('Nothing new to close — this session has no sales since the last closing.', 409)
+  }
+}
+
 export async function saveDailyClosing(ctx: Ctx, dateStr?: string) {
   const day = dateStr || toDayStr(new Date())
-  await assertNoPendingOrders(day)
+  const sinceIso = await getBoundaryIso()
+  await assertNoActiveShift()
+  await assertNoPendingOrders(sinceIso)
   const report = await buildReport(day)
+  assertHasActivity(report)
   const closingTime = new Date()
   const record = await prisma.$transaction(async (tx) => {
     const saved = await tx.dailyClosing.create({
