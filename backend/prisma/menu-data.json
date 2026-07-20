@@ -1,0 +1,1302 @@
+[
+  {
+    "name": "Straberry Colada",
+    "category": "Coladas",
+    "price": 550,
+    "image": "/Straberry Colada.jpg",
+    "description": null
+  },
+  {
+    "name": "Blue Colada",
+    "category": "Coladas",
+    "price": 550,
+    "image": "/Blue Colada.jpg",
+    "description": null
+  },
+  {
+    "name": "Tropical Colada",
+    "category": "Coladas",
+    "price": 550,
+    "image": "/Tropical Colada.jpg",
+    "description": null
+  },
+  {
+    "name": "Seasonal",
+    "category": "Fresh Juice",
+    "price": 350,
+    "image": "/Seasonal.jpg",
+    "description": null
+  },
+  {
+    "name": "Blueberry",
+    "category": "Slush",
+    "price": 350,
+    "image": "/Blueberry.webp",
+    "description": null
+  },
+  {
+    "name": "Mint",
+    "category": "Slush",
+    "price": 350,
+    "image": "/Mint.webp",
+    "description": null
+  },
+  {
+    "name": "Falsa",
+    "category": "Slush",
+    "price": 350,
+    "image": "/Falsa.jpg",
+    "description": null
+  },
+  {
+    "name": "Peach",
+    "category": "Slush",
+    "price": 350,
+    "image": "/Peach.webp",
+    "description": null
+  },
+  {
+    "name": "Lemon",
+    "category": "Slush",
+    "price": 350,
+    "image": "/Lemon.jpg",
+    "description": null
+  },
+  {
+    "name": "Icecream Vanilla Shake",
+    "category": "Shakes",
+    "price": 550,
+    "image": "/Icecream Vanilla Shake.webp",
+    "description": null
+  },
+  {
+    "name": "Icecream Choclate Shake",
+    "category": "Shakes",
+    "price": 550,
+    "image": "/Icecream Choclate Shake.jpg",
+    "description": null
+  },
+  {
+    "name": "Icecream Strawbery Shake",
+    "category": "Shakes",
+    "price": 550,
+    "image": "/Icecream Strawbery Shake.webp",
+    "description": null
+  },
+  {
+    "name": "Icecream Kitkat Shake",
+    "category": "Shakes",
+    "price": 550,
+    "image": "/Icecream Kitkat Shake.jpg",
+    "description": null
+  },
+  {
+    "name": "Icecream Oreo Shake",
+    "category": "Shakes",
+    "price": 550,
+    "image": "/Icecream Oreo Shake.webp",
+    "description": null
+  },
+  {
+    "name": "Banana Milk Shake",
+    "category": "Shakes",
+    "price": 550,
+    "image": "/Banana Milk Shake.webp",
+    "description": null
+  },
+  {
+    "name": "Mango Milk Shake",
+    "category": "Shakes",
+    "price": 550,
+    "image": "/Mango Milk Shake.webp",
+    "description": null
+  },
+  {
+    "name": "Dates Milk Shake",
+    "category": "Shakes",
+    "price": 550,
+    "image": "/Dates Milk Shake.jpg",
+    "description": null
+  },
+  {
+    "name": "Pink Lady",
+    "category": "Mocktail",
+    "price": 550,
+    "image": "/Pink Lady.jpg",
+    "description": null
+  },
+  {
+    "name": "Angle Mist",
+    "category": "Mocktail",
+    "price": 550,
+    "image": "/Angle Mist.jpg",
+    "description": null
+  },
+  {
+    "name": "Strawbery Burst",
+    "category": "Mocktail",
+    "price": 550,
+    "image": "/Strawbery Burst.jpg",
+    "description": null
+  },
+  {
+    "name": "Apple Mint",
+    "category": "Mocktail",
+    "price": 550,
+    "image": "/Apple Mint.webp",
+    "description": null
+  },
+  {
+    "name": "Blushing Berry",
+    "category": "Mocktail",
+    "price": 550,
+    "image": "/Blushing Berry.jpg",
+    "description": null
+  },
+  {
+    "name": "Punching Fruit",
+    "category": "Mocktail",
+    "price": 550,
+    "image": "/Punching Fruit.webp",
+    "description": null
+  },
+  {
+    "name": "Flavour Lassi",
+    "category": "Mocktail",
+    "price": 550,
+    "image": "/Flavour Lassi.jpg",
+    "description": null
+  },
+  {
+    "name": "Two Scoops",
+    "category": "Ice Cream",
+    "price": 350,
+    "image": "/Two Scoops.jpg",
+    "description": null
+  },
+  {
+    "name": "Single Scoops",
+    "category": "Ice Cream",
+    "price": 180,
+    "image": "/Single Scoops.jpg",
+    "description": null
+  },
+  {
+    "name": "Special Faluda",
+    "category": "Ice Cream",
+    "price": 500,
+    "image": "/Special Faluda.jpg",
+    "description": null
+  },
+  {
+    "name": "Mutton Shahi Karahi",
+    "category": "Café Ali Special Karahi",
+    "price": 4999,
+    "image": "/Mutton Shahi Karahi.webp",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Mutton White Karahi",
+    "category": "Café Ali Special Karahi",
+    "price": 5199,
+    "image": "/Mutton White Karahi.png",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Mutton Peshawari Karahi",
+    "category": "Café Ali Special Karahi",
+    "price": 4999,
+    "image": "/Mutton Peshawari Karahi.webp",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Mutton Sizzling Karahi",
+    "category": "Café Ali Special Karahi",
+    "price": 4999,
+    "image": "/Mutton Sizzling Karahi.webp",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Lamb Peshawari Karahi",
+    "category": "Café Ali Special Karahi",
+    "price": 5499,
+    "image": "/Lamb Peshawari Karahi.webp",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Lamb White Karahi",
+    "category": "Café Ali Special Karahi",
+    "price": 5699,
+    "image": "/Lamb White Karahi.jpg",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Lamb Brown Karahi",
+    "category": "Café Ali Special Karahi",
+    "price": 4999,
+    "image": "/Lamb Brown Karahi.jpg",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Mutton Brown Karahi",
+    "category": "Café Ali Special Karahi",
+    "price": 4999,
+    "image": "/Mutton Brown Karahi.jpg",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Mutton Namkee Bonles Karahi",
+    "category": "Café Ali Special Karahi",
+    "price": 6799,
+    "image": "/Mutton Namkee Bonles Karahi.jpg",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Desi Murga Karahi",
+    "category": "Café Ali Special Karahi",
+    "price": 4999,
+    "image": "/Desi Murga Karahi.png",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Prawn Karahi Red/White",
+    "category": "Café Ali Special Karahi",
+    "price": 4699,
+    "image": "/Prawn Karahi Red-White.jpg",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Batair Karahi",
+    "category": "Café Ali Special Karahi",
+    "price": 3699,
+    "image": "/Batair Karahi.jpg",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Lamb Zaitoon Karahi",
+    "category": "Café Ali Special Karahi",
+    "price": 5660,
+    "image": "/Lamb Zaitoon Karahi.jpg",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Mutton Zaitoon Karahi",
+    "category": "Café Ali Special Karahi",
+    "price": 5560,
+    "image": "/Mutton Zaitoon Karahi.jpg",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Balochi Tikkah Karahi",
+    "category": "Café Ali Special Karahi",
+    "price": 2549,
+    "image": "/Balochi Tikkah Karahi.webp",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Chicken Boneless Karahi",
+    "category": "Special Chicken Karahi",
+    "price": 3799,
+    "image": "/Chicken Boneless Karahi.jpg",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Chicken Brown Karahi",
+    "category": "Special Chicken Karahi",
+    "price": 2699,
+    "image": "/Chicken Brown Karahi.jpg",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Chicken Peshawari Karahi",
+    "category": "Special Chicken Karahi",
+    "price": 2699,
+    "image": "/Chicken Peshawari Karahi.jpg",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Chicken Zaitoon Karahi",
+    "category": "Special Chicken Karahi",
+    "price": 2799,
+    "image": "/Chicken Zaitoon Karahi.webp",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Mutton Shahi Handi Boneless",
+    "category": "Tempting Handi",
+    "price": 7400,
+    "image": "/Mutton Shahi Handi Boneless.jpg",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Mutton Paneer Handi",
+    "category": "Tempting Handi",
+    "price": 7560,
+    "image": "/Mutton Paneer Handi.jpg",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Mutton Makhni Handi",
+    "category": "Tempting Handi",
+    "price": 7399,
+    "image": "/Mutton Makhni Handi.jpg",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Chicken Shahi Handi",
+    "category": "Tempting Handi",
+    "price": 3299,
+    "image": "/Chicken Shahi Handi.jpg",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Chicken Makhni Handi",
+    "category": "Tempting Handi",
+    "price": 3199,
+    "image": "/Chicken Makhni Handi.webp",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Chicken Tikkah Handi",
+    "category": "Tempting Handi",
+    "price": 3299,
+    "image": "/Chicken Tikkah Handi.jpg",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Chicken Paneer Reshmi",
+    "category": "Tempting Handi",
+    "price": 3299,
+    "image": "/Chicken Paneer Reshmi.jpg",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Prawn Handi",
+    "category": "Tempting Handi",
+    "price": 5999,
+    "image": "/Prawn Handi.jpg",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Mutton Pulao",
+    "category": "Royal Afghani Pulao",
+    "price": 1599,
+    "image": "/Mutton Pulao.webp",
+    "description": null
+  },
+  {
+    "name": "Chicken Pulao",
+    "category": "Royal Afghani Pulao",
+    "price": 740,
+    "image": "/Chicken Pulao.jpg",
+    "description": null
+  },
+  {
+    "name": "Mutton Chops",
+    "category": "Café Ali Special BBQ",
+    "price": 4999,
+    "image": "/Mutton Chops.webp",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Mutton Ribbs",
+    "category": "Café Ali Special BBQ",
+    "price": 4999,
+    "image": "/Mutton Ribbs.jpg",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Mutton Leg",
+    "category": "Café Ali Special BBQ",
+    "price": 4999,
+    "image": "/Mutton Leg.webp",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Mutton Namkeen Boti",
+    "category": "Café Ali Special BBQ",
+    "price": 4999,
+    "image": "/Mutton Namkeen Boti.webp",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Shahi Batair 6 piece",
+    "category": "Café Ali Special BBQ",
+    "price": 1499,
+    "image": "/Shahi Batair 6 piece.jpg",
+    "description": "Per Plate"
+  },
+  {
+    "name": "Grilled Prawn",
+    "category": "Café Ali Special BBQ",
+    "price": 6450,
+    "image": "/Grilled Prawn.webp",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Fish Grilled Namkin / Spicy",
+    "category": "Café Ali Special BBQ",
+    "price": 3260,
+    "image": "/Fish Grilled Namkin - Spicy.jpg",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Fish Boneless Boti",
+    "category": "Café Ali Special BBQ",
+    "price": 1299,
+    "image": "/Fish Boneless Boti.jpg",
+    "description": "Per Plate"
+  },
+  {
+    "name": "Lamb Namkin Boti",
+    "category": "Café Ali Special BBQ",
+    "price": 4999,
+    "image": "/Lamb Namkin Boti.webp",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Chicken Grilled Chargha",
+    "category": "Café Ali Special BBQ",
+    "price": 2699,
+    "image": "/Chicken Grilled Chargha.webp",
+    "description": "Per Plate"
+  },
+  {
+    "name": "Namkeen Rosh (Lamb / Mutton)",
+    "category": "Pakistani Cuisine",
+    "price": 1799,
+    "image": "/Namkeen Rosh (Lamb - Mutton).webp",
+    "description": null
+  },
+  {
+    "name": "Mutton Joint",
+    "category": "Pakistani Cuisine",
+    "price": 1999,
+    "image": "/Mutton Joint.jpg",
+    "description": null
+  },
+  {
+    "name": "Mutton Fry",
+    "category": "Pakistani Cuisine",
+    "price": 999,
+    "image": "/Mutton Fry.jpg",
+    "description": null
+  },
+  {
+    "name": "Mutton Qeema",
+    "category": "Pakistani Cuisine",
+    "price": 1299,
+    "image": "/Mutton Qeema.jpg",
+    "description": null
+  },
+  {
+    "name": "Special Chicken Biryani Single",
+    "category": "Pakistani Cuisine",
+    "price": 400,
+    "image": "/Special Chicken Biryani Single.webp",
+    "description": null
+  },
+  {
+    "name": "Daal Mash Fry",
+    "category": "Pakistani Cuisine",
+    "price": 499,
+    "image": "/Daal Mash Fry.webp",
+    "description": null
+  },
+  {
+    "name": "Daal Chana Fry",
+    "category": "Pakistani Cuisine",
+    "price": 450,
+    "image": "/Daal Chana Fry.jpg",
+    "description": null
+  },
+  {
+    "name": "Anda Chana",
+    "category": "Pakistani Cuisine",
+    "price": 449,
+    "image": "/Anda Chana.webp",
+    "description": null
+  },
+  {
+    "name": "Mix Vegetable",
+    "category": "Pakistani Cuisine",
+    "price": 599,
+    "image": "/Mix Vegetable.jpg",
+    "description": null
+  },
+  {
+    "name": "Vegetable Handi",
+    "category": "Pakistani Cuisine",
+    "price": 849,
+    "image": "/Vegetable Handi.jpg",
+    "description": null
+  },
+  {
+    "name": "Dall Makhni",
+    "category": "Pakistani Cuisine",
+    "price": 849,
+    "image": "/Dall Makhni.jpg",
+    "description": null
+  },
+  {
+    "name": "Chicken Lacha",
+    "category": "Pakistani Cuisine",
+    "price": 1199,
+    "image": "/Chicken Lacha.jpg",
+    "description": null
+  },
+  {
+    "name": "Katakat",
+    "category": "Pakistani Cuisine",
+    "price": 1499,
+    "image": "/Katakat.webp",
+    "description": null
+  },
+  {
+    "name": "Brain Masala",
+    "category": "Pakistani Cuisine",
+    "price": 1199,
+    "image": "/Brain Masala.webp",
+    "description": null
+  },
+  {
+    "name": "Plain Naan",
+    "category": "Hot Tandoor",
+    "price": 80,
+    "image": "/Plain Naan.jpg",
+    "description": null
+  },
+  {
+    "name": "Tandoori Paratha",
+    "category": "Hot Tandoor",
+    "price": 160,
+    "image": "/Tandoori Paratha.webp",
+    "description": null
+  },
+  {
+    "name": "Roghni Naan",
+    "category": "Hot Tandoor",
+    "price": 150,
+    "image": "/Roghni Naan.jpg",
+    "description": null
+  },
+  {
+    "name": "Kandhari Naan",
+    "category": "Hot Tandoor",
+    "price": 180,
+    "image": "/Kandhari Naan.jpg",
+    "description": null
+  },
+  {
+    "name": "Farmaishi Chapati",
+    "category": "Hot Tandoor",
+    "price": 70,
+    "image": "/Farmaishi Chapati.jpg",
+    "description": null
+  },
+  {
+    "name": "Rassian Salad",
+    "category": "Salad & Raita",
+    "price": 649,
+    "image": "/Rassian Salad.jpg",
+    "description": null
+  },
+  {
+    "name": "Fresh Green Salad",
+    "category": "Salad & Raita",
+    "price": 199,
+    "image": "/Fresh Green Salad.webp",
+    "description": null
+  },
+  {
+    "name": "Zeera Raita Special",
+    "category": "Salad & Raita",
+    "price": 249,
+    "image": "/Zeera Raita Special.jpg",
+    "description": null
+  },
+  {
+    "name": "Mushroom Steak",
+    "category": "Steaks",
+    "price": 1900,
+    "image": "/Mushroom Steak.jpg",
+    "description": null,
+    "variants": [
+      {
+        "label": "Beef",
+        "price": 2399
+      },
+      {
+        "label": "Chicken",
+        "price": 1900
+      }
+    ]
+  },
+  {
+    "name": "Morracan Steak",
+    "category": "Steaks",
+    "price": 1900,
+    "image": "/Morracan Steak.webp",
+    "description": null,
+    "variants": [
+      {
+        "label": "Beef",
+        "price": 2399
+      },
+      {
+        "label": "Chicken",
+        "price": 1900
+      }
+    ]
+  },
+  {
+    "name": "Tarragon Steak",
+    "category": "Steaks",
+    "price": 1900,
+    "image": "/Tarragon Steak.png",
+    "description": null,
+    "variants": [
+      {
+        "label": "Beef",
+        "price": 2399
+      },
+      {
+        "label": "Chicken",
+        "price": 1900
+      }
+    ]
+  },
+  {
+    "name": "Mexicen Steak",
+    "category": "Steaks",
+    "price": 1900,
+    "image": "/Mexicen Steak.jpg",
+    "description": null,
+    "variants": [
+      {
+        "label": "Beef",
+        "price": 2399
+      },
+      {
+        "label": "Chicken",
+        "price": 1900
+      }
+    ]
+  },
+  {
+    "name": "Chicken Tikka Pizza",
+    "category": "Pizza Corner",
+    "price": 699,
+    "image": "/Chicken Tikka Pizza.webp",
+    "description": null,
+    "variants": [
+      {
+        "label": "Small",
+        "price": 699
+      },
+      {
+        "label": "Medium",
+        "price": 1190
+      },
+      {
+        "label": "Large",
+        "price": 1499
+      }
+    ]
+  },
+  {
+    "name": "Chicken Malai Boti Pizza",
+    "category": "Pizza Corner",
+    "price": 699,
+    "image": "/Chicken Malai Boti Pizza.jpg",
+    "description": null,
+    "variants": [
+      {
+        "label": "Small",
+        "price": 699
+      },
+      {
+        "label": "Medium",
+        "price": 1190
+      },
+      {
+        "label": "Large",
+        "price": 1499
+      }
+    ]
+  },
+  {
+    "name": "Chicken Fajita Pizza",
+    "category": "Pizza Corner",
+    "price": 699,
+    "image": "/Chicken Fajita Pizza.jpg",
+    "description": null,
+    "variants": [
+      {
+        "label": "Small",
+        "price": 699
+      },
+      {
+        "label": "Medium",
+        "price": 1190
+      },
+      {
+        "label": "Large",
+        "price": 1499
+      }
+    ]
+  },
+  {
+    "name": "Chicken Pepperoni Pizza",
+    "category": "Pizza Corner",
+    "price": 699,
+    "image": "/Chicken Pepperoni Pizza.webp",
+    "description": null,
+    "variants": [
+      {
+        "label": "Small",
+        "price": 699
+      },
+      {
+        "label": "Medium",
+        "price": 1190
+      },
+      {
+        "label": "Large",
+        "price": 1499
+      }
+    ]
+  },
+  {
+    "name": "Vegetable Pizza",
+    "category": "Pizza Corner",
+    "price": 500,
+    "image": "/Vegetable Pizza.webp",
+    "description": null,
+    "variants": [
+      {
+        "label": "Small",
+        "price": 500
+      },
+      {
+        "label": "Medium",
+        "price": 650
+      },
+      {
+        "label": "Large",
+        "price": 1050
+      }
+    ]
+  },
+  {
+    "name": "Canton Whole Fish",
+    "category": "Sea Foods",
+    "price": 2999,
+    "image": "/Canton Whole Fish.jpg",
+    "description": null
+  },
+  {
+    "name": "Garlic & Pepper Fish",
+    "category": "Sea Foods",
+    "price": 2149,
+    "image": "/Garlic & Pepper Fish.jpg",
+    "description": null
+  },
+  {
+    "name": "Mexican Fish",
+    "category": "Sea Foods",
+    "price": 2149,
+    "image": "/Mexican Fish.jpg",
+    "description": null
+  },
+  {
+    "name": "Lemon Butter Fish",
+    "category": "Sea Foods",
+    "price": 2299,
+    "image": "/Lemon Butter Fish.png",
+    "description": null
+  },
+  {
+    "name": "Dynamite Chicken",
+    "category": "Starter",
+    "price": 1050,
+    "image": "/Dynamite Chicken.jpg",
+    "description": null
+  },
+  {
+    "name": "Dynamite Prawn",
+    "category": "Starter",
+    "price": 1299,
+    "image": "/Dynamite Prawn.jpg",
+    "description": null
+  },
+  {
+    "name": "Chicken Strip",
+    "category": "Starter",
+    "price": 1050,
+    "image": "/Chicken Strip.jpg",
+    "description": null
+  },
+  {
+    "name": "Dhaka Chicken",
+    "category": "Starter",
+    "price": 1190,
+    "image": "/Dhaka Chicken.jpg",
+    "description": null
+  },
+  {
+    "name": "Buffalo Wings",
+    "category": "Starter",
+    "price": 999,
+    "image": "/Buffalo Wings.jpg",
+    "description": null
+  },
+  {
+    "name": "Peri Chilli Bites",
+    "category": "Starter",
+    "price": 850,
+    "image": "/Peri Chilli Bites.jpg",
+    "description": null
+  },
+  {
+    "name": "Finger Fish",
+    "category": "Starter",
+    "price": 1399,
+    "image": "/Finger Fish.webp",
+    "description": null
+  },
+  {
+    "name": "Dhaka Fish",
+    "category": "Starter",
+    "price": 1299,
+    "image": "/Dhaka Fish.webp",
+    "description": null
+  },
+  {
+    "name": "Crispy Fride Prawn",
+    "category": "Starter",
+    "price": 1299,
+    "image": "/Crispy Fride Prawn.webp",
+    "description": null
+  },
+  {
+    "name": "Cafe Ali Starters Platter",
+    "category": "Starter",
+    "price": 2499,
+    "image": "/Cafe Ali Starters Platter.jpg",
+    "description": null
+  },
+  {
+    "name": "Hot & Sour Soup Red / White",
+    "category": "Soup",
+    "price": 499,
+    "image": "/Hot & Sour Soup Red - White.jpg",
+    "description": null
+  },
+  {
+    "name": "Creamy Mushroom Soup",
+    "category": "Soup",
+    "price": 599,
+    "image": "/Creamy Mushroom Soup.webp",
+    "description": null
+  },
+  {
+    "name": "Chicken Corn Soup Family Bowl",
+    "category": "Soup",
+    "price": 890,
+    "image": "/Chicken Corn Soup Family Bowl.jpg",
+    "description": null
+  },
+  {
+    "name": "Hot & Sour Soup Family Bowl",
+    "category": "Soup",
+    "price": 890,
+    "image": "/Hot & Sour Soup Family Bowl.jpg",
+    "description": null
+  },
+  {
+    "name": "Cheese Fries",
+    "category": "Kids Special",
+    "price": 649,
+    "image": "/Cheese Fries.jpg",
+    "description": null
+  },
+  {
+    "name": "Creamy Macorni",
+    "category": "Kids Special",
+    "price": 799,
+    "image": "/Creamy Macorni.jpg",
+    "description": null
+  },
+  {
+    "name": "Kids Fish & Fries",
+    "category": "Kids Special",
+    "price": 1049,
+    "image": "/Kids Fish & Fries.jpg",
+    "description": null
+  },
+  {
+    "name": "Fire Fries",
+    "category": "Kids Special",
+    "price": 550,
+    "image": "/Fire Fries.webp",
+    "description": null
+  },
+  {
+    "name": "Crunchi Chicken",
+    "category": "Kids Special",
+    "price": 850,
+    "image": "/Crunchi Chicken.jpg",
+    "description": null
+  },
+  {
+    "name": "Afghani Seekh Boti 12p",
+    "category": "Beef BBQ",
+    "price": 2149,
+    "image": "/Afghani Seekh Boti 12p.webp",
+    "description": "Per Plate"
+  },
+  {
+    "name": "Beef Bihari Kabab",
+    "category": "Beef BBQ",
+    "price": 1199,
+    "image": "/Beef Bihari Kabab.jpg",
+    "description": "Per Plate"
+  },
+  {
+    "name": "Beef Seekh Kabab",
+    "category": "Beef BBQ",
+    "price": 999,
+    "image": "/Beef Seekh Kabab.jpg",
+    "description": "Per Plate"
+  },
+  {
+    "name": "Beef Chullu Kabab",
+    "category": "Beef BBQ",
+    "price": 1449,
+    "image": "/Beef Chullu Kabab.jpg",
+    "description": "Per Plate"
+  },
+  {
+    "name": "Chicken Arbic Boti",
+    "category": "Chicken BBQ",
+    "price": 2599,
+    "image": "/Chicken Arbic Boti.jpg",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Chicken Milali Boti",
+    "category": "Chicken BBQ",
+    "price": 1099,
+    "image": "/Chicken Milali Boti.jpg",
+    "description": "Per Plate"
+  },
+  {
+    "name": "Chicken Behari Kabab",
+    "category": "Chicken BBQ",
+    "price": 1049,
+    "image": "/Chicken Behari Kabab.jpg",
+    "description": "Per Plate"
+  },
+  {
+    "name": "Chicken Spicy Boti",
+    "category": "Chicken BBQ",
+    "price": 1049,
+    "image": "/Chicken Spicy Boti.jpg",
+    "description": "Per Plate"
+  },
+  {
+    "name": "Chicken Tikkah Spicy",
+    "category": "Chicken BBQ",
+    "price": 660,
+    "image": "/Chicken Tikkah Spicy.webp",
+    "description": "Per Plate"
+  },
+  {
+    "name": "Chicken Reshmi Kabab",
+    "category": "Chicken BBQ",
+    "price": 699,
+    "image": "/Chicken Reshmi Kabab.jpg",
+    "description": "Per Plate"
+  },
+  {
+    "name": "Chicken Balochi Boti",
+    "category": "Chicken BBQ",
+    "price": 1049,
+    "image": "/Chicken Balochi Boti.jpg",
+    "description": "Per Plate"
+  },
+  {
+    "name": "Chicken Malai Tikkah",
+    "category": "Chicken BBQ",
+    "price": 699,
+    "image": "/Chicken Malai Tikkah.webp",
+    "description": "Per Plate"
+  },
+  {
+    "name": "Khaddi Kabab",
+    "category": "Chef Special",
+    "price": 4999,
+    "image": "/Khaddi Kabab.jpg",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Dum Pukht",
+    "category": "Chef Special",
+    "price": 4999,
+    "image": "/Dum Pukht.webp",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Lamb Namkeen Boneless Boti",
+    "category": "Chef Special",
+    "price": 7499,
+    "image": "/Lamb Namkeen Boneless Boti.webp",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Mutton Namkeen Boneless Boti",
+    "category": "Chef Special",
+    "price": 7499,
+    "image": "/Mutton Namkeen Boneless Boti.jpg",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Café Ali Special Platter Full",
+    "category": "Chef Special",
+    "price": 11999,
+    "image": "/Café Ali Special Platter Full.jpg",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Café Ali Special Platter Half",
+    "category": "Chef Special",
+    "price": 6200,
+    "image": "/Café Ali Special Platter Half.webp",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Chicken Platter Full",
+    "category": "Chef Special",
+    "price": 7500,
+    "image": "/Chicken Platter Full.png",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Chicken Platter Half",
+    "category": "Chef Special",
+    "price": 3800,
+    "image": "/Chicken Platter Half.png",
+    "description": "Per Kg"
+  },
+  {
+    "name": "Chicken Shashlik with Rice",
+    "category": "Our Special Chinese Dish",
+    "price": 1099,
+    "image": "/Chicken Shashlik with Rice.jpg",
+    "description": null
+  },
+  {
+    "name": "Chicken Jalfrezi with Rice",
+    "category": "Our Special Chinese Dish",
+    "price": 1149,
+    "image": "/Chicken Jalfrezi with Rice.jpg",
+    "description": null
+  },
+  {
+    "name": "Chicken Chilli Dry",
+    "category": "Our Special Chinese Dish",
+    "price": 1098,
+    "image": "/Chicken Chilli Dry.jpg",
+    "description": null
+  },
+  {
+    "name": "Chicken Manchurian Red / White",
+    "category": "Our Special Chinese Dish",
+    "price": 1099,
+    "image": "/Chicken Manchurian Red - White.jpg",
+    "description": null
+  },
+  {
+    "name": "Cashew Nut Chicken",
+    "category": "Our Special Chinese Dish",
+    "price": 1349,
+    "image": "/Cashew Nut Chicken.jpg",
+    "description": null
+  },
+  {
+    "name": "Dragon Chicken",
+    "category": "Our Special Chinese Dish",
+    "price": 1099,
+    "image": "/Dragon Chicken.webp",
+    "description": null
+  },
+  {
+    "name": "Chicken Chowmin",
+    "category": "Our Special Chinese Dish",
+    "price": 1099,
+    "image": "/Chicken Chowmin.jpg",
+    "description": null
+  },
+  {
+    "name": "Vegetable Chowmin",
+    "category": "Our Special Chinese Dish",
+    "price": 899,
+    "image": "/Vegetable Chowmin.jpg",
+    "description": null
+  },
+  {
+    "name": "Kung Pao Chicken",
+    "category": "Our Special Chinese Dish",
+    "price": 1099,
+    "image": "/Kung Pao Chicken.jpg",
+    "description": null
+  },
+  {
+    "name": "Beef Chilli Dry",
+    "category": "Our Special Chinese Dish",
+    "price": 1299,
+    "image": "/Beef Chilli Dry.jpg",
+    "description": null
+  },
+  {
+    "name": "Singaporian Rice",
+    "category": "Rice",
+    "price": 1099,
+    "image": "/Singaporian Rice.jpg",
+    "description": null
+  },
+  {
+    "name": "Chicken Fried Rice",
+    "category": "Rice",
+    "price": 850,
+    "image": "/Chicken Fried Rice.webp",
+    "description": null
+  },
+  {
+    "name": "Egg Fried Rice",
+    "category": "Rice",
+    "price": 595,
+    "image": "/Egg Fried Rice.jpg",
+    "description": null
+  },
+  {
+    "name": "Vegetable Fried Rice",
+    "category": "Rice",
+    "price": 490,
+    "image": "/Vegetable Fried Rice.webp",
+    "description": null
+  },
+  {
+    "name": "Garlic Fried Rice",
+    "category": "Rice",
+    "price": 450,
+    "image": "/Garlic Fried Rice.webp",
+    "description": null
+  },
+  {
+    "name": "Plain Rice",
+    "category": "Rice",
+    "price": 300,
+    "image": "/Plain Rice.webp",
+    "description": null
+  },
+  {
+    "name": "Fettuccini Al Fredo Pasta",
+    "category": "Pastas",
+    "price": 1299,
+    "image": "/Fettuccini Al Fredo Pasta.webp",
+    "description": null
+  },
+  {
+    "name": "Penne Arrabbiata",
+    "category": "Pastas",
+    "price": 1399,
+    "image": "/Penne Arrabbiata.png",
+    "description": null
+  },
+  {
+    "name": "Spinach & Mozzarella Pasta",
+    "category": "Pastas",
+    "price": 1399,
+    "image": "/Spinach & Mozzarella Pasta.jpg",
+    "description": null
+  },
+  {
+    "name": "Penne Al Fredo",
+    "category": "Pastas",
+    "price": 1399,
+    "image": "/Penne Al Fredo.jpg",
+    "description": null
+  },
+  {
+    "name": "Chicken Burger with Cheese",
+    "category": "Burger & Sandwiches",
+    "price": 1050,
+    "image": "/Chicken Burger with Cheese.jpg",
+    "description": null
+  },
+  {
+    "name": "Supreme Beef Burger with Cheese",
+    "category": "Burger & Sandwiches",
+    "price": 1150,
+    "image": "/Supreme Beef Burger with Cheese.jpg",
+    "description": null
+  },
+  {
+    "name": "Special Club Sandwich",
+    "category": "Burger & Sandwiches",
+    "price": 950,
+    "image": "/Special Club Sandwich.webp",
+    "description": null
+  },
+  {
+    "name": "Chicken Malai Club Sandwich",
+    "category": "Burger & Sandwiches",
+    "price": 1299,
+    "image": "/Chicken Malai Club Sandwich.jpg",
+    "description": null
+  },
+  {
+    "name": "Broast Quarter (Leg/Chest)",
+    "category": "Broast",
+    "price": 799,
+    "image": "/Broast Quarter (Leg-Chest).webp",
+    "description": null
+  },
+  {
+    "name": "Broast Half (Leg/Chest)",
+    "category": "Broast",
+    "price": 1299,
+    "image": "/Broast Half (Leg-Chest).jpg",
+    "description": null
+  },
+  {
+    "name": "Chicken Cheesy Roll",
+    "category": "Rolls",
+    "price": 395,
+    "image": "/Chicken Cheesy Roll.webp",
+    "description": null
+  },
+  {
+    "name": "Mayo Garlic Roll",
+    "category": "Rolls",
+    "price": 349,
+    "image": "/Mayo Garlic Roll.jpg",
+    "description": null
+  },
+  {
+    "name": "Zinger Cheesy Roll",
+    "category": "Rolls",
+    "price": 399,
+    "image": "/Zinger Cheesy Roll.webp",
+    "description": null
+  },
+  {
+    "name": "Vegetable Roll",
+    "category": "Rolls",
+    "price": 249,
+    "image": "/Vegetable Roll.jpg",
+    "description": null
+  }
+]

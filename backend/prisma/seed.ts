@@ -1,16 +1,22 @@
 // Seeds a representative subset of frontend/src/data/mockData.js into the
-// real database — not exhaustive (doesn't seed all ~70 menu items or all 300
-// tables' worth of demo orders), but internally consistent: every id
-// referenced by a recipe, department, order, or "most ordered" entry below is
-// actually seeded, and the ckh1 (Chicken Shahi Karahi) recipe + order are
-// carried over verbatim from mockData.js specifically because they're a
-// known-good fixture — a live run of the (pre-backend) frontend confirmed
-// this exact order (qty 2) produces "Chicken 1 kg, Cooking Oil 0.2 L" via
-// calculateDeductions, which test/inventoryFlow.test.ts checks against.
+// real database (staff, tables, inventory, departments, demo orders — not
+// exhaustive, e.g. not all 300 tables' worth of demo orders), but internally
+// consistent: every id referenced by a recipe, department, order, or "most
+// ordered" entry below is actually seeded, and the ckh1 (Chicken Shahi
+// Karahi) recipe + order are carried over verbatim from mockData.js
+// specifically because they're a known-good fixture — a live run of the
+// (pre-backend) frontend confirmed this exact order (qty 2) produces
+// "Chicken 1 kg, Cooking Oil 0.2 L" via calculateDeductions, which
+// test/inventoryFlow.test.ts checks against.
+//
+// The menu itself is the one exception to "representative subset": it's the
+// client's actual full menu (menu-data.json, converted from their real menu
+// document), not a demo sample — see the comment above that block below.
 //
 // Idempotent: wipes and reseeds every run (dev convenience), not additive.
 
 import { pathToFileURL } from 'node:url'
+import { readFile } from 'node:fs/promises'
 import { prisma } from '../src/db/client.js'
 import { nextSequence } from '../src/core/ids.js'
 import { hashPassword } from '../src/auth/password.js'
@@ -159,6 +165,45 @@ export async function seed() {
     const r = ratio[m.category] ?? 0.35
     await prisma.menuItem.create({
       data: { ...m, active: true, cost: Math.round(m.price * r), costEstimated: true, reusable: false },
+    })
+  }
+
+  // The client's real, full menu (menu-data.json — converted from their
+  // actual "Menu New design.md" + sourced item photos). Kept separate from
+  // menuSeed above: those 11 items already exist in this list too (by name),
+  // deliberately excluded when the JSON was generated so they aren't
+  // duplicated — they keep their fixed short ids since the recipe-deduction
+  // fixture and other seeded orders below reference them directly (ckh1,
+  // br2, pk5, ...). No cost/recipe data exists for these ~170 items (the
+  // source menu only had name/category/price) — left as `cost: null,
+  // costEstimated: true` (unknown) rather than inventing figures; Admin can
+  // fill these in later via Recipes, which already tolerates items with none.
+  console.log('Seeding MenuItem (real Café Ali menu — full)...')
+  const realMenuPath = new URL('./menu-data.json', import.meta.url)
+  const realMenu: {
+    name: string
+    category: string
+    price: number
+    image: string | null
+    description: string | null
+    variants?: { label: string; price: number }[]
+  }[] = JSON.parse(await readFile(realMenuPath, 'utf-8'))
+  for (const item of realMenu) {
+    await prisma.menuItem.create({
+      data: {
+        name: item.name,
+        category: item.category,
+        price: item.price,
+        image: item.image,
+        description: item.description,
+        active: true,
+        cost: null,
+        costEstimated: true,
+        reusable: false,
+        variants: item.variants?.length
+          ? { create: item.variants.map((v) => ({ label: v.label, price: v.price, cost: null, costEstimated: true })) }
+          : undefined,
+      },
     })
   }
 

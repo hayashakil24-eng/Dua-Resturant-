@@ -115,6 +115,12 @@ export async function replaceMenu(_ctx: Ctx, items: MenuItemInput[]) {
           costEstimated: item.costEstimated ?? true,
           reusable: item.reusable ?? false,
           active: item.active ?? true,
+          // Was previously missing entirely — a bulk replace silently
+          // dropped every item's variants (e.g. Steaks Beef/Chicken, Pizza
+          // S/M/L), unlike addMenuItem above which already handles this.
+          variants: item.variants?.length
+            ? { create: item.variants.map((v) => ({ label: v.label, price: Math.round(Number(v.price) || 0), cost: v.cost == null ? null : Math.round(Number(v.cost)), costEstimated: v.costEstimated ?? true })) }
+            : undefined,
         },
       })
     }
