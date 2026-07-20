@@ -14,7 +14,14 @@
 // fields (suffixed `Json`) rather than native arrays.
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // "native" keeps local dev/tests working on this Linux/WSL box; "windows"
+  // is the actual restaurant-PC deployment target. Without this, `prisma
+  // generate` only produces the query engine binary for whatever platform
+  // ran it — a first real packaged-Windows-build test caught this exact gap
+  // (the Control Panel shipped .prisma/client with only a .so.node engine,
+  // which can't load on Windows at all).
+  binaryTargets = ["native", "windows"]
 }
 
 datasource db {

@@ -73,21 +73,70 @@ async function verifyPanelPassword(password) {
   return verifyPassword(password, config?.panelPasswordHash)
 }
 
-// Runs the backend's bundled Prisma CLI against our userData db path. In dev
-// (unpackaged) this is straightforward — backend/node_modules/prisma is a
-// plain directory. Packaged, Prisma's migration-engine binary can't execute
-// from inside an .asar archive, which is exactly why package.json's
-// `asarUnpack` includes @prisma/** and .prisma/** — this resolves the CLI at
-// its *unpacked* path when app.isPackaged. Not verified against a real
-// packaged Windows build in this sandbox (see docs/04-phase-3's verification
-// notes) — dev-mode migration was verified live.
+// Runs the backend's bundled Prisma CLI against our userData db path.
+//
+// Packaging gotchas this works around, all only visible on a real packaged
+// Windows build (not dev mode, not `--dir` alone) — see docs/04-phase-3's
+// verification notes, which had flagged real-Windows packaging as
+// unverified risk, and that's exactly where these turned up:
+//
+// 1. This package builds with `"asar": false` (package.json). Prisma's
+//    generated client (.prisma/client) isn't a declared npm dependency —
+//    just output on disk @prisma/client reads internally — so it's
+//    invisible to any package.json-based file inclusion, asar or not, and
+//    needs an explicit extraResources copy regardless (see below). But with
+//    asar enabled, that copy landed in a separate app.asar.unpacked tree
+//    that plain `require()`/CJS module loading redirects into correctly,
+//    while Electron's ESM loader (`import()` — this whole package is
+//    "type": "module") does NOT reliably apply the same asar-unpack
+//    redirect, so @cafe-ali/backend's own `import { PrismaClient } from
+//    '@prisma/client'` kept resolving @prisma/client from *inside* the
+//    compressed archive, where .prisma/client was never present at all —
+//    "does not provide an export named 'PrismaClient'" (Prisma's fallback
+//    stub for "client not generated"). Disabling asar removes the
+//    distinction entirely: everything is plain files on real disk, so both
+//    CJS and ESM loading resolve identically.
+// 2. electron-builder's automatic dependency-graph walker repeatedly failed
+//    to fully capture prisma's own (large, deep) transitive dependency tree
+//    when packaging this file:../backend-linked dependency — first missing
+//    .prisma/client entirely, then missing 'effect' (a dependency of
+//    @prisma/config, itself a dependency of prisma) once that was fixed.
+//    Rather than keep patching one missing transitive package at a time,
+//    package.json's `extraResources` does an unfiltered copy of the entire
+//    backend/node_modules tree straight into
+//    resources/backend-full-modules/node_modules — guaranteed complete,
+//    since it's exactly the tree already verified working in local dev,
+//    rather than trusting electron-builder to reconstruct the graph
+//    piecemeal. The extra `node_modules` path segment isn't cosmetic: Node's
+//    module resolution only walks up ancestor directories literally named
+//    `node_modules` looking for further packages, so prisma's own
+//    `require('@prisma/config')` etc. only resolves if this copy sits
+//    inside a real `node_modules` folder, not just any directory holding
+//    the same contents. This is only used for running the CLI here; the
+//    actual running server still uses the app's own normally-packaged
+//    (much smaller) @prisma/client runtime dependency, not this CLI's tree.
+// 3. Invokes prisma's own JS entry point (its "bin" field, build/index.js)
+//    via Electron's bundled Node runtime (ELECTRON_RUN_AS_NODE) rather than
+//    spawning node_modules/.bin/prisma directly. That .bin entry is an
+//    npm-generated shim — a Unix symlink when installed on Linux/WSL, a
+//    .cmd/.ps1 pair when installed on Windows — and npm only generates the
+//    shim matching whatever OS ran `npm install`. This package is built
+//    cross-platform (Linux building a Windows target), so the Windows
+//    install never gets a .cmd shim, and even a POSIX symlink doesn't
+//    survive being packaged/copied onto NTFS intact. Calling the JS entry
+//    directly sidesteps shim generation entirely.
 async function runMigrations(env) {
   const backendDir = path.dirname(require.resolve('@cafe-ali/backend/package.json'))
-  const prismaCli = app.isPackaged
-    ? path.join(backendDir.replace('app.asar', 'app.asar.unpacked'), 'node_modules/.bin/prisma')
-    : path.join(backendDir, 'node_modules/.bin/prisma')
-  const schemaPath = path.join(backendDir, 'prisma/schema.prisma')
-  await execFileAsync(prismaCli, ['migrate', 'deploy', '--schema', schemaPath], { env })
+  const nodeModulesDir = app.isPackaged
+    ? path.join(process.resourcesPath, 'backend-full-modules', 'node_modules')
+    : path.join(backendDir, 'node_modules')
+  const unpackedBackendDir = backendDir
+
+  const prismaEntry = path.join(nodeModulesDir, 'prisma/build/index.js')
+  const schemaPath = path.join(unpackedBackendDir, 'prisma/schema.prisma')
+  await execFileAsync(process.execPath, [prismaEntry, 'migrate', 'deploy', '--schema', schemaPath], {
+    env: { ...env, ELECTRON_RUN_AS_NODE: '1' },
+  })
 }
 
 async function runFirstTimeSetup(backupDir, panelPassword) {
@@ -190,8 +239,11 @@ function createWindow() {
 }
 
 function createTray() {
-  const icon = nativeImage.createEmpty() // placeholder — replace with a real .ico/.png before packaging
-  tray = new Tray(icon.isEmpty() ? nativeImage.createFromNamedImage('NSApplicationIcon') : icon)
+  // Windows tray icons render best around 16x16 (the OS scales up for
+  // high-DPI itself) — the source logo is 500x500, so resize down rather
+  // than handing the OS a full-size image to shrink on its own.
+  const icon = nativeImage.createFromPath(path.join(__dirname, '../assets/tray-icon.png')).resize({ width: 16, height: 16 })
+  tray = new Tray(icon)
   tray.setToolTip('Cafe Ali Control Panel')
   tray.setContextMenu(
     Menu.buildFromTemplate([

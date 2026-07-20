@@ -32,12 +32,12 @@
     "@fastify/sensible": "^6.0.4",
     "@prisma/client": "^6.3.1",
     "fastify": "^5.2.1",
+    "prisma": "^6.3.1",
     "socket.io": "^4.8.3"
   },
   "devDependencies": {
     "@types/node": "^22.10.10",
     "pm2": "^7.0.3",
-    "prisma": "^6.3.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "vitest": "^3.0.4"

@@ -22,18 +22,26 @@
     "files": [
       "electron/**",
       "src/**",
+      "assets/**",
       "node_modules/**"
     ],
-    "asarUnpack": [
-      "node_modules/@cafe-ali/backend/**",
-      "node_modules/@prisma/**",
-      "node_modules/.prisma/**"
+    "asar": false,
+    "extraResources": [
+      {
+        "from": "../backend/node_modules/.prisma",
+        "to": "app/node_modules/.prisma"
+      },
+      {
+        "from": "../backend/node_modules",
+        "to": "backend-full-modules/node_modules"
+      }
     ],
     "directories": {
       "output": "release"
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "assets/icon.ico"
     }
   }
 }
