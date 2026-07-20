@@ -19,6 +19,7 @@ const ACTION_REFETCH_MAP = {
   ORDER_SERVED: ['orders'],
   ORDER_ITEMS_ADDED: ['orders'],
   ORDER_QTY_UPDATED: ['orders'],
+  ORDER_TABLE_SHIFTED: ['orders'],
   CANCELLED: ['orders'],
   DISCOUNT: ['orders'],
   DISCOUNT_REMOVED: ['orders'],
@@ -373,6 +374,18 @@ export function AppProvider({ children }) {
     try {
       await apiPatch(`/api/orders/${orderSid(orderId)}/items`, { itemKey: itemId, qty: newQty })
       await refresh(['orders', 'inventory'])
+    } catch (e) {
+      return toError(e)
+    }
+  }
+
+  // Re-seat a running order onto another table (party moved seats). Server-side
+  // this only rewrites the table column — no money/inventory change — so a plain
+  // refetch of orders is enough for every device to show the new table.
+  const shiftOrderTable = async (id, newTable) => {
+    try {
+      await apiPost(`/api/orders/${orderSid(id)}/table`, { table: newTable })
+      await refresh(['orders'])
     } catch (e) {
       return toError(e)
     }
@@ -923,6 +936,7 @@ export function AppProvider({ children }) {
     cancelOrder,
     orderMaterialLoss,
     updateOrderItemQty,
+    shiftOrderTable,
     applyDiscount,
     removeDiscount,
     auditLog,

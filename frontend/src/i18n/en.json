@@ -496,6 +496,7 @@
     "discount": "Discount",
     "total": "Total",
     "addMoreItems": "Add More Items",
+    "shiftTable": "Shift Table",
     "noneRunning": "No tables in use right now.",
     "allOccupied": "All tables are occupied!",
     "noneConfigured": "No tables configured.",

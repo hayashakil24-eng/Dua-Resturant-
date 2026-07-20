@@ -3,10 +3,11 @@ import { useApp } from '../context/AppContext.jsx'
 import { PageHeader, PaymentBadge, EmptyState } from '../components/ui.jsx'
 import { money, time } from '../utils/format.js'
 import { tableLabel } from '../data/mockData.js'
-import { IconOrders, IconSearch, IconCheck, IconClose, IconWallet, IconPrint } from '../components/Icons.jsx'
+import { IconOrders, IconSearch, IconCheck, IconClose, IconWallet, IconPrint, IconTable } from '../components/Icons.jsx'
 import { canModify, hasAccess } from '../config/permissions.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import PaymentModal from '../components/PaymentModal.jsx'
+import ShiftTableModal from '../components/ShiftTableModal.jsx'
 import MarkAsUdhaarModal from '../components/MarkAsUdhaarModal.jsx'
 import MarkAsComplimentaryModal from '../components/MarkAsComplimentaryModal.jsx'
 // Reuse the same slip the POS/Billing pages print — a running (unpaid) order can
@@ -124,8 +125,10 @@ function CancelModal({ order, orderTotal, materialLoss = 0, onConfirm, onClose }
 }
 
 export default function Orders() {
-  const { orders, orderTotal, markPaid, cancelOrder, orderMaterialLoss, markOrderUdhaar, markOrderComplimentary, onlineAccounts, auditLog, user } = useApp()
+  const { orders, orderTotal, markPaid, cancelOrder, orderMaterialLoss, markOrderUdhaar, markOrderComplimentary, shiftOrderTable, onlineAccounts, auditLog, user } = useApp()
   const canMarkPaid = user && canModify(user.role, 'orders')
+  // Re-seating a running order is a running-order edit — same gate as settling.
+  const canShiftTable = canMarkPaid
   // Printing a bill doesn't mutate the order, so it's allowed for anyone who can
   // even VIEW orders (Cashier/Admin settle, but a Manager on 'view' can still
   // hand a customer their bill) — a wider gate than the settle actions above.
@@ -137,6 +140,7 @@ export default function Orders() {
   const [query, setQuery] = useState('')
   const [cancelTarget, setCancelTarget] = useState(null)
   const [payTarget, setPayTarget] = useState(null) // unpaid order awaiting payment
+  const [shiftTarget, setShiftTarget] = useState(null) // unpaid order → move to another table
   const [billTarget, setBillTarget] = useState(null) // unpaid order → print bill only (no settle)
   const [udhaarTarget, setUdhaarTarget] = useState(null) // unpaid order → on-account
   const [compTarget, setCompTarget] = useState(null) // unpaid order → complimentary
@@ -183,6 +187,15 @@ export default function Orders() {
             className={`${ACTION_BTN} bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 hover:shadow-amber-500/40`}
           >
             <IconPrint size={14} /> Print Bill
+          </button>
+        )}
+        {isUnpaid && canShiftTable && (
+          <button
+            onClick={() => setShiftTarget(o)}
+            title="Move this running order to a different table"
+            className={`${ACTION_BTN} bg-gradient-to-r from-slate-500 to-slate-600 hover:from-slate-400 hover:to-slate-500 hover:shadow-slate-500/40`}
+          >
+            <IconTable size={14} /> Shift Table
           </button>
         )}
         {isUnpaid && canMarkPaid && (
@@ -445,6 +458,19 @@ export default function Orders() {
             setPayTarget(null)
           }}
           onClose={() => setPayTarget(null)}
+        />
+      )}
+
+      {/* Shift Table → re-seat a running order onto another table. */}
+      {shiftTarget && (
+        <ShiftTableModal
+          order={shiftTarget}
+          onConfirm={async (tableId) => {
+            const res = await shiftOrderTable(shiftTarget.id, tableId)
+            if (res?.error) return
+            setShiftTarget(null)
+          }}
+          onClose={() => setShiftTarget(null)}
         />
       )}
 
