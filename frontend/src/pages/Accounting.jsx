@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext.jsx'
 import { useT, useLang } from '../i18n/LanguageContext.jsx'
 import { categoryLabel } from '../i18n/dataDict.js'
 import { PageHeader } from '../components/ui.jsx'
-import { money, dateShort, monthYear, dateLong } from '../utils/format.js'
+import { money, dateShort, time, monthYear, dateLong } from '../utils/format.js'
 import { safePrint } from '../utils/print.js'
 import { monthFigures } from '../utils/accounting.js'
 import { complimentaryCost, formatCostTotal } from '../utils/cost.js'
@@ -138,7 +138,11 @@ function AddTransactionModal({ onClose, onSave }) {
   const [category, setCategory] = useState(EXPENSE_CATEGORIES[0])
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  // Local date, not UTC: toISOString() converts to UTC first, which silently
+  // dated any transaction entered between local midnight and ~5 AM (Pakistan,
+  // UTC+5) as "yesterday" — invisible in Daily view's exact-date match even
+  // though Monthly's looser year/month check tolerated it.
+  const [date, setDate] = useState(() => toDayStr(new Date()))
   useEscapeKey(onClose)
 
   const cats = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES
@@ -359,6 +363,22 @@ export default function Accounting() {
       const d = new Date(o.createdAt)
       return daily ? toDayStr(d) === dayDate : d.getFullYear() === year && d.getMonth() === monthIndex
     })
+    // Per-order rows for the breakdown table below — the aggregate count/value/
+    // cost numbers alone don't say which orders they were, a client complaint
+    // once there's more than one in the period (with exactly one the aggregate
+    // and the single order's figures are the same number, so the gap goes
+    // unnoticed until a second one shows up).
+    const breakdown = inScope
+      .map((o) => ({
+        id: o.id,
+        table: o.table,
+        value: orderTotal(o.items, o.discount?.amount, o.gstRate).total,
+        cost: complimentaryCost(o, menu, orderTotal),
+        reason: o.complimentary?.reason || '',
+        by: o.complimentary?.approvedBy || o.complimentary?.orderedBy || '',
+        at: o.complimentary?.at || o.createdAt,
+      }))
+      .sort((a, b) => new Date(b.at) - new Date(a.at))
     return {
       count: inScope.length,
       value: inScope.reduce((s, o) => s + orderTotal(o.items, o.discount?.amount, o.gstRate).total, 0),
@@ -366,6 +386,7 @@ export default function Accounting() {
       // bill. Only this figure belongs in the books as a loss.
       cost: inScope.reduce((s, o) => s + complimentaryCost(o, menu, orderTotal).costTotal, 0),
       costAllKnown: inScope.every((o) => complimentaryCost(o, menu, orderTotal).allKnown),
+      breakdown,
     }
   }, [orders, orderTotal, menu, daily, dayDate, year, monthIndex])
 
@@ -440,33 +461,78 @@ export default function Accounting() {
       </div>
 
       {compStat.count > 0 && (
-        <div className="mb-6 flex items-center justify-between rounded-2xl border border-violet-500/30 bg-violet-500/[0.06] p-5">
-          <div className="flex items-center gap-3">
-            <span className="grid h-11 w-11 place-items-center rounded-xl bg-violet-500/12 text-violet-300 ring-1 ring-violet-500/25">🎁</span>
-            <div>
-              <p className="text-sm font-semibold text-cream">{t('accounting.complimentary')}</p>
-              <p className="text-xs text-cream-dim">
-                {compStat.count} {t('accounting.complimentaryOrders')} · {scopeLabel}
+        <div className="mb-6 overflow-hidden rounded-2xl border border-violet-500/30 bg-violet-500/[0.06]">
+          <div className="flex items-center justify-between p-5">
+            <div className="flex items-center gap-3">
+              <span className="grid h-11 w-11 place-items-center rounded-xl bg-violet-500/12 text-violet-300 ring-1 ring-violet-500/25">🎁</span>
+              <div>
+                <p className="text-sm font-semibold text-cream">{t('accounting.complimentary')}</p>
+                <p className="text-xs text-cream-dim">
+                  {compStat.count} {t('accounting.complimentaryOrders')} · {scopeLabel}
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="font-serif text-2xl font-semibold text-violet-300">
+                {formatCostTotal({ costTotal: compStat.cost, allKnown: compStat.costAllKnown }, money)}
+              </p>
+              <p className="text-[11px] text-cream-dim">
+                est. cost · bill forgone {money(compStat.value)}
               </p>
             </div>
           </div>
-          <div className="text-right">
-            <p className="font-serif text-2xl font-semibold text-violet-300">
-              {formatCostTotal({ costTotal: compStat.cost, allKnown: compStat.costAllKnown }, money)}
-            </p>
-            <p className="text-[11px] text-cream-dim">
-              est. cost · bill forgone {money(compStat.value)}
-            </p>
+
+          {/* Per-order breakdown — see compStat.breakdown above. Without this,
+              only the aggregate total was visible, with no way to tell which
+              orders/tables made it up once there's more than one. */}
+          <div className="overflow-x-auto border-t border-violet-500/20">
+            <table className="w-full min-w-[640px] text-left text-sm">
+              <thead>
+                <tr className="text-xs uppercase tracking-wider text-cream-dim">
+                  <th className="px-5 py-2.5 font-semibold">{t('accounting.colOrder')}</th>
+                  <th className="px-5 py-2.5 font-semibold">{t('accounting.colTable')}</th>
+                  <th className="px-5 py-2.5 font-semibold">{t('accounting.colReason')}</th>
+                  <th className="px-5 py-2.5 font-semibold">{t('accounting.colAuthorizedBy')}</th>
+                  <th className="px-5 py-2.5 text-right font-semibold">{t('accounting.colBillForgone')}</th>
+                  <th className="px-5 py-2.5 text-right font-semibold">{t('accounting.colEstCost')}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-violet-500/10">
+                {compStat.breakdown.map((row) => (
+                  <tr key={row.id} className="transition hover:bg-white/[0.02]">
+                    <td className="px-5 py-2.5 text-cream">
+                      {row.id}
+                      <span className="ms-2 text-xs text-cream-dim">
+                        {dateShort(row.at)} · {time(row.at)}
+                      </span>
+                    </td>
+                    <td className="px-5 py-2.5 text-cream-dim">{row.table || '—'}</td>
+                    <td className="px-5 py-2.5 text-cream-dim">{row.reason || '—'}</td>
+                    <td className="px-5 py-2.5 text-cream-dim">{row.by || '—'}</td>
+                    <td className="px-5 py-2.5 text-right font-semibold text-cream">{money(row.value)}</td>
+                    <td className="px-5 py-2.5 text-right text-violet-300">{formatCostTotal(row.cost, money)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
 
-      {!daily && (
+      {!daily ? (
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <PLChart data={chartData} />
           </div>
           <ExpenseBreakdown inMonth={fig.inMonth} payroll={fig.payroll} />
+        </div>
+      ) : (
+        // No PLChart in Daily (it's a monthly trend view) — just the expense
+        // breakdown, scoped to today's transactions instead of the month's.
+        // Payroll is deliberately omitted here too: it's a monthly cost not
+        // apportioned to any one day (see dayFig's own comment above).
+        <div className="max-w-md">
+          <ExpenseBreakdown inMonth={dayFig.inDay} payroll={0} />
         </div>
       )}
 

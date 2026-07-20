@@ -74,6 +74,12 @@ export default function ClosingSummaryTable({ report, meta }) {
             <td style={cell}>LESS : EXPENSES ( اخراجات / ایکسپینس )</td>
             <td style={amt}>{fmt(report.expenses)}</td>
           </tr>
+          {(report.expensesByCategory || []).map((e) => (
+            <tr key={e.category}>
+              <td style={{ ...cell, paddingLeft: 26, fontSize: 12, color: '#333' }}>{e.category}</td>
+              <td style={{ ...amt, fontSize: 12, color: '#333' }}>{fmt(e.amount)}</td>
+            </tr>
+          ))}
           <tr>
             <td style={{ ...cell, textAlign: 'center', fontWeight: 700, fontSize: 15 }}>
               REMAINING CASH HAND OVER TO ZAMAN A/C

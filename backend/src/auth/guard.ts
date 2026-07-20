@@ -19,9 +19,16 @@ export interface JwtPayload {
   jti: string // session id — checked against the active-session registry, see sessions.ts
 }
 
-// Populate req.actor from a verified token, or 401. Every guarded route runs
-// this first (directly, or via requirePermission).
-export async function authenticate(req: FastifyRequest, reply: FastifyReply): Promise<void> {
+// Shared verification: JWT signature + active-session check, populates
+// req.actor. `allowPending` decides whether a self-signup account still
+// awaiting Admin review (role 'Pending') is accepted or rejected here — kept
+// as an internal-only parameter (not on `authenticate` itself) because
+// Fastify's preHandler typing resolves a bare function reference against its
+// callback-style hook signature `(req, reply, done)` the moment that
+// function has any 3rd parameter, which breaks every route below that passes
+// `authenticate` bare (`preHandler: authenticate`, ~18+ routes) rather than
+// wrapped in a closure. Two thin 2-arg exports avoid that entirely.
+async function verify(req: FastifyRequest, reply: FastifyReply, allowPending: boolean): Promise<void> {
   try {
     await req.jwtVerify()
   } catch {
@@ -34,6 +41,25 @@ export async function authenticate(req: FastifyRequest, reply: FastifyReply): Pr
     return
   }
   req.actor = { id: p.sub, name: p.name, role: p.role }
+  if (req.actor.role === 'Pending' && !allowPending) {
+    reply.code(403).send({ error: 'Your account is pending admin approval.' })
+  }
+}
+
+// Populate req.actor from a verified token, or 401/403. Every guarded route
+// runs this first (directly, or via requirePermission) — a 'Pending' session
+// is rejected here, before ever reaching a handler, since most routes below
+// only ever checked "is this any valid Staff session" with no further
+// page-permission check (safe until self-signup existed, since every session
+// necessarily belonged to an admin-provisioned account until now).
+export async function authenticate(req: FastifyRequest, reply: FastifyReply): Promise<void> {
+  return verify(req, reply, false)
+}
+
+// The couple of routes a 'Pending' session legitimately needs — session
+// restore and sign-out. Everything else uses `authenticate` above.
+export async function authenticateAllowPending(req: FastifyRequest, reply: FastifyReply): Promise<void> {
+  return verify(req, reply, true)
 }
 
 // A preHandler enforcing a permission on a page/feature key. `mode`:

@@ -32,10 +32,16 @@ export interface ClosingTransaction {
   type: string // 'income' | 'expense'
   amount: number
   date: Date | string
+  category?: string | null
 }
 
 export interface ClosingAccount {
   name: string
+  amount: number
+}
+
+export interface ExpenseCategoryLine {
+  category: string
   amount: number
 }
 
@@ -60,6 +66,7 @@ export interface ClosingReport {
   udhaar: number
   netCashSales: number
   expenses: number
+  expensesByCategory: ExpenseCategoryLine[]
   remainingHandover: number
   gstCollected: number
   materialLoss: number
@@ -122,9 +129,19 @@ export function buildClosingReport(
   const grossSale = netSale + discount
   const netCashSales = cash // = NET SALE − accounts (all non-cash channels)
 
-  const expenses = (transactions || [])
-    .filter((tx) => tx.type === 'expense' && toDayStr(tx.date) === dateStr)
-    .reduce((s, tx) => s + tx.amount, 0)
+  const dayExpenses = (transactions || []).filter((tx) => tx.type === 'expense' && toDayStr(tx.date) === dateStr)
+  const expenses = dayExpenses.reduce((s, tx) => s + tx.amount, 0)
+  // Per-category breakdown (e.g. Maintenance/Construction) — same grouping as
+  // the frontend's Accounting.jsx ExpenseBreakdown, scoped to this one day.
+  const expensesByCategory: ExpenseCategoryLine[] = Object.entries(
+    dayExpenses.reduce<Record<string, number>>((acc, tx) => {
+      const cat = tx.category || 'Other'
+      acc[cat] = (acc[cat] || 0) + tx.amount
+      return acc
+    }, {}),
+  )
+    .map(([category, amount]) => ({ category, amount }))
+    .sort((a, b) => b.amount - a.amount)
   const remainingHandover = netCashSales - expenses
 
   // Extras kept for the on-screen detail / saved record (not on the summary sheet).
@@ -152,6 +169,7 @@ export function buildClosingReport(
     udhaar,
     netCashSales,
     expenses,
+    expensesByCategory,
     remainingHandover,
     gstCollected,
     materialLoss,

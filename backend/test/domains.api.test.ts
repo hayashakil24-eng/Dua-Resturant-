@@ -123,6 +123,10 @@ describe('settings → order GST lock', () => {
     expect(JSON.parse(placed.body).order.gstRate).toBe(0.1)
 
     await post('/api/settings/gst', admin, { enabled: false })
+    // Resolve the order this test placed — otherwise it lingers as a same-day
+    // Unpaid order and trips the daily-closing pending-bill block (below) for
+    // any test that happens to run after this one.
+    await post(`/api/orders/${JSON.parse(placed.body).order.id}/pay`, cashier, { method: 'Cash' })
   })
 
   it('forbids a Cashier from changing settings', async () => {
@@ -153,5 +157,28 @@ describe('daily closing', () => {
     const { report } = JSON.parse(res.body)
     expect(report).toHaveProperty('netSale')
     expect(report).toHaveProperty('inventoryUsed')
+    expect(report).toHaveProperty('expensesByCategory')
+  })
+
+  it('blocks saving a closing while a same-day bill is still unpaid, and allows it once resolved', async () => {
+    const admin = await tokenFor('admin')
+    const cashier = await tokenFor('cashier')
+
+    const order = await post('/api/orders', cashier, {
+      table: 3,
+      payment: 'Unpaid',
+      items: [{ menuItemId: 'br2', name: 'Garlic Naan', price: 150, qty: 1 }],
+    })
+    const orderId = JSON.parse(order.body).order.id
+
+    const blocked = await post('/api/closings', admin)
+    expect(blocked.statusCode).toBe(409)
+    expect(JSON.parse(blocked.body).error).toMatch(/unpaid/i)
+
+    const comp = await post(`/api/orders/${orderId}/complimentary`, admin, { orderedBy: 'Admin', reason: 'test cleanup' })
+    expect(comp.statusCode).toBe(200)
+
+    const saved = await post('/api/closings', admin)
+    expect(saved.statusCode).toBe(200)
   })
 })

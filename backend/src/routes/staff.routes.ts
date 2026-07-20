@@ -22,6 +22,22 @@ export async function staffRoutes(app: FastifyInstance): Promise<void> {
     return { staff: await staff.toggleStaff(ctx(req), id) }
   })
 
+  // Self-signup approval queue — Admin-only (staffApproval), same
+  // separation-of-duties pattern as recipes.routes.ts's approve/reject.
+  app.get('/api/staff/pending-signups', { preHandler: requirePermission('staffApproval', 'access') }, async () => ({
+    pendingSignups: await staff.listPendingSignups(),
+  }))
+  app.post('/api/staff/:id/approve-signup', { preHandler: requirePermission('staffApproval') }, async (req) => {
+    const { id } = req.params as { id: string }
+    const { systemRole } = (req.body ?? {}) as { systemRole?: unknown }
+    return { staff: await staff.approveSignup(ctx(req), id, systemRole) }
+  })
+  app.post('/api/staff/:id/reject-signup', { preHandler: requirePermission('staffApproval') }, async (req) => {
+    const { id } = req.params as { id: string }
+    const { reason } = (req.body ?? {}) as { reason?: string }
+    return { staff: await staff.rejectSignup(ctx(req), id, reason) }
+  })
+
   // Advances (payroll permission).
   app.get('/api/advances', { preHandler: requirePermission('payroll', 'access') }, async () => ({ advances: await staff.listAdvances() }))
   app.post('/api/advances', { preHandler: requirePermission('payroll') }, async (req) => ({ advance: await staff.addAdvance(ctx(req), req.body as never) }))

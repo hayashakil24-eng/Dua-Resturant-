@@ -59,7 +59,9 @@ const orders: ClosingOrder[] = [
   },
 ]
 
-const transactions: ClosingTransaction[] = [{ type: 'expense', amount: 500, date: todayAt(9, 0) }]
+const transactions: ClosingTransaction[] = [
+  { type: 'expense', amount: 500, date: todayAt(9, 0), category: 'Maintenance' },
+]
 
 describe('toDayStr', () => {
   it('formats a date as YYYY-MM-DD', () => {
@@ -84,6 +86,11 @@ describe('buildClosingReport', () => {
     const report = buildClosingReport(orders, transactions, dateStr, inventory, recipes)
     expect(report.expenses).toBe(500)
     expect(report.remainingHandover).toBe(5398 - 500)
+  })
+
+  it('groups same-day expenses by category (e.g. Maintenance)', () => {
+    const report = buildClosingReport(orders, transactions, dateStr, inventory, recipes)
+    expect(report.expensesByCategory).toEqual([{ category: 'Maintenance', amount: 500 }])
   })
 
   it('carries the cancelled order\'s materialLoss even though it\'s excluded from sales', () => {

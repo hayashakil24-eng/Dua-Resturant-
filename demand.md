@@ -1,11 +1,14 @@
 1. table swapping wala option add krna ha . (Done)
 2. table rename wala option ma bhi kami ha means table manage ka button pr click kr ka agr ma us ka name change krna chahun to nahi kr sakta wo option bhi daikhain . (Done)
-3. accounting ma complementory orders agr 2 ho gai han to wo un ka break down show nahi ho raha ?
-4. receivable ma bhi break down nahi ha matlab jasa ka alikakar ka name pr jo credit show ho raha ha us ka break down un ka sara bills ?
-5. handover approval working nahi kr raha sahi sa usa bhi check karain ?
-6. bill print wala kam sahi visible nahi ho raha or na hi print 
-7. accounting ka page ma monthly to sab data da raha ha but daily wala button pr click krna pr kuch nahi show ho raha data usa bhi check karain 
-8. maintanace ka break down mana ap sa kaha tha ka cafe ali ma jo maintance ho rahi ha means jo contruction ka kam ho raha ha us ka alag break down or wo bhi closing ma jo leadger ha us ma show ho or us ka brak down bhi.
+3. accounting ma complementory orders agr 2 ho gai han to wo un ka break down show nahi ho raha ? (Done — har complimentary order ka alag row ab dikhta hai: table, reason, kis ne authorize kiya, bill amount, est. cost)
+4. receivable ma bhi break down nahi ha matlab jasa ka alikakar ka name pr jo credit show ho raha ha us ka break down un ka sara bills ? (Done — account row par click karain to us ka sara bills ka breakdown expand ho ta hai)
+5. handover approval working nahi kr raha sahi sa usa bhi check karain ? (Done — asal bug mila tha: request fail hone par bhi modal chup chap band ho jata tha, ab error dikhta hai. Cashier ko bhi ab pata chalta hai ke us ka handover pending hai)
+6. bill print wala kam sahi visible nahi ho raha or na hi print (Done — bug mila: KOT print karne ke turant baad receipt print karna silently fail ho jata tha, ab har print surface independent hai)
+7. accounting ka page ma monthly to sab data da raha ha but daily wala button pr click krna pr kuch nahi show ho raha data usa bhi check karain (Done — asal bug: naya transaction add karte waqt date UTC mein save ho raha tha, raat ko midnight ke baad ka entry "kal" ki tareekh mein chala jata tha)
+8. maintanace ka break down mana ap sa kaha tha ka cafe ali ma jo maintance ho rahi ha means jo contruction ka kam ho raha ha us ka alag break down or wo bhi closing ma jo leadger ha us ma show ho or us ka brak down bhi. (Done — Daily view mein bhi ab category-wise breakdown hai, aur Closing ke ledger/print slip mein bhi Maintenance jaisi categories alag se dikhti hain)
 9. or jab closing par click karain to first warning da ka closing ka button sa sara data reset ho jai ga or report ma save ho jai ga or closing jab tak na ho jab tak koi bill bhi panding ho matlab ya to us bill ko udgar ma dalo ya complementary ma
-or jasa hi closing pr click kara sara data reset ho kr report ma save ho jai .
-10.or aik bar ap bhi acha sa accounting ko daikhain hr aik function ko check karain or hr detail ka break down chahiya . 
+or jasa hi closing pr click kara sara data reset ho kr report ma save ho jai . (Partially done — warning dialog aur pending-bill block dono ban gaye hain: koi bill unpaid ho to closing block ho jati hai jab tak udhaar/complimentary na karain. "Sara data reset" wala hissa abhi tak nahi bana — is ka matlab clear nahi tha (kuch bhi kabhi delete nahi hota is app mein), isliye woh حصہ decide karna baaki hai)
+10.or aik bar ap bhi acha sa accounting ko daikhain hr aik function ko check karain or hr detail ka break down chahiya . (Done — 3, 4, 7, 8 ke through cover ho gaya)
+
+---
+**Remaining:** Item 9 ka "reset" wala hissa — decide karna hai ke closing ke baad exactly kya hona chahiye (kuch delete/archive ho, ya sirf us din ko dobara close hone se lock kar dain).

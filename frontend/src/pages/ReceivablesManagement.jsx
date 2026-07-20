@@ -5,7 +5,7 @@ import { PageHeader, StatCard } from '../components/ui.jsx'
 import { money, dateShort } from '../utils/format.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import SettleReceivableModal from '../components/SettleReceivableModal.jsx'
-import { IconWallet, IconAlert, IconCheck, IconPlus, IconClose } from '../components/Icons.jsx'
+import { IconWallet, IconAlert, IconCheck, IconPlus, IconClose, IconChevronDown } from '../components/Icons.jsx'
 
 // Small inline modal to open a new credit account.
 function AddAccountModal({ onClose, onSave }) {
@@ -84,11 +84,28 @@ function AddAccountModal({ onClose, onSave }) {
 }
 
 export default function ReceivablesManagement() {
-  const { receivables, recordReceivablePayment, addReceivable } = useApp()
+  const { receivables, recordReceivablePayment, addReceivable, orders } = useApp()
   const t = useT()
+  // ReceivableLedgerEntry.orderId is the server cuid (see schema.prisma) — map
+  // back to the human-readable ORD-xxxx id the rest of the app shows, same as
+  // Orders.jsx does via order.serverId.
+  const orderLabel = useMemo(() => {
+    const map = new Map(orders.map((o) => [o.serverId, o.id]))
+    return (orderId) => map.get(orderId) || orderId
+  }, [orders])
   const [showAll, setShowAll] = useState(false)
   const [settleTarget, setSettleTarget] = useState(null)
   const [showAdd, setShowAdd] = useState(false)
+  // Which account rows are expanded to show their bill-by-bill breakdown
+  // (charges — the udhaar orders that built up the balance, distinct from
+  // payments/settlements shown further down).
+  const [expanded, setExpanded] = useState(() => new Set())
+  const toggleExpanded = (id) =>
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
 
   const rows = useMemo(
     () => (showAll ? receivables : receivables.filter((r) => r.status === 'open')),
@@ -145,6 +162,7 @@ export default function ReceivablesManagement() {
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead>
               <tr className="border-b border-ink-line text-xs uppercase tracking-wider text-cream-dim">
+                <th className="w-8 px-2 py-4" />
                 <th className="px-5 py-4 font-semibold">{t('receivables.colAccount')}</th>
                 <th className="px-5 py-4 font-semibold">{t('receivables.colType')}</th>
                 <th className="px-5 py-4 text-right font-semibold">{t('receivables.colBalance')}</th>
@@ -155,35 +173,85 @@ export default function ReceivablesManagement() {
             <tbody className="divide-y divide-ink-line">
               {rows.map((r) => {
                 const open = r.status === 'open'
+                const isOpen = expanded.has(r.id)
+                const charges = [...(r.charges || [])].sort((a, b) => new Date(b.at) - new Date(a.at))
                 return (
-                  <tr key={r.id} className="transition hover:bg-white/[0.02]">
-                    <td className="px-5 py-4">
-                      <p className="font-medium text-cream">{r.name}</p>
-                      {r.notes && <p className="text-xs text-cream-dim">{r.notes}</p>}
-                    </td>
-                    <td className="px-5 py-4 capitalize text-cream-dim">{typeLabel(r.type)}</td>
-                    <td className={`px-5 py-4 text-right font-semibold ${open ? 'text-rose-300' : 'text-emerald-300'}`}>
-                      {money(r.balance)}
-                    </td>
-                    <td className="px-5 py-4 text-center">
-                      <span
-                        className={`badge ring-1 ${
-                          open
-                            ? 'bg-rose-500/12 text-rose-300 ring-rose-500/30'
-                            : 'bg-emerald-500/12 text-emerald-300 ring-emerald-500/30'
-                        }`}
-                      >
-                        {open ? t('receivables.statusOpen') : t('receivables.statusSettled')}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-right">
-                      {open && (
-                        <button onClick={() => setSettleTarget(r)} className="btn-gold px-3 py-1.5 text-xs font-bold">
-                          {t('receivables.markPaid')}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
+                  <>
+                    <tr
+                      key={r.id}
+                      className="cursor-pointer transition hover:bg-white/[0.02]"
+                      onClick={() => toggleExpanded(r.id)}
+                    >
+                      <td className="px-2 py-4 text-cream-dim">
+                        <IconChevronDown size={16} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                      </td>
+                      <td className="px-5 py-4">
+                        <p className="font-medium text-cream">{r.name}</p>
+                        {r.notes && <p className="text-xs text-cream-dim">{r.notes}</p>}
+                      </td>
+                      <td className="px-5 py-4 capitalize text-cream-dim">{typeLabel(r.type)}</td>
+                      <td className={`px-5 py-4 text-right font-semibold ${open ? 'text-rose-300' : 'text-emerald-300'}`}>
+                        {money(r.balance)}
+                      </td>
+                      <td className="px-5 py-4 text-center">
+                        <span
+                          className={`badge ring-1 ${
+                            open
+                              ? 'bg-rose-500/12 text-rose-300 ring-rose-500/30'
+                              : 'bg-emerald-500/12 text-emerald-300 ring-emerald-500/30'
+                          }`}
+                        >
+                          {open ? t('receivables.statusOpen') : t('receivables.statusSettled')}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        {open && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setSettleTarget(r)
+                            }}
+                            className="btn-gold px-3 py-1.5 text-xs font-bold"
+                          >
+                            {t('receivables.markPaid')}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                    {isOpen && (
+                      <tr key={`${r.id}-breakdown`}>
+                        <td colSpan={6} className="bg-ink-soft/40 px-5 py-4">
+                          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-cream-dim">
+                            {t('receivables.billBreakdown')}
+                          </p>
+                          {charges.length === 0 ? (
+                            <p className="text-xs text-cream-dim">{t('receivables.noCharges')}</p>
+                          ) : (
+                            <table className="w-full text-left text-xs">
+                              <thead>
+                                <tr className="text-cream-dim">
+                                  <th className="py-1.5 pe-4 font-semibold">{t('receivables.colDate')}</th>
+                                  <th className="py-1.5 pe-4 font-semibold">{t('receivables.colOrder')}</th>
+                                  <th className="py-1.5 pe-4 font-semibold">{t('receivables.colBy')}</th>
+                                  <th className="py-1.5 text-right font-semibold">{t('receivables.colAmount')}</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-ink-line/60">
+                                {charges.map((c) => (
+                                  <tr key={c.id}>
+                                    <td className="py-1.5 pe-4 text-cream-dim">{dateShort(c.at)}</td>
+                                    <td className="py-1.5 pe-4 text-cream-dim">{c.orderId ? orderLabel(c.orderId) : '—'}</td>
+                                    <td className="py-1.5 pe-4 text-cream-dim">{c.by || '—'}</td>
+                                    <td className="py-1.5 text-right font-semibold text-rose-300">{money(c.amount)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 )
               })}
             </tbody>

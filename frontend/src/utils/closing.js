@@ -52,9 +52,19 @@ export function buildClosingReport(orders, orderTotal, transactions, dateStr, in
   const grossSale = netSale + discount
   const netCashSales = cash // = NET SALE − accounts (all non-cash channels)
 
-  const expenses = (transactions || [])
-    .filter((tx) => tx.type === 'expense' && toDayStr(tx.date) === dateStr)
-    .reduce((s, tx) => s + tx.amount, 0)
+  const dayExpenses = (transactions || []).filter((tx) => tx.type === 'expense' && toDayStr(tx.date) === dateStr)
+  const expenses = dayExpenses.reduce((s, tx) => s + tx.amount, 0)
+  // Per-category breakdown (e.g. Maintenance/Construction) — same grouping as
+  // Accounting.jsx's ExpenseBreakdown, just scoped to this one day instead of
+  // a month, so the closing ledger/slip can show it too, not just the app.
+  const expensesByCategory = Object.entries(
+    dayExpenses.reduce((acc, tx) => {
+      acc[tx.category] = (acc[tx.category] || 0) + tx.amount
+      return acc
+    }, {}),
+  )
+    .map(([category, amount]) => ({ category, amount }))
+    .sort((a, b) => b.amount - a.amount)
   const remainingHandover = netCashSales - expenses
 
   // Extras kept for the on-screen detail / saved record (not on the summary sheet).
@@ -82,6 +92,7 @@ export function buildClosingReport(orders, orderTotal, transactions, dateStr, in
     udhaar,
     netCashSales,
     expenses,
+    expensesByCategory,
     remainingHandover,
     gstCollected,
     materialLoss,

@@ -7,7 +7,7 @@ import { safePrint } from '../utils/print.js'
 import { buildClosingReport, toDayStr } from '../utils/closing.js'
 import ClosingSummaryTable from '../components/ClosingSummaryTable.jsx'
 import ClosingSlip from '../components/ClosingSlip.jsx'
-import { IconPrint, IconCheck } from '../components/Icons.jsx'
+import { IconPrint, IconCheck, IconAlert, IconClose } from '../components/Icons.jsx'
 
 export default function Closing() {
   const { orders, orderTotal, transactions, user, dailyClosings, saveDailyClosing, inventory, recipes } = useApp()
@@ -22,9 +22,20 @@ export default function Closing() {
   )
   const liveMeta = { closedBy: user?.name, closedByRole: user?.role, closingTime: new Date().toISOString() }
 
+  // Bills that must be resolved (Udhaar or Complimentary) before the day can
+  // be closed — closing previously just silently excluded these from the
+  // totals instead of blocking, so an unresolved bill's cash was never
+  // actually accounted for anywhere. Mirrors buildClosingReport's own
+  // same-day scoping (toDayStr(o.createdAt) === todayStr).
+  const pendingOrders = useMemo(
+    () => orders.filter((o) => o.payment === 'Unpaid' && !o.cancelled && toDayStr(o.createdAt) === todayStr),
+    [orders, todayStr],
+  )
+
   const [slip, setSlip] = useState(null) // { report, meta } currently armed for printing
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   const armAndPrint = (rep, meta) => {
     setSlip({ report: rep, meta })
@@ -56,12 +67,34 @@ export default function Closing() {
             <button onClick={printCurrent} className="btn-ghost px-4 py-2 text-sm">
               <IconPrint size={16} /> Print
             </button>
-            <button onClick={onSave} className="btn-gold px-4 py-2 text-sm">
+            <button
+              onClick={() => setConfirmOpen(true)}
+              disabled={pendingOrders.length > 0}
+              title={pendingOrders.length > 0 ? 'Resolve the pending bills below first' : undefined}
+              className="btn-gold px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            >
               <IconCheck size={16} /> Save Closing
             </button>
           </div>
         )}
       </PageHeader>
+
+      {pendingOrders.length > 0 && (
+        <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+          <p className="font-semibold">
+            <IconAlert size={14} className="me-1 inline" />
+            {pendingOrders.length} bill{pendingOrders.length > 1 ? 's are' : ' is'} still unpaid — closing is blocked
+            until each is marked Udhaar (on-account) or Complimentary.
+          </p>
+          <ul className="mt-1.5 list-inside list-disc text-xs text-amber-300/80">
+            {pendingOrders.map((o) => (
+              <li key={o.id}>
+                {o.id} · Table {o.table} · {money(orderTotal(o.items, o.discount?.amount, o.gstRate).total)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {error && <p className="mb-4 rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-300">{error}</p>}
       {saved && (
@@ -108,6 +141,41 @@ export default function Closing() {
 
       {/* Hidden print surface — armed by the Print buttons above. */}
       <ClosingSlip report={slip?.report} meta={slip?.meta} />
+
+      {confirmOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setConfirmOpen(false)} />
+          <div className="relative z-10 w-full max-w-md animate-fade-up">
+            <div className="card p-6">
+              <div className="flex items-start justify-between">
+                <h3 className="font-serif text-2xl text-cream">Save today's closing?</h3>
+                <button onClick={() => setConfirmOpen(false)} className="text-cream-dim hover:text-cream">
+                  <IconClose size={20} />
+                </button>
+              </div>
+              <p className="mt-3 text-sm text-cream-dim">
+                This saves today's report ({money(report.netSale)} net sale) to Closing History. The POS keeps
+                running — tomorrow's orders start a fresh date automatically — but this saved record can't be
+                edited from this screen afterward.
+              </p>
+              <div className="mt-6 flex gap-3">
+                <button onClick={() => setConfirmOpen(false)} className="btn-ghost flex-1 py-3">
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setConfirmOpen(false)
+                    onSave()
+                  }}
+                  className="btn-gold flex-1 py-3"
+                >
+                  <IconCheck size={18} /> Yes, Save Closing
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

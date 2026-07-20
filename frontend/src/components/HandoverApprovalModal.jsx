@@ -11,7 +11,27 @@ export default function HandoverApprovalModal({ handover, onAccept, onReject, on
   const t = useT()
   const [rejecting, setRejecting] = useState(false)
   const [reason, setReason] = useState('')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
   useEscapeKey(onClose)
+
+  // onAccept/onReject are async (the handover may already be resolved by
+  // another manager, or fail validation server-side) — awaited here so a
+  // failure shows an error instead of the modal closing as if it succeeded.
+  const handleAccept = async () => {
+    setError('')
+    setBusy(true)
+    const res = await onAccept(handover.id)
+    setBusy(false)
+    if (res?.error) setError(res.error)
+  }
+  const handleReject = async () => {
+    setError('')
+    setBusy(true)
+    const res = await onReject(handover.id, reason.trim())
+    setBusy(false)
+    if (res?.error) setError(res.error)
+  }
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
@@ -46,6 +66,10 @@ export default function HandoverApprovalModal({ handover, onAccept, onReject, on
             </div>
           </div>
 
+          {error && (
+            <p className="mt-4 rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{error}</p>
+          )}
+
           {rejecting ? (
             <div className="mt-5">
               <input
@@ -60,9 +84,9 @@ export default function HandoverApprovalModal({ handover, onAccept, onReject, on
                   {t('handover.back')}
                 </button>
                 <button
-                  onClick={() => onReject(handover.id, reason.trim())}
-                  disabled={!reason.trim()}
-                  className="btn-danger flex-1 py-2.5 text-sm"
+                  onClick={handleReject}
+                  disabled={!reason.trim() || busy}
+                  className="btn-danger flex-1 py-2.5 text-sm disabled:opacity-60"
                 >
                   ✕ {t('handover.confirmReject')}
                 </button>
@@ -70,10 +94,10 @@ export default function HandoverApprovalModal({ handover, onAccept, onReject, on
             </div>
           ) : (
             <div className="mt-5 flex gap-3">
-              <button onClick={() => setRejecting(true)} className="btn-ghost flex-1 py-3">
+              <button onClick={() => setRejecting(true)} disabled={busy} className="btn-ghost flex-1 py-3 disabled:opacity-60">
                 ✕ {t('handover.reject')}
               </button>
-              <button onClick={() => onAccept(handover.id)} className="btn-gold flex-1 py-3">
+              <button onClick={handleAccept} disabled={busy} className="btn-gold flex-1 py-3 disabled:opacity-60">
                 ✓ {t('handover.accept')}
               </button>
             </div>

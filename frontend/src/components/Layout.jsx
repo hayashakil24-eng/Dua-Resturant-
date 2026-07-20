@@ -189,7 +189,7 @@ function UserCard({ user, onExit, exitTitle = 'Log out' }) {
 }
 
 export default function Layout({ children }) {
-  const { user, logout, activeShift, startShift, pauseShift, resumeShift, endShift, calculateShiftSales, initiateHandover } = useApp()
+  const { user, logout, activeShift, startShift, pauseShift, resumeShift, endShift, calculateShiftSales, initiateHandover, pendingHandovers } = useApp()
   const { t, lang } = useLang()
   const [open, setOpen] = useState(false)
   const [endOpen, setEndOpen] = useState(false)
@@ -209,6 +209,15 @@ export default function Layout({ children }) {
   const hasOpenDrawer = isCashier && Boolean(activeShift)
   const needsShiftStart = isCashier && !activeShift
   const needsResume = hasOpenDrawer && !resumed
+  // Cashier's own initiated handover, if still awaiting a Manager/Admin's
+  // decision — GET /api/handovers is readable by any authenticated staff
+  // (see backend/src/routes/shifts.routes.ts), just not the /handovers nav
+  // page itself, so this data is already available without a new endpoint.
+  // Without this, a cashier whose handover fails/succeeds silently (item 5's
+  // bug) had no way to check either way — the request just vanished from view.
+  const myPendingHandover = isCashier
+    ? pendingHandovers.find((h) => h.status === 'pending' && h.fromName === user.name)
+    : null
 
   // Opening a fresh drawer counts as "handled" so the resume prompt won't fire.
   const beginShift = (openingCash) => {
@@ -294,12 +303,21 @@ export default function Layout({ children }) {
             <LanguageSwitcher />
             {isCashier && activeShift && (
               <>
-                <button
-                  onClick={() => setHandoverOpen(true)}
-                  className="hidden items-center gap-1.5 rounded-full border border-ink-line bg-ink-soft px-3 py-1.5 text-xs font-semibold text-cream-dim transition hover:text-cream sm:inline-flex"
-                >
-                  💸 Partial handover
-                </button>
+                {myPendingHandover ? (
+                  <span
+                    title={`Rs. ${myPendingHandover.amount} to ${myPendingHandover.toName} — awaiting their approval`}
+                    className="hidden items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-300 sm:inline-flex"
+                  >
+                    ⏳ Handover pending approval
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => setHandoverOpen(true)}
+                    className="hidden items-center gap-1.5 rounded-full border border-ink-line bg-ink-soft px-3 py-1.5 text-xs font-semibold text-cream-dim transition hover:text-cream sm:inline-flex"
+                  >
+                    💸 Partial handover
+                  </button>
+                )}
                 <button
                   onClick={handleExit}
                   className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20"
@@ -353,10 +371,10 @@ export default function Layout({ children }) {
         <PartialHandoverModal
           current={calculateShiftSales(activeShift.id)?.expectedCash ?? activeShift.openingCash}
           onClose={() => setHandoverOpen(false)}
-          onSubmit={(data) => {
-            const res = initiateHandover(data)
-            if (res?.error) return
-            setHandoverOpen(false)
+          onSubmit={async (data) => {
+            const res = await initiateHandover(data)
+            if (!res?.error) setHandoverOpen(false)
+            return res
           }}
         />
       )}

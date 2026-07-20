@@ -52,6 +52,19 @@ model Staff {
   username       String?  @unique
   passwordHash   String?
   systemRole     String? // "Admin" | "Manager" | "Cashier" | "Kitchen"
+  // Only meaningful for accounts created via self-signup (auth.routes.ts
+  // POST /api/auth/signup) — "pending" | "approved" | "rejected". Every
+  // existing row, plus every row created by addStaff or ensureAdminAccount,
+  // defaults to "approved" so nothing about today's behavior changes; only
+  // a fresh self-signup ever starts "pending". Mirrors the Recipe/
+  // IngredientRequest pending-approval pattern rather than inventing a new
+  // shape.
+  status         String    @default("approved")
+  approvedBy     String?
+  approvedAt     DateTime?
+  rejectedBy     String?
+  rejectedAt     DateTime?
+  rejectReason   String?
   shift          String? // "Morning" | "Evening"
   shiftStartTime String? // "HH:MM", 24h — drives Late calculation
   phone          String?

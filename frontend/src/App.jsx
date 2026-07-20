@@ -3,6 +3,9 @@ import { useApp } from './context/AppContext.jsx'
 import { navForRole, landingForRole } from './config/nav.js'
 import Layout from './components/Layout.jsx'
 import Login from './pages/Login.jsx'
+import Signup from './pages/Signup.jsx'
+import PendingApproval from './pages/PendingApproval.jsx'
+import Approvals from './pages/Approvals.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import POS from './pages/POS.jsx'
 import Orders from './pages/Orders.jsx'
@@ -30,6 +33,13 @@ function Protected({ path, children, fullscreen }) {
   const location = useLocation()
   if (!user) return <Navigate to="/login" replace state={{ from: location }} />
 
+  // A self-signup account awaiting Admin review has role 'Pending' and thus
+  // an empty navForRole([]) — without this explicit case it would fall
+  // through to the "no allowed nav items" branch below and redirect to
+  // /login, whose own `user ? <Navigate to="/"/> : <Login/>` sends it right
+  // back to "/" (-> Protected -> /login -> ...), an infinite redirect loop.
+  if (user.role === 'Pending') return <Navigate to="/pending-approval" replace />
+
   const allowedNavs = navForRole(user.role)
   const allowed = allowedNavs.some((n) => n.to === path)
 
@@ -49,6 +59,11 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
+      <Route path="/signup" element={user ? <Navigate to="/" replace /> : <Signup />} />
+      <Route
+        path="/pending-approval"
+        element={user?.role === 'Pending' ? <PendingApproval /> : <Navigate to={user ? '/' : '/login'} replace />}
+      />
       <Route path="/" element={<Protected path="/"><Dashboard /></Protected>} />
       <Route path="/pos" element={<Protected path="/pos"><POS /></Protected>} />
       <Route path="/orders" element={<Protected path="/orders"><Orders /></Protected>} />
@@ -61,6 +76,7 @@ export default function App() {
         element={<Protected path="/attendance"><Attendance /></Protected>}
       />
       <Route path="/employees" element={<Protected path="/employees"><Employees /></Protected>} />
+      <Route path="/approvals" element={<Protected path="/approvals"><Approvals /></Protected>} />
       <Route path="/payroll" element={<Protected path="/payroll"><Payroll /></Protected>} />
       <Route path="/accounting" element={<Protected path="/accounting"><Accounting /></Protected>} />
       <Route path="/receivables" element={<Protected path="/receivables"><ReceivablesManagement /></Protected>} />

@@ -76,7 +76,13 @@
     "errAmount": "Enter a valid amount up to the outstanding balance.",
     "typeCustomer": "customer",
     "typeHotel": "hotel",
-    "typeBusiness": "business"
+    "typeBusiness": "business",
+    "billBreakdown": "Bill breakdown",
+    "noCharges": "No bills recorded on this account yet.",
+    "colDate": "Date",
+    "colOrder": "Order",
+    "colBy": "By",
+    "colAmount": "Amount"
   },
   "handover": {
     "pending": "Pending Handovers",
@@ -269,6 +275,12 @@
     "profitOverIncome": "Profit / income",
     "complimentary": "Complimentary orders",
     "complimentaryOrders": "free orders",
+    "colOrder": "Order",
+    "colTable": "Table",
+    "colReason": "Reason",
+    "colAuthorizedBy": "Authorized By",
+    "colBillForgone": "Bill Forgone",
+    "colEstCost": "Est. Cost",
     "profitAndLoss": "Profit & Loss",
     "expenseBreakdown": "Expense Breakdown",
     "noExpenses": "No expenses this month.",
@@ -583,6 +595,7 @@
     "inventory": "Inventory",
     "attendance": "Attendance",
     "employees": "Employees",
+    "approvals": "Approvals",
     "payroll": "Payroll",
     "accounting": "Accounting",
     "receivables": "Receivables",
@@ -747,5 +760,39 @@
     "allBillsPaid": "All bills are paid! No pending payments.",
     "table": "Table",
     "processBill": "Process Bill"
+  },
+  "signup": {
+    "brandTagline": "Fine Dining · Est. 2019",
+    "brandHeadlineA": "Join the team",
+    "brandHeadlineB": "behind the golden story.",
+    "brandBody": "Create your account and an admin will review it shortly.",
+    "title": "Create account",
+    "subtitle": "Request access to the Cafe Ali workspace.",
+    "name": "Full name",
+    "username": "Username",
+    "password": "Password",
+    "confirmPassword": "Confirm password",
+    "errorRequired": "Name, username, and password are required.",
+    "errorMismatch": "Passwords do not match.",
+    "submit": "Create account",
+    "submitting": "Creating account…",
+    "haveAccount": "Already have an account?",
+    "signInLink": "Sign in",
+    "doneTitle": "Request submitted",
+    "doneBody": "An admin will review your request shortly. You can sign in once it's approved.",
+    "goToLogin": "Go to Login"
+  },
+  "pendingApproval": {
+    "title": "Awaiting approval",
+    "body": "Thanks, {name} — your account is awaiting admin approval. Check back soon or ask your manager to approve it from the Approvals tab.",
+    "logout": "Log out"
+  },
+  "approvals": {
+    "pageTitle": "Approvals",
+    "subtitle": "Review signup requests and assign a role.",
+    "noPending": "No pending signup requests.",
+    "requested": "Requested",
+    "approve": "Approve",
+    "reject": "Reject"
   }
 }

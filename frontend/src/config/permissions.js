@@ -16,6 +16,12 @@
 //   • wastageReport / wastageApproval — reporting is broad; approval stays with
 //                         Manager + Admin. (No wastage feature is built yet;
 //                         these are declarative policy for when it is.)
+//   • staffApproval     — only Admin reviews self-signup requests and assigns
+//                         the new account's role. Also doubles as the
+//                         Approvals tab's nav pageKey (unlike recipeApproval,
+//                         a pure action-gate never used for nav), so every
+//                         non-Admin role uses 'hidden' here rather than
+//                         'none' — hasAccess only blocks on 'hidden'.
 export const PERMISSIONS = {
   Admin: {
     dashboard: 'full',
@@ -52,6 +58,7 @@ export const PERMISSIONS = {
     inventoryCreate: 'full', // ONLY Admin creates brand-new inventory items
     wastageReport: 'full',
     wastageApproval: 'full',
+    staffApproval: 'full', // ONLY Admin approves staff signups
   },
   Manager: {
     dashboard: 'full',
@@ -88,6 +95,7 @@ export const PERMISSIONS = {
     inventoryCreate: 'full', // Manager may also create new inventory items
     wastageReport: 'full',
     wastageApproval: 'full',
+    staffApproval: 'hidden', // Manager CANNOT approve staff signups (collusion risk)
   },
   // Kitchen staff: recipe authors only. They land on their own /kitchen page and
   // cannot see finance/ops pages. Everything else is 'hidden' so navForRole()
@@ -127,6 +135,7 @@ export const PERMISSIONS = {
     inventoryCreate: 'none',
     wastageReport: 'full',
     wastageApproval: 'none',
+    staffApproval: 'hidden',
   },
   Cashier: {
     dashboard: 'hidden',
@@ -163,6 +172,45 @@ export const PERMISSIONS = {
     inventoryCreate: 'none',
     wastageReport: 'none',
     wastageApproval: 'none',
+    staffApproval: 'hidden',
+  },
+  // Awaiting Admin review — every page hidden, every action none. Mirrors
+  // backend/src/core/permissions.ts's Pending block exactly.
+  Pending: {
+    dashboard: 'hidden',
+    pos: 'hidden',
+    orders: 'hidden',
+    orderCancel: 'none',
+    discount: 'none',
+    tables: 'hidden',
+    menu: 'hidden',
+    inventory: 'hidden',
+    attendance: 'hidden',
+    employees: 'hidden',
+    payroll: 'hidden',
+    accounting: 'hidden',
+    reports: 'hidden',
+    closing: 'hidden',
+    receivables: 'hidden',
+    departments: 'hidden',
+    handovers: 'hidden',
+    orderComplimentary: 'none',
+    kds: 'hidden',
+    billing: 'hidden',
+    settings: 'hidden',
+    attendanceOverride: 'none',
+    kitchen: 'hidden',
+    tableAdd: 'none',
+    categoryAdd: 'none',
+    mostOrderedManage: 'none',
+    recipeApproval: 'none',
+    recipeCreate: 'none',
+    inventoryAdd: 'none',
+    inventoryDirectEdit: 'none',
+    inventoryCreate: 'none',
+    wastageReport: 'none',
+    wastageApproval: 'none',
+    staffApproval: 'hidden',
   },
 }
 

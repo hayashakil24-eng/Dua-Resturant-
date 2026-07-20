@@ -24,8 +24,18 @@
 //   • wastageReport / wastageApproval — reporting is broad; approval stays with
 //                         Manager + Admin. (No wastage feature is built yet;
 //                         these are declarative policy for when it is.)
+//   • staffApproval     — only Admin reviews self-signup requests and assigns
+//                         the new account's role — the same owner-level
+//                         reasoning as recipeApproval, applied to something
+//                         even more sensitive (granting system permissions).
 
-export type Role = 'Admin' | 'Manager' | 'Cashier' | 'Kitchen'
+// 'Pending' is a self-signup account awaiting Admin review (see
+// auth.routes.ts POST /api/auth/signup) — it can log in (so the frontend can
+// show a waiting screen) but PERMISSIONS.Pending below locks out every page,
+// and guard.ts's authenticate() additionally rejects it outright on routes
+// that only check "is this a valid logged-in Staff" with no page-permission
+// check at all.
+export type Role = 'Admin' | 'Manager' | 'Cashier' | 'Kitchen' | 'Pending'
 
 export type AccessLevel = 'full' | 'edit' | 'create' | 'view' | 'none' | 'hidden'
 
@@ -63,6 +73,7 @@ export type PageKey =
   | 'inventoryCreate'
   | 'wastageReport'
   | 'wastageApproval'
+  | 'staffApproval'
 
 export const PERMISSIONS: Record<Role, Record<PageKey, AccessLevel>> = {
   Admin: {
@@ -100,6 +111,7 @@ export const PERMISSIONS: Record<Role, Record<PageKey, AccessLevel>> = {
     inventoryCreate: 'full', // ONLY Admin creates brand-new inventory items
     wastageReport: 'full',
     wastageApproval: 'full',
+    staffApproval: 'full', // ONLY Admin approves staff signups
   },
   Manager: {
     dashboard: 'full',
@@ -136,6 +148,11 @@ export const PERMISSIONS: Record<Role, Record<PageKey, AccessLevel>> = {
     inventoryCreate: 'full', // Manager may also create new inventory items
     wastageReport: 'full',
     wastageApproval: 'full',
+    // 'hidden' not just 'none': unlike recipeApproval (pure action-gate),
+    // staffApproval also doubles as the Approvals tab's nav pageKey, so it
+    // must block hasAccess (nav visibility, the list route) too, not just
+    // canModify (approve/reject) — Manager CANNOT see staff signups either.
+    staffApproval: 'hidden',
   },
   // Kitchen staff: recipe authors only. They land on their own /kitchen page and
   // cannot see finance/ops pages. Everything else is 'hidden' so navForRole()
@@ -175,6 +192,7 @@ export const PERMISSIONS: Record<Role, Record<PageKey, AccessLevel>> = {
     inventoryCreate: 'none',
     wastageReport: 'full',
     wastageApproval: 'none',
+    staffApproval: 'hidden',
   },
   Cashier: {
     dashboard: 'hidden',
@@ -211,6 +229,46 @@ export const PERMISSIONS: Record<Role, Record<PageKey, AccessLevel>> = {
     inventoryCreate: 'none',
     wastageReport: 'none',
     wastageApproval: 'none',
+    staffApproval: 'hidden',
+  },
+  // Awaiting Admin review — every page hidden, every action none. Structurally
+  // identical to how an unrecognized role already fails closed (hasAccess/
+  // canModify fall back to 'hidden'/false), just made explicit and typed.
+  Pending: {
+    dashboard: 'hidden',
+    pos: 'hidden',
+    orders: 'hidden',
+    orderCancel: 'none',
+    discount: 'none',
+    tables: 'hidden',
+    menu: 'hidden',
+    inventory: 'hidden',
+    attendance: 'hidden',
+    employees: 'hidden',
+    payroll: 'hidden',
+    accounting: 'hidden',
+    reports: 'hidden',
+    closing: 'hidden',
+    receivables: 'hidden',
+    departments: 'hidden',
+    handovers: 'hidden',
+    orderComplimentary: 'none',
+    kds: 'hidden',
+    billing: 'hidden',
+    settings: 'hidden',
+    attendanceOverride: 'none',
+    kitchen: 'hidden',
+    tableAdd: 'none',
+    categoryAdd: 'none',
+    mostOrderedManage: 'none',
+    recipeApproval: 'none',
+    recipeCreate: 'none',
+    inventoryAdd: 'none',
+    inventoryDirectEdit: 'none',
+    inventoryCreate: 'none',
+    wastageReport: 'none',
+    wastageApproval: 'none',
+    staffApproval: 'hidden',
   },
 }
 

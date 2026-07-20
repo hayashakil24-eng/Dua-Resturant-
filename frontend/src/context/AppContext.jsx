@@ -34,6 +34,9 @@ const ACTION_REFETCH_MAP = {
   TABLE_DELETED: ['tables'],
   STAFF_ADDED: ['staff'],
   STAFF_DELETED: ['staff'],
+  STAFF_SIGNUP_REQUESTED: ['pendingSignups'],
+  STAFF_SIGNUP_APPROVED: ['pendingSignups', 'staff'],
+  STAFF_SIGNUP_REJECTED: ['pendingSignups'],
   CATEGORY_ADDED: ['categories', 'menu'],
   CATEGORY_DELETED: ['categories', 'menu'],
   MOST_ORDERED_ADDED: ['mostOrdered'],
@@ -97,6 +100,7 @@ export function AppProvider({ children }) {
   const [customCategories, setCustomCategories] = useState([])
   const [tables, setTables] = useState([])
   const [staff, setStaff] = useState([])
+  const [pendingSignups, setPendingSignups] = useState([])
   const [advances, setAdvances] = useState([])
   const [transactions, setTransactions] = useState([])
   const [recipes, setRecipes] = useState([])
@@ -127,6 +131,7 @@ export function AppProvider({ children }) {
     categories: () => apiGet('/api/categories').then((d) => setCustomCategories(d.categories || [])),
     tables: () => apiGet('/api/tables').then((d) => setTables(d.tables || [])),
     staff: () => apiGet('/api/staff').then((d) => setStaff(d.staff || [])),
+    pendingSignups: () => apiGet('/api/staff/pending-signups').then((d) => setPendingSignups(d.pendingSignups || [])),
     advances: () => apiGet('/api/advances').then((d) => setAdvances(d.advances || [])),
     transactions: () => apiGet('/api/transactions').then((d) => setTransactions((d.transactions || []).map(normalizeTxn))),
     recipes: () => apiGet('/api/recipes').then((d) => setRecipes(d.recipes || [])),
@@ -200,7 +205,10 @@ export function AppProvider({ children }) {
         const me = await apiGet('/api/auth/me')
         if (!alive) return
         setUser(me.user)
-        await refreshAll()
+        // A waiting-room session has nothing to fetch (every FETCHERS route
+        // 403s for role 'Pending' — see backend guard.ts) — the PendingApproval
+        // page needs no collections, just the user object already set above.
+        if (me.user?.role !== 'Pending') await refreshAll()
       } catch {
         setToken(null)
       } finally {
@@ -218,8 +226,19 @@ export function AppProvider({ children }) {
       const { token, user: u } = await apiPost('/api/auth/login', { username, password })
       setToken(token)
       setUser(u)
-      await refreshAll()
+      if (u.role !== 'Pending') await refreshAll()
       return { user: u }
+    } catch (e) {
+      return toError(e)
+    }
+  }
+  // Public self-signup — deliberately no token/user side effects. The new
+  // account is 'pending' until an Admin approves it; the caller (Signup.jsx)
+  // shows a confirmation and sends the user to /login to sign in separately.
+  const signup = async ({ name, username, password }) => {
+    try {
+      await apiPost('/api/auth/signup', { name, username, password })
+      return { ok: true }
     } catch (e) {
       return toError(e)
     }
@@ -621,6 +640,23 @@ export function AppProvider({ children }) {
       return toError(e)
     }
   }
+  const approveSignup = async (id, systemRole) => {
+    try {
+      const { staff: updated } = await apiPost(`/api/staff/${id}/approve-signup`, { systemRole })
+      await refresh(['pendingSignups', 'staff'])
+      return updated
+    } catch (e) {
+      return toError(e)
+    }
+  }
+  const rejectSignup = async (id, reason = '') => {
+    try {
+      await apiPost(`/api/staff/${id}/reject-signup`, { reason })
+      await refresh(['pendingSignups'])
+    } catch (e) {
+      return toError(e)
+    }
+  }
 
   const addAdvance = async ({ staffId, amount, reason = '', date }) => {
     try {
@@ -927,6 +963,7 @@ export function AppProvider({ children }) {
     user,
     login,
     logout,
+    signup,
     orders,
     addOrder,
     appendOrderItems,
@@ -994,6 +1031,9 @@ export function AppProvider({ children }) {
     updateStaff,
     deleteStaff,
     toggleStaff,
+    pendingSignups,
+    approveSignup,
+    rejectSignup,
     advances,
     addAdvance,
     deleteAdvance,

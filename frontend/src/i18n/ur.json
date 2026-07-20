@@ -76,7 +76,13 @@
     "errAmount": "بقایا رقم کی حد میں درست رقم درج کریں۔",
     "typeCustomer": "کسٹمر",
     "typeHotel": "ہوٹل",
-    "typeBusiness": "کاروبار"
+    "typeBusiness": "کاروبار",
+    "billBreakdown": "بلوں کی تفصیل",
+    "noCharges": "اس اکاؤنٹ پر ابھی تک کوئی بل درج نہیں۔",
+    "colDate": "تاریخ",
+    "colOrder": "آرڈر",
+    "colBy": "بذریعہ",
+    "colAmount": "رقم"
   },
   "handover": {
     "pending": "زیرِ التوا حوالے",
@@ -269,6 +275,12 @@
     "profitOverIncome": "منافع / آمدنی",
     "complimentary": "کمپلیمنٹری آرڈرز",
     "complimentaryOrders": "مفت آرڈرز",
+    "colOrder": "آرڈر",
+    "colTable": "میز",
+    "colReason": "وجہ",
+    "colAuthorizedBy": "منظور کنندہ",
+    "colBillForgone": "معاف شدہ بل",
+    "colEstCost": "تخمینی لاگت",
     "profitAndLoss": "نفع و نقصان",
     "expenseBreakdown": "اخراجات کی تفصیل",
     "noExpenses": "اس مہینے کوئی اخراجات نہیں۔",
@@ -583,6 +595,7 @@
     "inventory": "اسٹاک",
     "attendance": "حاضری",
     "employees": "ملازمین",
+    "approvals": "منظوریاں",
     "payroll": "تنخواہیں",
     "accounting": "اکاؤنٹنگ",
     "receivables": "وصولیاں",
@@ -747,5 +760,39 @@
     "allBillsPaid": "تمام بل ادا ہو چکے! کوئی زیرِ التوا ادائیگی نہیں۔",
     "table": "میز",
     "processBill": "بل پر کارروائی کریں"
+  },
+  "signup": {
+    "brandTagline": "فائن ڈائننگ · قائم 2019",
+    "brandHeadlineA": "ٹیم میں شامل ہوں",
+    "brandHeadlineB": "سنہری کہانی کے پیچھے۔",
+    "brandBody": "اپنا اکاؤنٹ بنائیں، ایڈمن جلد ہی جائزہ لے گا۔",
+    "title": "اکاؤنٹ بنائیں",
+    "subtitle": "کیفے علی ورک اسپیس تک رسائی کی درخواست دیں۔",
+    "name": "پورا نام",
+    "username": "یوزر نیم",
+    "password": "پاس ورڈ",
+    "confirmPassword": "پاس ورڈ کی تصدیق کریں",
+    "errorRequired": "نام، یوزر نیم، اور پاس ورڈ ضروری ہیں۔",
+    "errorMismatch": "پاس ورڈ مماثل نہیں ہیں۔",
+    "submit": "اکاؤنٹ بنائیں",
+    "submitting": "اکاؤنٹ بنایا جا رہا ہے…",
+    "haveAccount": "پہلے سے اکاؤنٹ ہے؟",
+    "signInLink": "سائن ان کریں",
+    "doneTitle": "درخواست جمع ہو گئی",
+    "doneBody": "ایڈمن جلد آپ کی درخواست کا جائزہ لے گا۔ منظوری کے بعد آپ سائن ان کر سکتے ہیں۔",
+    "goToLogin": "لاگ ان پر جائیں"
+  },
+  "pendingApproval": {
+    "title": "منظوری کا انتظار",
+    "body": "شکریہ، {name} — آپ کا اکاؤنٹ ایڈمن کی منظوری کا منتظر ہے۔ بعد میں دوبارہ چیک کریں یا اپنے مینیجر سے منظوریاں ٹیب سے منظوری کے لیے کہیں۔",
+    "logout": "لاگ آؤٹ"
+  },
+  "approvals": {
+    "pageTitle": "منظوریاں",
+    "subtitle": "سائن اپ درخواستوں کا جائزہ لیں اور کردار تفویض کریں۔",
+    "noPending": "کوئی زیرِ التوا سائن اپ درخواست نہیں۔",
+    "requested": "درخواست دی گئی",
+    "approve": "منظور کریں",
+    "reject": "مسترد کریں"
   }
 }

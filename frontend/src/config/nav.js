@@ -15,6 +15,7 @@ import {
   IconDepartments,
   IconCash,
   IconSettings,
+  IconCheck,
 } from '../components/Icons.jsx'
 
 import { hasAccess } from './permissions.js'
@@ -60,6 +61,7 @@ export const NAV = [
   { to: '/kitchen', label: 'Kitchen', labelKey: 'nav.kitchen', icon: IconKitchen, pageKey: 'kitchen', group: 'menuKitchen' },
   { to: '/attendance', label: 'Attendance', labelKey: 'nav.attendance', icon: IconAttendance, pageKey: 'attendance', group: 'people' },
   { to: '/employees', label: 'Employees', labelKey: 'nav.employees', icon: IconUsers, pageKey: 'employees', group: 'people' },
+  { to: '/approvals', label: 'Approvals', labelKey: 'nav.approvals', icon: IconCheck, pageKey: 'staffApproval', group: 'people' },
   { to: '/payroll', label: 'Payroll', labelKey: 'nav.payroll', icon: IconWallet, pageKey: 'payroll', group: 'people' },
   { to: '/accounting', label: 'Accounting', labelKey: 'nav.accounting', icon: IconChart, pageKey: 'accounting', group: 'finance' },
   { to: '/receivables', label: 'Receivables', labelKey: 'nav.receivables', icon: IconWallet, pageKey: 'receivables', group: 'finance' },

@@ -10,6 +10,9 @@ import { prisma } from '../db/client.js'
 import { writeAudit } from '../lib/audit.js'
 import { ServiceError } from '../lib/errors.js'
 import type { Actor } from '../lib/actor.js'
+import { hashPassword } from '../auth/password.js'
+import { VALID_ROLES } from './auth.service.js'
+import type { Role } from '../core/permissions.js'
 
 interface Ctx {
   actor: Actor
@@ -82,6 +85,84 @@ export async function toggleStaff(_ctx: Ctx, id: string) {
   const s = await prisma.staff.findUnique({ where: { id } })
   if (!s) throw new ServiceError('Employee not found.', 404)
   return prisma.staff.update({ where: { id }, data: { active: !s.active } })
+}
+
+// ---- Self-signup + approval -----------------------------------------------
+// Mirrors recipes.service.ts's approveRecipe/rejectRecipe pending-approval
+// shape (see also Staff.status's schema comment) rather than inventing a new
+// one. Unlike every other mutator here, `signup` runs with no authenticated
+// actor (see auth.routes.ts POST /api/auth/signup, registered with no
+// preHandler) — the audit entry uses a synthetic actor built from the row it
+// just created, which is why 'Pending' had to become a real Role rather than
+// staying an unrecognized string.
+
+export interface SignupInput {
+  name?: string
+  username?: string
+  password?: string
+}
+
+export async function signup(input: SignupInput) {
+  const name = (input.name ?? '').trim()
+  const username = (input.username ?? '').trim().toLowerCase()
+  const password = input.password ?? ''
+  if (!name || !username || !password) {
+    throw new ServiceError('Name, username, and password are required.', 400)
+  }
+  const existing = await prisma.staff.findUnique({ where: { username } })
+  if (existing) throw new ServiceError('Username already taken.', 409)
+
+  return prisma.$transaction(async (tx) => {
+    const created = await tx.staff.create({
+      data: {
+        name,
+        username,
+        passwordHash: await hashPassword(password),
+        role: 'Pending',
+        systemRole: null,
+        status: 'pending',
+        active: true,
+      },
+    })
+    const actor: Actor = { id: created.id, name: created.name, role: 'Pending' }
+    await writeAudit(tx, { action: 'STAFF_SIGNUP_REQUESTED', actor, details: { username } })
+    return created
+  })
+}
+
+export async function listPendingSignups() {
+  return prisma.staff.findMany({ where: { status: 'pending' }, orderBy: { createdAt: 'asc' } })
+}
+
+export async function approveSignup(ctx: Ctx, id: string, systemRole: unknown) {
+  if (!VALID_ROLES.includes(systemRole as Role)) {
+    throw new ServiceError('A valid role (Admin, Manager, Cashier, or Kitchen) is required.', 400)
+  }
+  return prisma.$transaction(async (tx) => {
+    const s = await tx.staff.findUnique({ where: { id } })
+    if (!s) throw new ServiceError('Signup request not found.', 404)
+    const at = new Date()
+    const updated = await tx.staff.update({
+      where: { id },
+      data: { systemRole: systemRole as Role, status: 'approved', approvedBy: ctx.actor.name, approvedAt: at },
+    })
+    await writeAudit(tx, { action: 'STAFF_SIGNUP_APPROVED', actor: ctx.actor, at, details: { staffId: id, systemRole } })
+    return updated
+  })
+}
+
+export async function rejectSignup(ctx: Ctx, id: string, reason = '') {
+  return prisma.$transaction(async (tx) => {
+    const s = await tx.staff.findUnique({ where: { id } })
+    if (!s) throw new ServiceError('Signup request not found.', 404)
+    const at = new Date()
+    const updated = await tx.staff.update({
+      where: { id },
+      data: { status: 'rejected', rejectedBy: ctx.actor.name, rejectedAt: at, rejectReason: reason },
+    })
+    await writeAudit(tx, { action: 'STAFF_SIGNUP_REJECTED', actor: ctx.actor, at, details: { staffId: id, reason } })
+    return updated
+  })
 }
 
 // ---- Advances -------------------------------------------------------------

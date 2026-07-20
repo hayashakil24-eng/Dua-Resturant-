@@ -8,6 +8,7 @@ import { prisma } from '../db/client.js'
 import { buildClosingReport, toDayStr, type ClosingOrder, type ClosingTransaction } from '../core/closing.js'
 import type { InventoryItemLike, RecipeLike } from '../core/inventoryFlow.js'
 import { writeAudit } from '../lib/audit.js'
+import { ServiceError } from '../lib/errors.js'
 import type { Actor } from '../lib/actor.js'
 
 interface Ctx {
@@ -33,7 +34,7 @@ async function gather() {
     onlineAccountName: o.onlineAccountName,
     materialLoss: o.materialLoss ?? 0,
   }))
-  const closingTxns: ClosingTransaction[] = transactions.map((t) => ({ type: t.type, amount: t.amount, date: t.date }))
+  const closingTxns: ClosingTransaction[] = transactions.map((t) => ({ type: t.type, amount: t.amount, date: t.date, category: t.category }))
   const inv: InventoryItemLike[] = inventory.map((i) => ({ id: i.id, unit: i.unit, stock: i.stock, threshold: i.threshold, costPerUnit: i.costPerUnit }))
   const rec: RecipeLike[] = recipes.map((r) => ({
     menuItemId: r.menuItemId,
@@ -74,8 +75,29 @@ export async function listClosings() {
   })
 }
 
+// UI-only checks aren't enough (CLAUDE.md's audit-trail convention — every
+// mutating check gets an independent server-side re-check, not just a
+// frontend gate) — a same-day Unpaid order must be resolved to Udhaar or
+// Complimentary before that day can be closed, checked here regardless of
+// whether the request came through the Closing page's own block.
+async function assertNoPendingOrders(day: string): Promise<void> {
+  const candidates = await prisma.order.findMany({
+    where: { payment: 'Unpaid', cancelled: false },
+    select: { id: true, createdAt: true },
+  })
+  const pending = candidates.filter((o) => toDayStr(o.createdAt) === day)
+  if (pending.length > 0) {
+    throw new ServiceError(
+      `${pending.length} bill(s) are still unpaid for ${day} — mark each as Udhaar or Complimentary before closing.`,
+      409,
+    )
+  }
+}
+
 export async function saveDailyClosing(ctx: Ctx, dateStr?: string) {
-  const report = await buildReport(dateStr)
+  const day = dateStr || toDayStr(new Date())
+  await assertNoPendingOrders(day)
+  const report = await buildReport(day)
   const closingTime = new Date()
   const record = await prisma.$transaction(async (tx) => {
     const saved = await tx.dailyClosing.create({

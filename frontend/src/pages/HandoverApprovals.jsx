@@ -124,13 +124,15 @@ export default function HandoverApprovals() {
       {selected && (
         <HandoverApprovalModal
           handover={selected}
-          onAccept={(id) => {
-            acceptHandover(id)
-            setSelected(null)
+          onAccept={async (id) => {
+            const res = await acceptHandover(id)
+            if (!res?.error) setSelected(null)
+            return res
           }}
-          onReject={(id, reason) => {
-            rejectHandover(id, reason)
-            setSelected(null)
+          onReject={async (id, reason) => {
+            const res = await rejectHandover(id, reason)
+            if (!res?.error) setSelected(null)
+            return res
           }}
           onClose={() => setSelected(null)}
         />

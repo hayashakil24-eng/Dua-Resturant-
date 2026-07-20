@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import Logo from '../components/Logo.jsx'
 import { useApp } from '../context/AppContext.jsx'
 
@@ -104,6 +104,9 @@ export default function Login() {
             </button>
             <p className="text-center text-[11px] text-cream-dim">
               Demo logins: admin · manager · cashier · kitchen (password 1234)
+            </p>
+            <p className="text-center text-[11px] text-cream-dim">
+              Don't have an account? <Link to="/signup" className="text-gold hover:underline">Sign up</Link>
             </p>
           </form>
         </div>

@@ -14,6 +14,7 @@ export default function PartialHandoverModal({ current, onClose, onSubmit }) {
   const [toId, setToId] = useState('')
   const [reason, setReason] = useState('')
   const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   useEscapeKey(onClose)
 
   // Recipients: active Managers & Admins (cash is handed up the chain, and both
@@ -28,12 +29,18 @@ export default function PartialHandoverModal({ current, onClose, onSubmit }) {
   const amt = Number(amount) || 0
   const remaining = current - amt
 
-  const submit = () => {
+  // onSubmit is async (initiateHandover hits the backend, which can reject
+  // an over-limit amount or a dead shift) — awaited here so a failure shows
+  // an error instead of the modal closing as if it succeeded.
+  const submit = async () => {
     if (amt <= 0 || amt > current) return setError('Enter a valid amount within the drawer balance.')
     if (!toId) return setError('Select who receives the cash.')
     const person = recipients.find((s) => s.id === toId)
     setError('')
-    onSubmit({ amount: amt, toName: person?.name || 'Manager', toRole: person?.role || 'Manager', reason: reason.trim() })
+    setSubmitting(true)
+    const res = await onSubmit({ amount: amt, toName: person?.name || 'Manager', toRole: person?.role || 'Manager', reason: reason.trim() })
+    setSubmitting(false)
+    if (res?.error) setError(res.error)
   }
 
   return (
@@ -114,11 +121,11 @@ export default function PartialHandoverModal({ current, onClose, onSubmit }) {
           </div>
 
           <div className="mt-6 flex flex-shrink-0 gap-3">
-            <button onClick={onClose} className="btn-ghost flex-1 py-3">
+            <button onClick={onClose} disabled={submitting} className="btn-ghost flex-1 py-3 disabled:opacity-60">
               Cancel
             </button>
-            <button onClick={submit} className="btn-gold flex-1 py-3">
-              <IconCash size={18} /> Submit Handover
+            <button onClick={submit} disabled={submitting} className="btn-gold flex-1 py-3 disabled:opacity-60">
+              <IconCash size={18} /> {submitting ? 'Submitting…' : 'Submit Handover'}
             </button>
           </div>
         </div>
