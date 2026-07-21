@@ -69,9 +69,11 @@ npm run prisma:migrate   # applies migrations + seeds demo data (once)
 npm run dev               # listens on :4000
 ```
 
-Leave this running in its own terminal. See `backend/README.md` for the full
-backend docs, test suite, and the alternative `control-panel/` app (a single
-Electron installer with no terminal/PM2 needed) that runs the same backend.
+Leave this running in its own terminal. See `backend/README.md` for the
+backend's own run/test commands, `docs/` for the full architecture docs
+(start at `docs/00-overview.md`), and the alternative `control-panel/` app
+(a single Electron installer with no terminal/PM2 needed) that runs the
+same backend.
 
 ---
 
@@ -123,6 +125,11 @@ Real username/password login, backed by the database (`Staff.username` /
 Each role sees a different set of pages (see the role guide below); the
 backend independently re-checks every permission server-side, not just in
 the UI.
+
+New staff can also self-register from the login screen's "Sign up" link —
+this creates a pending account with no access until an Admin approves it
+(`/approvals` page) and assigns it a role. See
+`docs/07-post-phase1-features.md` for the full approval flow.
 
 | Role | Can access |
 |------|-----------|
@@ -192,11 +199,12 @@ Dua-Resturant-/
 │  └─ package.json      ← scripts & dependencies
 ├─ backend/             ← TypeScript/Fastify/Prisma server (see backend/README.md)
 │  ├─ src/               ← core business logic, routes/services, realtime, sync, VPS instance
-│  ├─ prisma/            ← schema + migrations + seed
-│  └─ docs/              ← phase-by-phase architecture + build docs, start at 00-overview.md
+│  └─ prisma/            ← schema + migrations + seed
 ├─ control-panel/        ← alternative Electron app embedding the same backend (no PM2/terminal)
+├─ docs/                 ← phase-by-phase architecture + build docs, start at docs/00-overview.md
 ├─ requirements.md      ← client requirements (Roman Urdu scope)
 ├─ requirements-conflicts.md ← open ambiguities needing client sign-off
+├─ demand.md            ← running client feedback log (Roman Urdu)
 └─ README.md            ← this file
 ```
 

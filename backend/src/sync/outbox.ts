@@ -1,4 +1,4 @@
-// Enqueues one Phase 4 sync row (backend/docs/05-phase-4-vps-sync.md) inside
+// Enqueues one Phase 4 sync row (docs/05-phase-4-vps-sync.md) inside
 // the same Prisma transaction as the state change it's reporting on, so the
 // outbox row and the mutation commit atomically — same pattern as writeAudit
 // in lib/audit.ts, and for the same reason (a mutation and the record of it

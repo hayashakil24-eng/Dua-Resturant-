@@ -8,7 +8,7 @@ Makes the local server survive real-world restaurant conditions without a techni
 
 ## Goal
 
-The "dedicated PC" from `requirements.md` §12 behaves like a real server: always on, restarts itself if it crashes, and its data is backed up daily without anyone remembering to do it manually.
+The "dedicated PC" from `../requirements.md` §12 behaves like a real server: always on, restarts itself if it crashes, and its data is backed up daily without anyone remembering to do it manually.
 
 ## Scope
 

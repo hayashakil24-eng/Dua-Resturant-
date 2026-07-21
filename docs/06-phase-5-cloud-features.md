@@ -9,7 +9,7 @@ Capabilities that inherently require "reachable from anywhere," not just "reacha
 ## Scope (candidates — not yet broken into sub-tasks)
 
 - Remote owner/manager dashboard reading from the VPS — check sales, low stock, or staffing from off-site.
-- Automated daily WhatsApp report (`requirements.md` §6/§7) — note already flagged in `../../requirements-conflicts.md` #2: an automated/system-initiated message carries a small ongoing per-message cost that an admin-initiated one doesn't; worth the client explicitly signing off on that before this ships.
+- Automated daily WhatsApp report (`../requirements.md` §6/§7) — note already flagged in `../requirements-conflicts.md` #2: an automated/system-initiated message carries a small ongoing per-message cost that an admin-initiated one doesn't; worth the client explicitly signing off on that before this ships.
 - Cross-location reporting, if the business ever expands past one restaurant — the local-server-per-location + central-VPS shape from Phase 4 already supports this without redesign, this phase just builds the reporting UI for it.
 
 ## Frontend alignment

@@ -1,6 +1,6 @@
 // Cafe Ali Control Panel — the local backend, embedded directly in this
 // Electron app's main process, instead of a separate `node dist/src/server.js`
-// process supervised by PM2 (backend/docs/04-phase-3-deployment-hardening.md's
+// process supervised by PM2 (docs/04-phase-3-deployment-hardening.md's
 // original approach). One installer, one running app: no Node.js install, no
 // npm install, no terminal commands, no .env editing for whoever sets this up
 // at the restaurant.
@@ -169,6 +169,16 @@ async function startBackend() {
   process.env.BACKUP_DIR = config.backupDir
 
   try {
+    // Apply any migrations shipped since this install's last launch —
+    // `migrate deploy` only runs pending ones, so this is a no-op on an
+    // already-current db. Without this, an app update that adds a Prisma
+    // migration (e.g. a new Staff column) would leave an existing install's
+    // db permanently on the old schema, since runMigrations() otherwise only
+    // ever runs once, during first-time setup — the running server's Prisma
+    // Client (built for the new schema) would then throw on every query
+    // touching the missing column, surfacing as a 500 on login.
+    await runMigrations(process.env)
+
     // Dynamic import: must happen AFTER the env vars above are set, since
     // @cafe-ali/backend's db/client.ts constructs its PrismaClient (which
     // reads DATABASE_URL) at module-load time.
@@ -217,6 +227,12 @@ function createWindow() {
     height: 640,
     resizable: false,
     title: 'Cafe Ali Control Panel',
+    // Packaged Windows builds get their icon from build.win.icon
+    // (assets/icon.ico) baked into the .exe, but that only applies to the
+    // packaged binary — an unpackaged `npm start` window has no .exe to pull
+    // an icon from, so without this it falls back to Electron's own default
+    // icon. Same source art as the tray icon (assets/tray-icon.png).
+    icon: path.join(__dirname, '../assets/tray-icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,

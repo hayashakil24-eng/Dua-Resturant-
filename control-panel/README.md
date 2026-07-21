@@ -3,7 +3,7 @@
 A single Electron app that **is** the local server — no separate Node.js
 install, no `npm install`/`npm run build`, no terminal, no `.env` editing.
 This is an alternative to the PM2-based deployment described in
-`backend/docs/04-phase-3-deployment-hardening.md`, for whoever wants the
+`../docs/04-phase-3-deployment-hardening.md`, for whoever wants the
 simplest possible on-site setup; that PM2 path still exists (`backend/`'s own
 `service:*` scripts) for anyone who prefers running the backend as a plain
 background service instead. Neither replaces the other — they're two

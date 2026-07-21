@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "main": "electron/main.js",
-  "description": "Cafe Ali Control Panel — runs the local backend in-process (no separate Node/PM2 install), with a first-run setup wizard and a live online/offline status view. See backend/docs/04-phase-3-deployment-hardening.md.",
+  "description": "Cafe Ali Control Panel — runs the local backend in-process (no separate Node/PM2 install), with a first-run setup wizard and a live online/offline status view. See ../docs/04-phase-3-deployment-hardening.md.",
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder"

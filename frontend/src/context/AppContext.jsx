@@ -119,7 +119,7 @@ export function AppProvider({ children }) {
   // Attendance stays a local mock: the backend has no machine-attendance feed
   // yet (payroll still uses a deterministic generator), so this mirrors the
   // pre-backend behavior. overrideAttendance persists to the backend AND updates
-  // this local view for immediate display. See backend/docs/02-phase-1.
+  // this local view for immediate display. See docs/02-phase-1.
   const [attendance, setAttendance] = useState(INITIAL_ATTENDANCE)
 
   // --- Data loading -------------------------------------------------------

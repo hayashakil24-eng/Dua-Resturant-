@@ -7,7 +7,7 @@ import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import { IconSettings, IconReceipt, IconWallet, IconPlus, IconClose, IconCheck, IconClock, IconRefresh } from '../components/Icons.jsx'
 import { apiGet } from '../api/client.js'
 
-// Phase 3 "basic operational visibility" (backend/docs/04-phase-3-deployment-
+// Phase 3 "basic operational visibility" (docs/04-phase-3-deployment-
 // hardening.md) — is the server up, when did it last back up. Admin-only,
 // same gate as the rest of this page. Polls rather than using AppContext's
 // FETCHERS/socket-refetch machinery: this is ops information about the

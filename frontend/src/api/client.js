@@ -20,7 +20,7 @@ export function setBase(url) {
   BASE = url
 }
 
-// Phase 3 LAN discovery (backend/docs/04-phase-3-deployment-hardening.md): in
+// Phase 3 LAN discovery (docs/04-phase-3-deployment-hardening.md): in
 // the packaged Electron app, find the server PC's IP via main.js's UDP
 // broadcast (window.electron.discoverServer, preload.js) instead of requiring
 // a staff member to type it in. A no-op everywhere else — explicit

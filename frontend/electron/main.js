@@ -98,7 +98,7 @@ async function createWindow() {
   }
 }
 
-// LAN server discovery (backend/docs/04-phase-3-deployment-hardening.md) — a
+// LAN server discovery (docs/04-phase-3-deployment-hardening.md) — a
 // new POS/KDS device finds the server PC's IP without a staff member typing
 // it in. UDP broadcast/reply is a `dgram` (Node) API, unavailable to the
 // renderer's browser sandbox, hence this lives in the main process and is

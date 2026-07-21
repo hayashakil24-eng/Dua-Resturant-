@@ -1,12 +1,18 @@
 # Dependencies
 node_modules
 
-# Build outputs (frontend/dist, frontend/dist-electron, frontend/release —
-# no leading slash so these match at any depth, including inside frontend/)
+# Build outputs (frontend/dist, frontend/dist-electron, frontend/release,
+# control-panel/release — no leading slash so these match at any depth,
+# including inside frontend/ and control-panel/)
 dist
 dist-ssr
 dist-electron
 release
+
+# installer/'s combined-installer build output (installer/installer.nsi
+# packages frontend/release + control-panel/release's win-unpacked builds
+# into one .exe here) — root-level only, hundreds of MB, never commit
+/release-suite
 
 # Env / secrets — none exist yet, but the future backend will need these
 .env
@@ -34,6 +40,9 @@ yarn-error.log*
 .claude/scheduled_tasks.lock
 
 # Backend local SQLite database (dev data, not shared — schema lives in
-# backend/prisma/schema.prisma, migrations are tracked, the .db file isn't)
+# backend/prisma/schema.prisma, migrations are tracked, the .db file isn't).
+# -wal/-shm are SQLite's WAL-mode side files, same rule applies.
 *.db
 *.db-journal
+*.db-wal
+*.db-shm

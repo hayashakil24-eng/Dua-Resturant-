@@ -22,7 +22,7 @@ npm run service:logs       # tail logs
 
 ## Make it survive a reboot
 
-**Windows** (the actual target per `requirements.md` §12):
+**Windows** (the actual target per `../requirements.md` §12):
 ```bash
 npm install -g pm2-windows-startup
 pm2-startup install
