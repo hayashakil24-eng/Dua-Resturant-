@@ -123,6 +123,9 @@ export async function signup(input: SignupInput) {
   if (!name || !username || !password) {
     throw new ServiceError('Name, username, and password are required.', 400)
   }
+  if (password.length < 6) {
+    throw new ServiceError('Password must be at least 6 characters.', 400)
+  }
   const existing = await prisma.staff.findUnique({ where: { username } })
   if (existing) throw new ServiceError('Username already taken.', 409)
 

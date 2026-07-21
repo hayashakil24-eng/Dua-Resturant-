@@ -10,25 +10,39 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   // Bearer token on every subsequent request. Each login also registers a
   // session (keyed by a fresh `jti`) so it can later be force-disconnected —
   // see auth/sessions.ts.
-  app.post('/api/auth/login', async (req, reply) => {
-    const { username, password } = (req.body ?? {}) as { username?: unknown; password?: unknown }
-    const identity = await authenticateCredentials(username, password)
-    const payload: JwtPayload = { ...identity, jti: randomUUID() }
-    registerSession({ jti: payload.jti, staffId: payload.sub, name: payload.name, role: payload.role, ip: req.ip })
-    const token = await reply.jwtSign(payload)
-    return { token, user: { id: payload.sub, name: payload.name, role: payload.role } }
-  })
+  app.post(
+    '/api/auth/login',
+    // Unthrottled login was brute-forceable by anyone on the LAN (or a
+    // compromised device) — no lockout, no delay. 10 attempts/minute per IP
+    // is generous for a mistyped password, punishing for a guessing script.
+    { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
+    async (req, reply) => {
+      const { username, password } = (req.body ?? {}) as { username?: unknown; password?: unknown }
+      const identity = await authenticateCredentials(username, password)
+      const payload: JwtPayload = { ...identity, jti: randomUUID() }
+      registerSession({ jti: payload.jti, staffId: payload.sub, name: payload.name, role: payload.role, ip: req.ip })
+      const token = await reply.jwtSign(payload)
+      return { token, user: { id: payload.sub, name: payload.name, role: payload.role } }
+    },
+  )
 
   // Public self-signup — creates a Staff row with status 'pending' and no
   // systemRole. Deliberately returns no token: the user logs in separately
   // afterward (authenticateCredentials then lets a pending account in with
   // role 'Pending' so the frontend can show a waiting screen) rather than
   // this route auto-logging them in.
-  app.post('/api/auth/signup', async (req) => {
-    const { name, username, password } = (req.body ?? {}) as { name?: unknown; username?: unknown; password?: unknown }
-    await signup({ name: name as string, username: username as string, password: password as string })
-    return { ok: true }
-  })
+  app.post(
+    '/api/auth/signup',
+    // Lighter-weight than login's limit — signup is rarer and legitimately
+    // one-shot per person, so a low ceiling mainly stops signup-spam/username
+    // enumeration via repeated 409s, not mistyped-password retries.
+    { config: { rateLimit: { max: 5, timeWindow: '10 minutes' } } },
+    async (req) => {
+      const { name, username, password } = (req.body ?? {}) as { name?: unknown; username?: unknown; password?: unknown }
+      await signup({ name: name as string, username: username as string, password: password as string })
+      return { ok: true }
+    },
+  )
 
   // Who am I — lets the frontend rehydrate the session from a stored token.
   // allowPending: a waiting-room session needs to restore itself too.

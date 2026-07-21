@@ -9,6 +9,7 @@
 import Fastify, { type FastifyError, type FastifyInstance } from 'fastify'
 import cors from '@fastify/cors'
 import jwt from '@fastify/jwt'
+import rateLimit from '@fastify/rate-limit'
 import sensible from '@fastify/sensible'
 import { env } from './env.js'
 import { ServiceError } from './lib/errors.js'
@@ -42,7 +43,23 @@ export function buildApp(): FastifyInstance {
   // GET/HEAD/POST, which the browser would use to block the others.
   app.register(cors, { origin: true, methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'] })
   app.register(sensible)
-  app.register(jwt, { secret: env.jwtSecret })
+  // Sessions are also revocable in real time (auth/sessions.ts's jti
+  // registry — the Control Panel's "disconnect device"), but a signature-
+  // valid token had no time limit of its own before this: a leaked token
+  // stayed usable indefinitely against a long-uptime server. 24h is generous
+  // enough that no one on a normal shift ever notices it, while still
+  // bounding how long a leaked token stays useful.
+  app.register(jwt, { secret: env.jwtSecret, sign: { expiresIn: '24h' } })
+  // global: false — this app's other routes see plenty of legitimate rapid
+  // traffic (POS order entry, live sync); only auth's specific brute-force
+  // surface needs throttling, applied per-route below. Skipped under test:
+  // the test suite legitimately exercises many signup/login scenarios in
+  // quick succession from the same fake IP app.inject() uses — real usage
+  // (a handful of signups ever) is nowhere near these limits, but a test
+  // run comfortably is.
+  if (process.env.NODE_ENV !== 'test') {
+    app.register(rateLimit, { global: false })
+  }
 
   // Map service-layer errors to HTTP. A ServiceError carries its own status
   // (400/401/403/404); anything else is an unexpected 500 and gets logged.
@@ -53,6 +70,15 @@ export function buildApp(): FastifyInstance {
     // Fastify schema-validation failures surface as 400 with a readable message.
     if (err.validation) {
       return reply.code(400).send({ error: err.message })
+    }
+    // Other plugins (e.g. @fastify/rate-limit's 429) throw their own errors
+    // with a valid client-error statusCode already set — surfaced this when
+    // rate-limiting was added: without this branch, a 429 was silently
+    // rewritten to a generic 500 below, which not only hid the real reason
+    // but meant a rate-limited client couldn't tell "back off" from "server
+    // broke" and had no reason to retry-with-delay instead of hammering it.
+    if (err.statusCode && err.statusCode >= 400 && err.statusCode < 500) {
+      return reply.code(err.statusCode).send({ error: err.message })
     }
     req.log.error(err)
     return reply.code(500).send({ error: 'Internal server error.' })
