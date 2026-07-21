@@ -2,6 +2,8 @@
 
 Only possible once Phase 4 exists — these are the features that specifically need a central, always-on store rather than a single restaurant's local database.
 
+Note: Phase 4's VPS/Postgres path was since hardened for production (see `05-phase-4-vps-sync.md`'s "Production hardening" section and `deployment-setup.md`'s "VPS server deployment") — a real, disposable Postgres engine now verifies the migration + sync path end to end, not just a SQLite stand-in. That removes an infrastructure blocker for this phase, but none of the candidate features below were built as part of that work — this phase is still unscoped.
+
 ## Goal
 
 Capabilities that inherently require "reachable from anywhere," not just "reachable from the restaurant's LAN."

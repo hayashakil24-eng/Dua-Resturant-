@@ -53,7 +53,7 @@ The ID strategy question below was resolved in Phase 0 and hasn't changed since:
 1. [Single-device backend](02-phase-1-single-device-backend.md) — replaces `localStorage`, one device, full feature parity. ✅ complete, manual QA done, frontend wired.
 2. [Multi-device real-time (LAN)](03-phase-2-realtime-lan.md) — the actual "multiple cashiers/KDS see live data" requirement. ✅ built and verified.
 3. [Local deployment hardening](04-phase-3-deployment-hardening.md) — background service, backups, device pairing. ✅ built and verified (bar a few reboot/real-LAN/USB checks that need the real hardware).
-4. [VPS + sync](05-phase-4-vps-sync.md) — central store, offline-resilient sync. ✅ built and verified against a local stand-in for the VPS.
+4. [VPS + sync](05-phase-4-vps-sync.md) — central store, offline-resilient sync. ✅ built; verified against both a local SQLite stand-in and (since, as production hardening) a real disposable Postgres engine. Still needs a real Supabase project to be fully proven.
 5. [Cloud-facing features](06-phase-5-cloud-features.md) — only possible once Phase 4 exists. Not started — candidate list only, not yet scoped.
 6. [Post-Phase-1 feature log](07-post-phase1-features.md) — real product features (self-signup/approval, recipe edit/delete, table shift, full business-day close, real menu seed) built after Phase 1 shipped, driven by direct client feedback (`../demand.md`) rather than the phase plan. Not numbered as a "phase" because it isn't backend-infrastructure work like 0–5 — it's ordinary feature development on top of an already-live Phase 1/2 system.
 

@@ -20,8 +20,13 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
+    "vps:schema:build": "node scripts/generate-postgres-schema.mjs",
+    "vps:prisma:generate": "npm run vps:schema:build && prisma generate --schema prisma/postgres/schema.prisma",
+    "vps:prisma:migrate:deploy": "npm run vps:schema:build && prisma migrate deploy --schema prisma/postgres/schema.prisma",
+    "vps:prisma:migrate:dev": "npm run vps:schema:build && prisma migrate dev --schema prisma/postgres/schema.prisma",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "verify:postgres": "tsx scripts/verify-postgres.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -37,6 +42,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.10",
+    "embedded-postgres": "^18.4.0-beta.17",
     "pm2": "^7.0.3",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
