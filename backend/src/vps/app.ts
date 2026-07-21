@@ -35,6 +35,11 @@ const ENTITY_MODELS: Record<string, () => ModelDelegate> = {
   // shifts.service.ts (start/pause/resume/end), always before any order that
   // can reference it, since a shift always starts before orders attributed to it.
   ShiftReconciliation: () => prisma.shiftReconciliation as unknown as ModelDelegate,
+  // One level further down the same dependency chain:
+  // ShiftReconciliation.staffId also has a foreign key, to Staff — enqueued
+  // at every staff.service.ts mutation (staff.service.ts), always before any
+  // shift that references it (a staff member exists before they can open one).
+  Staff: () => prisma.staff as unknown as ModelDelegate,
 }
 
 interface PushEntry {

@@ -13,6 +13,7 @@ import type { Actor } from '../lib/actor.js'
 import { hashPassword } from '../auth/password.js'
 import { VALID_ROLES } from './auth.service.js'
 import type { Role } from '../core/permissions.js'
+import { enqueueOutbox } from '../sync/outbox.js'
 
 interface Ctx {
   actor: Actor
@@ -56,6 +57,11 @@ export async function addStaff(ctx: Ctx, emp: StaffInput) {
       },
     })
     await writeAudit(tx, { action: 'STAFF_ADDED', actor: ctx.actor, details: { staffId: created.id, name: created.name } })
+    // Synced (docs/05-phase-4-vps-sync.md "Production hardening") so a
+    // ShiftReconciliation.staffId referencing this row can resolve on the
+    // VPS — Postgres enforces that FK even though the local SQLite copy
+    // doesn't necessarily.
+    await enqueueOutbox(tx, 'Staff', created.id, created)
     return created
   })
 }
@@ -70,7 +76,11 @@ export async function updateStaff(_ctx: Ctx, id: string, updates: StaffInput) {
     data.shiftStartTime = SHIFT_START_TIMES[updates.shift] || current.shiftStartTime
   }
   if (updates.baseSalary != null) data.baseSalary = Number(updates.baseSalary) || 0
-  return prisma.staff.update({ where: { id }, data })
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.staff.update({ where: { id }, data })
+    await enqueueOutbox(tx, 'Staff', updated.id, updated)
+    return updated
+  })
 }
 
 export async function deleteStaff(ctx: Ctx, id: string) {
@@ -84,7 +94,11 @@ export async function deleteStaff(ctx: Ctx, id: string) {
 export async function toggleStaff(_ctx: Ctx, id: string) {
   const s = await prisma.staff.findUnique({ where: { id } })
   if (!s) throw new ServiceError('Employee not found.', 404)
-  return prisma.staff.update({ where: { id }, data: { active: !s.active } })
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.staff.update({ where: { id }, data: { active: !s.active } })
+    await enqueueOutbox(tx, 'Staff', updated.id, updated)
+    return updated
+  })
 }
 
 // ---- Self-signup + approval -----------------------------------------------
@@ -126,6 +140,7 @@ export async function signup(input: SignupInput) {
     })
     const actor: Actor = { id: created.id, name: created.name, role: 'Pending' }
     await writeAudit(tx, { action: 'STAFF_SIGNUP_REQUESTED', actor, details: { username } })
+    await enqueueOutbox(tx, 'Staff', created.id, created)
     return created
   })
 }
@@ -147,6 +162,7 @@ export async function approveSignup(ctx: Ctx, id: string, systemRole: unknown) {
       data: { systemRole: systemRole as Role, status: 'approved', approvedBy: ctx.actor.name, approvedAt: at },
     })
     await writeAudit(tx, { action: 'STAFF_SIGNUP_APPROVED', actor: ctx.actor, at, details: { staffId: id, systemRole } })
+    await enqueueOutbox(tx, 'Staff', updated.id, updated)
     return updated
   })
 }
@@ -161,6 +177,7 @@ export async function rejectSignup(ctx: Ctx, id: string, reason = '') {
       data: { status: 'rejected', rejectedBy: ctx.actor.name, rejectedAt: at, rejectReason: reason },
     })
     await writeAudit(tx, { action: 'STAFF_SIGNUP_REJECTED', actor: ctx.actor, at, details: { staffId: id, reason } })
+    await enqueueOutbox(tx, 'Staff', updated.id, updated)
     return updated
   })
 }
