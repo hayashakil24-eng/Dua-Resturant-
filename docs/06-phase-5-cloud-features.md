@@ -10,9 +10,36 @@ Capabilities that inherently require "reachable from anywhere," not just "reacha
 
 ## Scope (candidates — not yet broken into sub-tasks)
 
+- ~~Automated daily WhatsApp report~~ — **built**, not just a candidate anymore. See "WhatsApp Cloud API integration" below.
 - Remote owner/manager dashboard reading from the VPS — check sales, low stock, or staffing from off-site.
-- Automated daily WhatsApp report (`../requirements.md` §6/§7) — note already flagged in `../requirements-conflicts.md` #2: an automated/system-initiated message carries a small ongoing per-message cost that an admin-initiated one doesn't; worth the client explicitly signing off on that before this ships.
 - Cross-location reporting, if the business ever expands past one restaurant — the local-server-per-location + central-VPS shape from Phase 4 already supports this without redesign, this phase just builds the reporting UI for it.
+
+## WhatsApp Cloud API integration (built)
+
+Implements `../requirements.md` §6/§7 in full — both halves:
+
+- **Automated**: `backend/src/whatsapp/schedule.ts`, a local-server job (same
+  pattern as `backup/schedule.ts`) that sends the most recently *saved*
+  DailyClosing once a day, at an admin-configurable hour (Settings page).
+  The per-message cost this carries was flagged in
+  `../requirements-conflicts.md` #2 before this was built — now live with a
+  real Meta test-mode number, not yet through Meta's business verification
+  (see `deployment-setup.md`'s WhatsApp section) — get that sign-off, and go
+  through verification, before this reaches real customers.
+- **On-demand**: `backend/src/whatsapp/webhook.ts`, registered on the VPS
+  (`src/vps/app.ts`) — the admin messages the system directly and gets the
+  latest report back, free within Meta's service-conversation window per
+  §7. Needed the VPS specifically because Meta requires a publicly-trusted
+  TLS cert on a fixed port, which only became possible once the self-signed
+  cert from `05-phase-4-vps-sync.md` was replaced with a real one via
+  sslip.io + Let's Encrypt (`deployment-setup.md`).
+- **Rendering**: `backend/src/reports/whatsappReport.ts` — the report is a
+  branded PNG (bilingual Urdu/English), matching the client's own manual
+  WhatsApp-shared report format, not a plain-text message. Uses headless
+  Chromium (Puppeteer) specifically for correct Urdu/Nastaliq text shaping,
+  with the font bundled and inlined so it works fully offline.
+- Closed two sync gaps this surfaced: `DailyClosing` wasn't synced to the
+  VPS at all before this (needed — it's the data the webhook replies with).
 
 ## Frontend alignment
 

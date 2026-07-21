@@ -28,13 +28,6 @@ module.exports = {
       exp_backoff_restart_delay: 100,
       env: {
         NODE_ENV: 'production',
-        // Trusts the VPS's self-signed cert (docs/deployment-setup.md's "VPS
-        // server deployment" section — no domain, so no public CA can issue
-        // one for a bare IP). Must be set here, at process-spawn time — Node
-        // reads NODE_EXTRA_CA_CERTS before any app code runs, so setting it
-        // via backend/.env (loaded at runtime by src/env.ts) is too late.
-        // Harmless/unused if VPS_URL isn't configured at all.
-        NODE_EXTRA_CA_CERTS: require('node:path').join(__dirname, 'certs', 'vps-self-signed.pem'),
       },
     },
   ],

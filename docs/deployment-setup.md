@@ -85,8 +85,10 @@ Layout on the VPS:
 - `/opt/cafeali/app` — this repo, `git clone`d, built, running under PM2 as
   `cafeali-vps` (see the PM2 section above — same pattern, different entry
   point: `dist/src/vps/server.js`).
-- `/opt/cafeali/certs/{cert,key}.pem` — the TLS keypair (see below).
-- `ufw`: only 22 (SSH) and the backend's port open; everything else denied.
+- `/etc/letsencrypt/live/<hostname>.sslip.io/` — the real TLS keypair
+  (certbot-managed, auto-renewing; see below).
+- `ufw`: only 22 (SSH), 80 (certbot renewal), and 443 (the backend) open;
+  everything else denied.
 
 ### 1. Provision Postgres
 
@@ -107,49 +109,39 @@ lifetime than Supabase's direct-connection limit allows on the smaller
 tiers. Either way, nothing else in this doc changes — same migrations, same
 `DATABASE_URL` shape (Postgres is Postgres).
 
-### 2. TLS — no domain, so a self-signed cert pinned by the local server
+### 2. TLS — a real certificate via a free hostname, no domain purchase
 
-The client explicitly doesn't want a domain, which rules out a public CA
-(Let's Encrypt et al. cannot issue a certificate for a bare IP — there's
-nothing for it to domain-validate). Instead: a long-lived self-signed
-certificate for the VPS's IP, and the local server pins it explicitly rather
-than trusting a public CA at all — for service-to-service traffic like this,
-pinning is arguably *stronger* than public-CA trust anyway, since it can't be
-fooled by a mis-issued cert from an unrelated CA.
+The client explicitly doesn't want to buy a domain — but a *public CA*
+certificate turned out to be a hard requirement anyway, not just a nice-to-
+have: the WhatsApp Cloud API webhook (see below) needs one, since Meta
+rejects self-signed certs outright when validating a webhook callback URL.
+An early version of this doc used a self-signed cert pinned via
+`NODE_EXTRA_CA_CERTS`, which worked fine for the local↔VPS sync connection
+but couldn't satisfy that requirement. The fix: **sslip.io** — a free service
+that turns any IP into a real, resolvable hostname with zero signup (e.g.
+`169-58-53-109.sslip.io` resolves straight to `169.58.53.109`) — which is a
+real domain as far as Let's Encrypt is concerned, so `certbot` can issue an
+actual publicly-trusted certificate for it. This replaced the self-signed
+approach entirely; the local server no longer needs any special TLS trust
+configuration at all, since a real cert is already in Node's default trust
+store.
 
-Generate the keypair **on the VPS itself** — the private key must never
-leave it:
-
-```bash
-mkdir -p /opt/cafeali/certs && chmod 700 /opt/cafeali/certs
-openssl req -x509 -newkey rsa:4096 \
-  -keyout /opt/cafeali/certs/key.pem -out /opt/cafeali/certs/cert.pem \
-  -days 3650 -nodes -subj "/CN=<VPS_IP>" -addext "subjectAltName=IP:<VPS_IP>"
-chmod 600 /opt/cafeali/certs/key.pem
-```
-
-`-addext subjectAltName=IP:<VPS_IP>` is required, not optional — modern TLS
-clients (including Node's) reject a cert that only matches via the legacy
-`CN` field. 10-year expiry because this is manually managed, not
-auto-renewed like Let's Encrypt — put a reminder somewhere for ~2036.
-
-Copy just the **public** half back into the repo — certs are meant to be
-public, only the private key is sensitive:
+On the VPS:
 
 ```bash
-scp root@<VPS_IP>:/opt/cafeali/certs/cert.pem backend/certs/vps-self-signed.pem
-git add backend/certs/vps-self-signed.pem && git commit -m "..." && git push
+apt-get install -y certbot
+ufw allow 80/tcp   # needed for the HTTP-01 challenge, and for renewal later
+pm2 stop cafeali-vps   # frees the port certbot's standalone mode needs
+
+certbot certonly --standalone -d <IP-WITH-DASHES>.sslip.io \
+  --non-interactive --agree-tos --register-unsafely-without-email
 ```
 
-The local server trusts it via `NODE_EXTRA_CA_CERTS`, already wired into
-`ecosystem.config.cjs`'s `env` block pointing at
-`backend/certs/vps-self-signed.pem` — this **must** be a real process-level
-env var (PM2's `env` block spawns the child process with it already set), not
-something loaded from `backend/.env` at runtime: `src/env.ts`'s
-`loadEnvFile()` runs after Node has already initialized its TLS trust store,
-so a value that only exists in `.env` is silently too late. Nothing to do
-here if you're not running under the provided `ecosystem.config.cjs` other
-than replicating that same rule.
+Certbot writes to `/etc/letsencrypt/live/<hostname>/{fullchain,privkey}.pem`
+and installs its own renewal timer automatically — nothing further to do for
+the ~90-day renewal cycle. `--register-unsafely-without-email` skips
+Let's Encrypt's expiry-notice email, fine for a test/non-critical deployment;
+drop that flag and pass `-m you@example.com` for a real one.
 
 ### 3. Configure the VPS's own `.env`
 
@@ -159,16 +151,24 @@ This is a separate `.env` from the local server's — see the VPS section of
 ```bash
 DATABASE_URL="postgresql://cafeali:PASSWORD@127.0.0.1:5432/cafeali"
 VPS_SYNC_SECRET="<openssl rand -hex 32>"   # must match nothing else — distinct from JWT_SECRET
-VPS_PORT=5000
-VPS_TLS_CERT_PATH="/opt/cafeali/certs/cert.pem"
-VPS_TLS_KEY_PATH="/opt/cafeali/certs/key.pem"
+VPS_PORT=443   # must be 443/80/88/8443 — Meta's permitted webhook ports
+VPS_TLS_CERT_PATH="/etc/letsencrypt/live/<hostname>.sslip.io/fullchain.pem"
+VPS_TLS_KEY_PATH="/etc/letsencrypt/live/<hostname>.sslip.io/privkey.pem"
+WHATSAPP_PHONE_NUMBER_ID="..."
+WHATSAPP_ACCESS_TOKEN="..."
+WHATSAPP_WEBHOOK_VERIFY_TOKEN="<openssl rand -hex 20>"
+WHATSAPP_REPORT_RECIPIENT="923001234567"   # who the webhook will reply to — digits only
 ```
 
-And on the local server's own `.env` (the restaurant PC, not the VPS):
+And on the local server's own `.env` (the restaurant PC, not the VPS) —
+notably, no `NODE_EXTRA_CA_CERTS` or any other TLS trust config needed,
+since the cert above is real:
 
 ```bash
-VPS_URL="https://<VPS_IP>:5000"
+VPS_URL="https://<hostname>.sslip.io"
 VPS_SYNC_SECRET="<the exact same value configured on the VPS above>"
+WHATSAPP_PHONE_NUMBER_ID="..."   # same value as the VPS's .env
+WHATSAPP_ACCESS_TOKEN="..."      # same value as the VPS's .env
 ```
 
 ### 4. Install, migrate, build, start
@@ -194,13 +194,37 @@ that, named `cafeali-vps`, under its own `ecosystem.vps.config.cjs`).
 
 ```bash
 ufw allow 22/tcp
-ufw allow 5000/tcp   # or whatever VPS_PORT is set to
+ufw allow 80/tcp    # certbot's HTTP-01 challenge, both initial + renewal
+ufw allow 443/tcp   # or whatever VPS_PORT is set to
 ufw --force enable
 ```
 
 Postgres (5432) is deliberately **not** opened — it's bound to `127.0.0.1`
 already (docker-compose above), so only the backend process on the same box
 can reach it; there's no reason for it to be internet-facing at all.
+
+### 6. WhatsApp Cloud API — the one manual step
+
+Everything above is scriptable; registering the webhook itself isn't — it's
+a one-time step in the Meta App Dashboard that only someone with access to
+that Meta Business account can do:
+
+1. Meta App Dashboard → your app → **WhatsApp → Configuration**.
+2. **Callback URL**: `https://<hostname>.sslip.io/webhook/whatsapp`
+3. **Verify token**: the exact value of `WHATSAPP_WEBHOOK_VERIFY_TOKEN` from
+   the VPS's `.env` above.
+4. Save — Meta immediately sends a GET request to the callback URL with that
+   token; `src/whatsapp/webhook.ts` echoes back `hub.challenge` only if it
+   matches, which is what confirms the registration to Meta.
+5. Under **Webhook fields**, subscribe to `messages` — without this, Meta
+   never forwards inbound messages at all, regardless of the callback URL
+   being correctly registered.
+
+Test-mode WhatsApp numbers (the default for a fresh Meta app, before
+business verification) can only message phone numbers explicitly added and
+OTP-verified as allowed recipients in the same dashboard section — a real
+constraint independent of anything above, since it governs what Meta's test
+number is willing to send to at all, not whether the webhook works.
 
 ### Verifying the Postgres path without a live Supabase project
 
