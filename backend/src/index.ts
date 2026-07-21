@@ -17,6 +17,7 @@ export { startDiscoveryResponder } from './realtime/discovery.js'
 export { startBackupSchedule } from './backup/schedule.js'
 export { runBackup, lastBackupInfo } from './backup/backup.js'
 export { startSyncSchedule, syncOnce } from './sync/job.js'
+export { startWhatsappReportSchedule } from './whatsapp/schedule.js'
 export { env } from './env.js'
 // Reused by the Control Panel for its own, separate "panel access password"
 // (distinct from staff logins) — same scrypt hashing, no reason to duplicate it.

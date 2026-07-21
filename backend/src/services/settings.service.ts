@@ -49,6 +49,37 @@ export async function setGstRate(ctx: Ctx, pct: number) {
   })
 }
 
+// ---- WhatsApp daily report (requirements.md §6/§7) -------------------------
+
+export interface WhatsappReportConfig {
+  enabled?: boolean
+  hour?: number
+  recipient?: string | null
+}
+
+export async function setWhatsappReportConfig(ctx: Ctx, patch: WhatsappReportConfig) {
+  const data: Record<string, unknown> = {}
+  if (patch.enabled != null) data.whatsappReportEnabled = Boolean(patch.enabled)
+  if (patch.hour != null) {
+    const h = Number(patch.hour)
+    if (!Number.isInteger(h) || h < 0 || h > 23) throw new ServiceError('Enter an hour between 0 and 23.')
+    data.whatsappReportHour = h
+  }
+  if (patch.recipient !== undefined) {
+    // WhatsApp Cloud API wants digits only, no leading + or punctuation.
+    const digits = String(patch.recipient ?? '').replace(/\D/g, '')
+    if (patch.recipient && digits.length < 8) throw new ServiceError('Enter a valid WhatsApp number, digits only (e.g. 923001234567).')
+    data.whatsappReportRecipient = digits || null
+  }
+  if (Object.keys(data).length === 0) return ensureSettings()
+  return prisma.$transaction(async (tx) => {
+    await tx.appSettings.upsert({ where: { id: SETTINGS_ID }, create: { id: SETTINGS_ID }, update: {} })
+    const updated = await tx.appSettings.update({ where: { id: SETTINGS_ID }, data })
+    await writeAudit(tx, { action: 'WHATSAPP_REPORT_CONFIG_CHANGED', actor: ctx.actor, details: data })
+    return updated
+  })
+}
+
 // ---- Online accounts ------------------------------------------------------
 
 export async function listOnlineAccounts() {

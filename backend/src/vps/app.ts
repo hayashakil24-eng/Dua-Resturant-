@@ -14,6 +14,7 @@
 import Fastify, { type FastifyInstance } from 'fastify'
 import { prisma } from '../db/client.js'
 import { verifyServiceToken } from './serviceAuth.js'
+import { registerWhatsappWebhook } from '../whatsapp/webhook.js'
 
 export interface VpsAppOptions {
   // Present only when env.vps.tlsCertPath/tlsKeyPath are configured — see
@@ -40,6 +41,10 @@ const ENTITY_MODELS: Record<string, () => ModelDelegate> = {
   // at every staff.service.ts mutation (staff.service.ts), always before any
   // shift that references it (a staff member exists before they can open one).
   Staff: () => prisma.staff as unknown as ModelDelegate,
+  // No FK dependencies of its own (a frozen JSON snapshot) — synced so the
+  // WhatsApp webhook (below) has real data to reply with; the VPS only ever
+  // replays the local server's own saved closings, never computes its own.
+  DailyClosing: () => prisma.dailyClosing as unknown as ModelDelegate,
 }
 
 interface PushEntry {
@@ -56,6 +61,8 @@ export function buildVpsApp(options: VpsAppOptions = {}): FastifyInstance {
   })
 
   app.get('/api/health', async () => ({ ok: true }))
+
+  registerWhatsappWebhook(app)
 
   app.post('/api/sync/push', async (req, reply) => {
     const auth = req.headers.authorization

@@ -561,6 +561,18 @@ model AppSettings {
   id         String @id @default("singleton")
   gstEnabled Boolean @default(false)
   gstRate    Float   @default(0.05) // fraction, e.g. 0.05 = 5% — see mockData.js TAX_RATE
+  // requirements.md §6/§7: automated daily WhatsApp report. Off by default —
+  // an admin opts in from Settings and sets the send hour + recipient, rather
+  // than this silently sending on a freshly-migrated database.
+  whatsappReportEnabled   Boolean @default(false)
+  whatsappReportHour      Int     @default(23) // 24h clock, local server time — same convention as env.ts's backupHour
+  whatsappReportRecipient String? // E.164-ish, digits only (e.g. "923001234567") — WhatsApp Cloud API's own format
+  // The id of the DailyClosing this was last sent for (not a date) — so the
+  // schedule job's "already sent?" check survives a server restart (unlike
+  // an in-memory flag) and naturally re-sends if a *new* closing appears,
+  // rather than being keyed to a calendar date that might not match session
+  // boundaries (see core/closing.ts's "business-day session" comment).
+  whatsappReportLastSentClosingId String?
   updatedAt  DateTime @updatedAt
 }
 

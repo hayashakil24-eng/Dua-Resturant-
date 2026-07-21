@@ -37,7 +37,7 @@ const configPath = path.join(userDataDir, 'config.json')
 
 let win = null
 let tray = null
-let backend = null // { app: FastifyInstance, io, discoverySocket, backupTimer, syncTimer } once started
+let backend = null // { app: FastifyInstance, io, discoverySocket, backupTimer, syncTimer, whatsappTimer } once started
 let serverStatus = 'stopped' // 'stopped' | 'starting' | 'online' | 'error'
 let lastError = null
 
@@ -182,7 +182,7 @@ async function startBackend() {
     // Dynamic import: must happen AFTER the env vars above are set, since
     // @cafe-ali/backend's db/client.ts constructs its PrismaClient (which
     // reads DATABASE_URL) at module-load time.
-    const { buildApp, attachSocket, startDiscoveryResponder, startBackupSchedule, startSyncSchedule, env } =
+    const { buildApp, attachSocket, startDiscoveryResponder, startBackupSchedule, startSyncSchedule, startWhatsappReportSchedule, env } =
       await import('@cafe-ali/backend')
 
     const fastify = buildApp()
@@ -191,8 +191,9 @@ async function startBackend() {
     const discoverySocket = startDiscoveryResponder()
     const backupTimer = startBackupSchedule()
     const syncTimer = startSyncSchedule()
+    const whatsappTimer = startWhatsappReportSchedule()
 
-    backend = { fastify, io, discoverySocket, backupTimer, syncTimer }
+    backend = { fastify, io, discoverySocket, backupTimer, syncTimer, whatsappTimer }
     serverStatus = 'online'
     lastError = null
   } catch (err) {
@@ -207,6 +208,7 @@ async function stopBackend() {
   if (!backend) return
   clearInterval(backend.backupTimer)
   clearInterval(backend.syncTimer)
+  clearInterval(backend.whatsappTimer)
   backend.discoverySocket.close()
   await backend.io.close()
   await backend.fastify.close()

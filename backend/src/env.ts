@@ -65,4 +65,26 @@ export const env = {
     tlsCertPath: process.env.VPS_TLS_CERT_PATH ?? null,
     tlsKeyPath: process.env.VPS_TLS_KEY_PATH ?? null,
   },
+  // requirements.md §6/§7: WhatsApp Cloud API. All optional — a deployment
+  // that never sets these just never sends (whatsapp/client.ts's
+  // isWhatsAppConfigured() gate), same pattern as vps.* above. Read from
+  // whichever .env this process loaded (loadEnvFile above) — see
+  // docs/deployment-setup.md's WhatsApp section for where these come from
+  // (the Meta App Dashboard) and why the webhook specifically needs the VPS,
+  // not the local server.
+  whatsapp: {
+    phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID ?? null,
+    accessToken: process.env.WHATSAPP_ACCESS_TOKEN ?? null,
+    // Arbitrary shared secret this deployment picks, given to Meta when
+    // registering the webhook URL — Meta echoes it back on the verification
+    // GET request so we can confirm the request actually came from Meta's
+    // config flow, not anyone who guesses the callback URL.
+    webhookVerifyToken: process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN ?? null,
+    // VPS-only: who the webhook (src/vps/app.ts) is willing to reply to.
+    // Deliberately a VPS-local env var, not read from synced AppSettings —
+    // this is a security-relevant allowlist for a publicly-reachable
+    // endpoint, so it shouldn't depend on outbox sync timing/availability.
+    // Digits only, same convention as AppSettings.whatsappReportRecipient.
+    reportRecipient: process.env.WHATSAPP_REPORT_RECIPIENT ?? null,
+  },
 }

@@ -11,6 +11,7 @@ import { getActiveShift } from './shifts.service.js'
 import { writeAudit } from '../lib/audit.js'
 import { ServiceError } from '../lib/errors.js'
 import type { Actor } from '../lib/actor.js'
+import { enqueueOutbox } from '../sync/outbox.js'
 
 interface Ctx {
   actor: Actor
@@ -61,6 +62,14 @@ export async function buildReport(dateStr?: string) {
   const sinceIso = await getBoundaryIso()
   const { closingOrders, closingTxns, inv, rec } = await gather()
   return buildClosingReport(closingOrders, closingTxns, day, inv, rec, sinceIso)
+}
+
+// The most recent saved closing, raw (not merged with report fields the way
+// listClosings() shapes it for the frontend) — used by the WhatsApp report
+// path (src/whatsapp/schedule.ts, src/vps/app.ts's webhook), which wants the
+// record's own reportJson/date, not the frontend's flattened view.
+export async function getLatestClosing() {
+  return prisma.dailyClosing.findFirst({ orderBy: { closingTime: 'desc' } })
 }
 
 // Return each saved closing with its frozen report merged back in (the frontend
@@ -148,6 +157,11 @@ export async function saveDailyClosing(ctx: Ctx, dateStr?: string) {
       },
     })
     await writeAudit(tx, { action: 'DAY_CLOSED', actor: ctx.actor, at: closingTime, details: { date: report.date, totalSales: report.netSale } })
+    // Synced (docs/05-phase-4-vps-sync.md "Production hardening") so the
+    // WhatsApp webhook's on-demand report (src/vps/app.ts) has real closing
+    // data to reply with — the VPS never generates a report from scratch,
+    // only ever replays the local server's own saved closings.
+    await enqueueOutbox(tx, 'DailyClosing', saved.id, saved)
     return saved
   })
   return { record, report }

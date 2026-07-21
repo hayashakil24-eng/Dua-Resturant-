@@ -4,7 +4,7 @@ import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader } from '../components/ui.jsx'
 import { canModify } from '../config/permissions.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
-import { IconSettings, IconReceipt, IconWallet, IconPlus, IconClose, IconCheck, IconClock, IconRefresh } from '../components/Icons.jsx'
+import { IconSettings, IconReceipt, IconWallet, IconPlus, IconClose, IconCheck, IconClock, IconRefresh, IconWhatsApp } from '../components/Icons.jsx'
 import { apiGet } from '../api/client.js'
 
 // Phase 3 "basic operational visibility" (docs/04-phase-3-deployment-
@@ -230,6 +230,8 @@ export default function Settings() {
     gstRate,
     setGst,
     setGstRate,
+    whatsappReport,
+    setWhatsappReportConfig,
     onlineAccounts,
     addOnlineAccount,
     updateOnlineAccount,
@@ -255,6 +257,28 @@ export default function Settings() {
     setRateError('')
     setRateSaved(true)
     setTimeout(() => setRateSaved(false), 2000)
+  }
+
+  // WhatsApp daily report (requirements.md §6/§7) — hour + recipient are
+  // edited as a draft and written back together on Save, same shape as the
+  // GST rate field above; the enabled toggle writes immediately like GST's.
+  const [waHourInput, setWaHourInput] = useState(String(whatsappReport.hour))
+  const [waRecipientInput, setWaRecipientInput] = useState(whatsappReport.recipient)
+  const [waError, setWaError] = useState('')
+  const [waSaved, setWaSaved] = useState(false)
+  useEffect(() => {
+    setWaHourInput(String(whatsappReport.hour))
+    setWaRecipientInput(whatsappReport.recipient)
+  }, [whatsappReport.hour, whatsappReport.recipient])
+  const saveWhatsappConfig = async () => {
+    const res = await setWhatsappReportConfig({ hour: Number(waHourInput), recipient: waRecipientInput })
+    if (res?.error) {
+      setWaSaved(false)
+      return setWaError(res.error)
+    }
+    setWaError('')
+    setWaSaved(true)
+    setTimeout(() => setWaSaved(false), 2000)
   }
 
   return (
@@ -334,6 +358,94 @@ export default function Settings() {
           <IconSettings size={14} />
           {gstEnabled ? fill(t('settings.gstStatusOn')) : t('settings.gstStatusOff')}
         </div>
+      </div>
+
+      {/* WhatsApp daily report */}
+      <div className="card max-w-2xl p-6">
+        <div className="flex items-center gap-3 border-b border-ink-line pb-4">
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-gold/10 text-gold ring-1 ring-gold/25">
+            <IconWhatsApp size={20} />
+          </span>
+          <div>
+            <h3 className="font-serif text-xl text-cream">
+              {t('settings.whatsappSection', 'WhatsApp Daily Report')}
+            </h3>
+            <p className="text-xs text-cream-dim">
+              {t('settings.whatsappDesc', 'Send the latest closing report automatically, once a day.')}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="max-w-md">
+            <p className="text-sm font-semibold text-cream">
+              {t('settings.whatsappEnableLabel', 'Automated daily send')}
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-cream-dim">
+              {t(
+                'settings.whatsappEnableDesc',
+                'Sends the most recently closed day’s report at the hour below. Nothing sends until a day has actually been closed.',
+              )}
+            </p>
+          </div>
+          <Toggle
+            checked={whatsappReport.enabled}
+            onChange={(v) => setWhatsappReportConfig({ enabled: v })}
+            disabled={!canEdit}
+            labelOn={t('settings.whatsappOn', 'On')}
+            labelOff={t('settings.whatsappOff', 'Off')}
+          />
+        </div>
+
+        <div className="mt-5 grid gap-4 border-t border-ink-line pt-5 sm:grid-cols-2">
+          <div>
+            <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+              {t('settings.whatsappHourLabel', 'Send hour (24h, local time)')}
+            </label>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={23}
+              step="1"
+              className="input w-32"
+              value={waHourInput}
+              onChange={(e) => setWaHourInput(e.target.value)}
+              disabled={!canEdit}
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+              {t('settings.whatsappRecipientLabel', 'Admin WhatsApp number')}
+            </label>
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="923001234567"
+              className="input w-full"
+              value={waRecipientInput}
+              onChange={(e) => setWaRecipientInput(e.target.value)}
+              disabled={!canEdit}
+            />
+          </div>
+        </div>
+
+        {canEdit && (
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button onClick={saveWhatsappConfig} className="btn-gold px-5 py-2.5 text-sm">
+              {t('common.save', 'Save')}
+            </button>
+            {waError && <span className="text-xs text-rose-300">{waError}</span>}
+            {waSaved && <span className="text-xs text-emerald-300">{t('settings.whatsappSaved', 'Saved.')}</span>}
+          </div>
+        )}
+
+        <p className="mt-3 text-xs text-cream-dim">
+          {t(
+            'settings.whatsappHint',
+            'Digits only, country code first, no leading + (e.g. 923001234567). The admin can also request the latest report any time by messaging the system directly on WhatsApp.',
+          )}
+        </p>
       </div>
 
       {/* Online payment accounts */}

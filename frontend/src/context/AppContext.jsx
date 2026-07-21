@@ -112,6 +112,7 @@ export function AppProvider({ children }) {
   const [pendingHandovers, setPendingHandovers] = useState([])
   const [gstEnabled, setGstEnabled] = useState(false)
   const [gstRate, setGstRateState] = useState(TAX_RATE)
+  const [whatsappReport, setWhatsappReport] = useState({ enabled: false, hour: 23, recipient: '' })
   const [onlineAccounts, setOnlineAccounts] = useState([])
   const [dailyClosings, setDailyClosings] = useState([])
   const [receivables, setReceivables] = useState([])
@@ -144,6 +145,11 @@ export function AppProvider({ children }) {
       apiGet('/api/settings').then((d) => {
         setGstEnabled(Boolean(d.settings?.gstEnabled))
         setGstRateState(d.settings?.gstRate ?? TAX_RATE)
+        setWhatsappReport({
+          enabled: Boolean(d.settings?.whatsappReportEnabled),
+          hour: d.settings?.whatsappReportHour ?? 23,
+          recipient: d.settings?.whatsappReportRecipient ?? '',
+        })
       }),
     onlineAccounts: () => apiGet('/api/online-accounts').then((d) => setOnlineAccounts(d.accounts || [])),
     dailyClosings: () => apiGet('/api/closings').then((d) => setDailyClosings(d.closings || [])),
@@ -280,6 +286,15 @@ export function AppProvider({ children }) {
   const setGstRate = async (pct) => {
     try {
       await apiPost('/api/settings/gst-rate', { pct: Number(pct) })
+      await refresh(['settings'])
+      return {}
+    } catch (e) {
+      return toError(e)
+    }
+  }
+  const setWhatsappReportConfig = async (patch = {}) => {
+    try {
+      await apiPost('/api/settings/whatsapp-report', patch)
       await refresh(['settings'])
       return {}
     } catch (e) {
@@ -993,6 +1008,8 @@ export function AppProvider({ children }) {
     gstRate,
     setGst,
     setGstRate,
+    whatsappReport,
+    setWhatsappReportConfig,
     onlineAccounts,
     addOnlineAccount,
     updateOnlineAccount,
