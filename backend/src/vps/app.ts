@@ -28,6 +28,13 @@ const ENTITY_MODELS: Record<string, () => ModelDelegate> = {
   Order: () => prisma.order as unknown as ModelDelegate,
   Transaction: () => prisma.transaction as unknown as ModelDelegate,
   InventoryItem: () => prisma.inventoryItem as unknown as ModelDelegate,
+  // Must land before any Order referencing it — Postgres enforces
+  // Order_shiftId_fkey even though the local SQLite copy doesn't necessarily,
+  // which is exactly the gap that surfaced this (see docs/05-phase-4-vps-sync.md
+  // "Production hardening"). Enqueued at every lifecycle transition in
+  // shifts.service.ts (start/pause/resume/end), always before any order that
+  // can reference it, since a shift always starts before orders attributed to it.
+  ShiftReconciliation: () => prisma.shiftReconciliation as unknown as ModelDelegate,
 }
 
 interface PushEntry {

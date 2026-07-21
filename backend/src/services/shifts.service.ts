@@ -19,6 +19,7 @@ import { writeAudit } from '../lib/audit.js'
 import { ServiceError, NotFoundError } from '../lib/errors.js'
 import type { Actor } from '../lib/actor.js'
 import { broadcastEvent } from '../realtime/broadcast.js'
+import { enqueueOutbox } from '../sync/outbox.js'
 
 type Tx = Prisma.TransactionClient
 interface Ctx {
@@ -71,7 +72,7 @@ export async function startShift(ctx: Ctx, openingCash: number) {
   const shift = await prisma.$transaction(async (tx) => {
     // Single drawer: refuse to open a second concurrent shift.
     if (await activeShift(tx)) throw new ServiceError('A shift is already open. Close it before starting a new one.')
-    return tx.shiftReconciliation.create({
+    const created = await tx.shiftReconciliation.create({
       data: {
         cashierName: ctx.actor.name,
         role: ctx.actor.role,
@@ -82,6 +83,11 @@ export async function startShift(ctx: Ctx, openingCash: number) {
         staffId: ctx.actor.id,
       },
     })
+    // Enqueued here, before any order can reference this shift, so a synced
+    // Order's shiftId foreign key always resolves on the VPS side — Postgres
+    // enforces that constraint even if the local SQLite copy doesn't.
+    await enqueueOutbox(tx, 'ShiftReconciliation', created.id, created)
+    return created
   })
   broadcastEvent({ action: 'SHIFT_STARTED', actor: ctx.actor, details: { shiftId: shift.id, cashierName: shift.cashierName } })
   return shift
@@ -91,7 +97,9 @@ export async function pauseShift(ctx: Ctx) {
   const shift = await prisma.$transaction(async (tx) => {
     const shift = await activeShift(tx)
     if (!shift) throw new ServiceError('No active shift to pause.')
-    return tx.shiftReconciliation.update({ where: { id: shift.id }, data: { status: 'paused', pausedAt: new Date() } })
+    const updated = await tx.shiftReconciliation.update({ where: { id: shift.id }, data: { status: 'paused', pausedAt: new Date() } })
+    await enqueueOutbox(tx, 'ShiftReconciliation', updated.id, updated)
+    return updated
   })
   broadcastEvent({ action: 'SHIFT_PAUSED', actor: ctx.actor, details: { shiftId: shift.id } })
   return shift
@@ -101,10 +109,12 @@ export async function resumeShift(ctx: Ctx) {
   const shift = await prisma.$transaction(async (tx) => {
     const paused = await tx.shiftReconciliation.findFirst({ where: { status: 'paused' }, orderBy: { shiftStartTime: 'desc' } })
     if (!paused) throw new ServiceError('No paused shift to resume.')
-    return tx.shiftReconciliation.update({
+    const updated = await tx.shiftReconciliation.update({
       where: { id: paused.id },
       data: { status: 'active', resumedAt: new Date(), resumeCount: paused.resumeCount + 1 },
     })
+    await enqueueOutbox(tx, 'ShiftReconciliation', updated.id, updated)
+    return updated
   })
   broadcastEvent({ action: 'SHIFT_RESUMED', actor: ctx.actor, details: { shiftId: shift.id } })
   return shift
@@ -150,6 +160,7 @@ export async function endShift(
       at,
       details: { expectedCash: sales.expectedCash, actualCash: actual, difference, status, handedTo, handedToName, handoverReason },
     })
+    await enqueueOutbox(tx, 'ShiftReconciliation', closed.id, closed)
     return closed
   })
 }
