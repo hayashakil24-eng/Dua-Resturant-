@@ -56,5 +56,13 @@ export const env = {
     port: Number(process.env.VPS_PORT ?? 5000),
     // How often the local server checks connectivity + pushes pending rows.
     syncIntervalMs: Number(process.env.VPS_SYNC_INTERVAL_MS ?? 30_000),
+    // VPS-side only: paths to a TLS keypair the VPS instance listens with.
+    // There's no domain for this deployment (see docs/deployment-setup.md's
+    // "VPS server deployment" section), so a public CA (Let's Encrypt etc.)
+    // can't issue a cert for a bare IP — these point at a long-lived
+    // self-signed cert instead. Both null (the default) means src/vps/server.ts
+    // falls back to plain HTTP, which is what local dev / verify:postgres use.
+    tlsCertPath: process.env.VPS_TLS_CERT_PATH ?? null,
+    tlsKeyPath: process.env.VPS_TLS_KEY_PATH ?? null,
   },
 }

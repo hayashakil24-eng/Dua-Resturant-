@@ -15,6 +15,13 @@ import Fastify, { type FastifyInstance } from 'fastify'
 import { prisma } from '../db/client.js'
 import { verifyServiceToken } from './serviceAuth.js'
 
+export interface VpsAppOptions {
+  // Present only when env.vps.tlsCertPath/tlsKeyPath are configured — see
+  // src/vps/server.ts. Absent (plain HTTP) is what local dev and
+  // scripts/verify-postgres.mjs use.
+  https?: { cert: Buffer; key: Buffer }
+}
+
 type ModelDelegate = { upsert: (args: { where: { id: string }; create: unknown; update: unknown }) => Promise<unknown> }
 
 const ENTITY_MODELS: Record<string, () => ModelDelegate> = {
@@ -30,9 +37,10 @@ interface PushEntry {
   payload: Record<string, unknown>
 }
 
-export function buildVpsApp(): FastifyInstance {
+export function buildVpsApp(options: VpsAppOptions = {}): FastifyInstance {
   const app = Fastify({
     logger: process.env.NODE_ENV === 'test' ? false : { level: process.env.LOG_LEVEL ?? 'info' },
+    https: options.https ?? null,
   })
 
   app.get('/api/health', async () => ({ ok: true }))
