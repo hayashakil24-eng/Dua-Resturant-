@@ -66,6 +66,26 @@ async function handleInboundMessage(msg: InboundMessage): Promise<void> {
     return
   }
 
+  // A real failure here (surfaced once: Meta returned a raw "Service
+  // Unavailable" instead of JSON on an image upload, which crashed the send
+  // — see client.ts's graphRequest fix) used to vanish into the outer
+  // catch-all with nothing sent back at all. The admin has no way to
+  // distinguish "still processing" from "silently broken" without some
+  // reply, so failures now get a best-effort Urdu notice instead of dead
+  // air — if even that fails, there's genuinely nothing more to do from here.
+  try {
+    await respond(msg)
+  } catch (err) {
+    try {
+      await sendTextMessage(msg.from, 'معذرت، رپورٹ بھیجنے میں مسئلہ ہوا۔ دوبارہ کوشش کریں۔')
+    } catch {
+      /* best-effort only */
+    }
+    throw err // still logged by the caller
+  }
+}
+
+async function respond(msg: InboundMessage): Promise<void> {
   const closings = await listRecentClosings()
   if (closings.length === 0) {
     await sendTextMessage(msg.from, 'ابھی تک کوئی کلوزنگ رپورٹ محفوظ نہیں ہوئی۔')
