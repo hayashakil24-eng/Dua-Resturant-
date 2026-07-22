@@ -52,6 +52,49 @@ const DAY_NAMES_UR: Record<string, string> = {
   Saturday: 'ہفتہ',
 }
 
+// Translated where it's actually reliable to do so: EXPENSE_CATEGORIES /
+// INCOME_CATEGORIES (frontend/src/data/mockData.js) are a closed dropdown,
+// not free text, so every value that will ever appear here is known in
+// advance. Same for the seeded InventoryItem catalog (prisma/seed.ts) —
+// real ingredient names for this specific restaurant, not arbitrary text.
+// Deliberately NOT attempted for account names, staff names, or discount/
+// expense descriptions — those are genuinely free text typed by whoever
+// entered them, and a wrong guessed translation of someone's name or a
+// vendor would be worse than leaving it as entered.
+const CATEGORY_UR: Record<string, string> = {
+  Rent: 'کرایہ',
+  Utilities: 'یوٹیلیٹیز',
+  Supplies: 'سامان',
+  Gas: 'گیس',
+  Maintenance: 'مینٹیننس',
+  Marketing: 'مارکیٹنگ',
+  Other: 'دیگر',
+  Sales: 'سیل',
+  Catering: 'کیٹرنگ',
+}
+
+const INVENTORY_NAME_UR: Record<string, string> = {
+  'Flour (Atta)': 'آٹا',
+  'Cooking Oil': 'کوکنگ آئل',
+  Chicken: 'چکن',
+  Mutton: 'مٹن',
+  Beef: 'بیف',
+  'Basmati Rice': 'باسمتی چاول',
+  Tomatoes: 'ٹماٹر',
+  Onions: 'پیاز',
+  Yogurt: 'دہی',
+  Milk: 'دودھ',
+  'Tea Leaves': 'چائے کی پتی',
+  Sugar: 'چینی',
+  'Spice Mix': 'مصالحہ',
+  'Soft Drinks': 'سافٹ ڈرنکس',
+  'Mineral Water': 'منرل واٹر',
+}
+
+function tr(dict: Record<string, string>, key: string): string {
+  return dict[key] ?? key
+}
+
 function summaryRow(label: string, amount: number, opts: { strong?: boolean } = {}): string {
   return `
     <tr class="${opts.strong ? 'strong' : ''}">
@@ -159,12 +202,12 @@ function reportHtml(report: ClosingReport, dayName: string): string {
 
   <div class="breakdowns">
     <div>${breakdownTable('اکاؤنٹس', report.accounts)}</div>
-    <div>${breakdownTable('اخراجات کی قسم', report.expensesByCategory.map((e) => ({ name: e.category, amount: e.amount })))}</div>
+    <div>${breakdownTable('اخراجات کی قسم', report.expensesByCategory.map((e) => ({ name: tr(CATEGORY_UR, e.category), amount: e.amount })))}</div>
   </div>
 
   ${discountBreakdownTable(report.discountBreakdown)}
 
-  ${inventoryTable(report.inventoryUsed)}
+  ${inventoryTable(report.inventoryUsed.map((i) => ({ ...i, name: tr(INVENTORY_NAME_UR, i.name) })))}
 
   <div class="footer">
     آرڈرز: ${report.totalOrders} (منسوخ شدہ: ${report.cancelledOrders}) &nbsp;•&nbsp;
