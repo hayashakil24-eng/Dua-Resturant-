@@ -23,38 +23,48 @@ export function isWhatsAppConfigured(): boolean {
   return Boolean(env.whatsapp.phoneNumberId && env.whatsapp.accessToken)
 }
 
+const MAX_ATTEMPTS = 3
+
 // Meta occasionally answers with a plain-text error ("Service Unavailable",
-// a raw 5xx from their edge, etc.) instead of a JSON error body — this
-// surfaced for real (uploadMedia against a fresh app, right after its
-// webhook was (re-)registered) as an unhandled `res.json()` SyntaxError that
-// crashed the whole send silently into the webhook's catch-all, so the
-// caller never learned an image failed to send at all. Read the body as
-// text first, always, so a non-JSON response becomes a clear error message
-// instead of a parse crash either way.
+// a raw edge error page) instead of a JSON error body, or a 401
+// "Authentication Error" against a token confirmed valid (debug_token
+// showed is_valid: true, and the exact same request succeeded seconds
+// later via manual retry) — both observed for real, against a WhatsApp app
+// that had only just come back from Meta's own API access being blocked
+// (see docs/06-phase-5-cloud-features.md's WhatsApp section). Retried a
+// couple of times with backoff for exactly these transient-looking cases
+// rather than failing the admin's request outright; a *real*, persistent
+// 401 still fails after MAX_ATTEMPTS, same as any other unretryable error.
+function isRetryable(status: number): boolean {
+  return status === 401 || status === 408 || status === 429 || status >= 500
+}
+
 async function graphRequest<T>(path: string, init: RequestInit, attempt = 0): Promise<T> {
   if (!isWhatsAppConfigured()) throw new Error('WhatsApp Cloud API is not configured (WHATSAPP_PHONE_NUMBER_ID / WHATSAPP_ACCESS_TOKEN).')
   const res = await fetch(apiUrl(path), {
     ...init,
     headers: { ...init.headers, Authorization: `Bearer ${env.whatsapp.accessToken}` },
   })
+  // Read as text first, always — a non-JSON response (a raw 5xx/edge error
+  // page) used to crash res.json() outright instead of producing a
+  // catchable error.
   const text = await res.text()
   let body: (T & { error?: { message?: string } }) | undefined
   try {
     body = JSON.parse(text)
   } catch {
-    // Not JSON — a raw 5xx/edge error page. Retry once for exactly this
-    // case (transient upstream hiccup, not a real API error we'd want to
-    // surface verbatim), then give up with the raw text as the message.
-    if (res.status >= 500 && attempt < 2) {
+    body = undefined
+  }
+
+  if (!res.ok) {
+    if (isRetryable(res.status) && attempt < MAX_ATTEMPTS - 1) {
       await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt))
       return graphRequest<T>(path, init, attempt + 1)
     }
-    throw new Error(`WhatsApp API error (${res.status}, non-JSON response): ${text.slice(0, 300)}`)
-  }
-  if (!res.ok) {
     throw new Error(`WhatsApp API error (${res.status}): ${body?.error?.message ?? text.slice(0, 300)}`)
   }
-  return body as T
+  if (!body) throw new Error(`WhatsApp API returned a non-JSON success response: ${text.slice(0, 300)}`)
+  return body
 }
 
 // Uploads image bytes to the phone number's own media store, returns a media
