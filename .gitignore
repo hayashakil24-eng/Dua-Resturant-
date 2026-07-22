@@ -3,21 +3,22 @@ node_modules
 
 # Build outputs (frontend/dist, frontend/dist-electron, frontend/release,
 # control-panel/release — no leading slash so these match at any depth,
-# including inside frontend/ and control-panel/)
+# including inside frontend/ and control-panel/). `release*`, not just
+# `release`, so one-off alternate output dirs also get caught — e.g.
+# `release2` (used when electron-builder's usual `release/` was locked by a
+# running/AV-scanned .exe and a build had to go to a fresh dir instead), and
+# installer/'s combined-suite output (release-suite/, hundreds of MB). Every
+# one of these is a rebuildable binary artifact, never source.
 dist
 dist-ssr
 dist-electron
-release
-
-# installer/'s combined-installer build output (installer/installer.nsi
-# packages frontend/release + control-panel/release's win-unpacked builds
-# into one .exe here) — root-level only, hundreds of MB, never commit
-/release-suite
+release*
 
 # Env / secrets — none exist yet, but the future backend will need these
 .env
 .env.local
 .env.*.local
+creds.md
 
 # Editor / IDE
 .vscode/
