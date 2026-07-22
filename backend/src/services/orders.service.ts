@@ -284,6 +284,18 @@ export async function addOrder(ctx: Ctx, input: AddOrderInput) {
   if (!Number.isFinite(table)) throw new ServiceError('A valid table is required.')
 
   return prisma.$transaction(async (tx) => {
+    // One running order per physical table (matches the POS UI gate). A table
+    // that already holds an Unpaid, non-cancelled order can't take a second
+    // separate order — add to the existing one instead. Delivery/Takeaway
+    // pseudo-tables (orderType set) are exempt: they carry many concurrent
+    // orders by design. Server-side so two devices can't both open the same
+    // table at once (the frontend check alone can't catch that race).
+    const tableRow = await tx.table.findUnique({ where: { id: table } })
+    if (tableRow && !tableRow.orderType) {
+      const running = await tx.order.findFirst({ where: { table, payment: 'Unpaid', cancelled: false } })
+      if (running) throw new ServiceError(`Table already has a running order (ORD-${running.orderNumber}) — add to it or settle it first.`)
+    }
+
     const settings = await tx.appSettings.findUnique({ where: { id: 'singleton' } })
     const gstRate = settings?.gstEnabled ? settings.gstRate : 0
     const shiftId = await getActiveShiftId(tx)
