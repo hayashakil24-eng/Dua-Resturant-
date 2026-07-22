@@ -264,6 +264,7 @@ export default function Settings() {
   // GST rate field above; the enabled toggle writes immediately like GST's.
   const [waHourInput, setWaHourInput] = useState(String(whatsappReport.hour))
   const [waRecipientInput, setWaRecipientInput] = useState(whatsappReport.recipient)
+  const fillHour = (s) => s.replace('{hour}', String(whatsappReport.hour).padStart(2, '0'))
   const [waError, setWaError] = useState('')
   const [waSaved, setWaSaved] = useState(false)
   useEffect(() => {
@@ -397,10 +398,10 @@ export default function Settings() {
           />
         </div>
 
-        <div className="mt-5 grid gap-4 border-t border-ink-line pt-5 sm:grid-cols-2">
+        <div className="mt-5 grid grid-cols-1 gap-4 border-t border-ink-line pt-5 sm:grid-cols-[140px_1fr]">
           <div>
             <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
-              {t('settings.whatsappHourLabel', 'Send hour (24h, local time)')}
+              {t('settings.whatsappHourLabel', 'Send hour (24h)')}
             </label>
             <input
               type="number"
@@ -408,7 +409,7 @@ export default function Settings() {
               min={0}
               max={23}
               step="1"
-              className="input w-32"
+              className="input w-full"
               value={waHourInput}
               onChange={(e) => setWaHourInput(e.target.value)}
               disabled={!canEdit}
@@ -439,6 +440,19 @@ export default function Settings() {
             {waSaved && <span className="text-xs text-emerald-300">{t('settings.whatsappSaved', 'Saved.')}</span>}
           </div>
         )}
+
+        <div
+          className={`mt-5 flex items-center gap-2 rounded-xl border px-4 py-3 text-xs font-medium ${
+            whatsappReport.enabled
+              ? 'border-gold/25 bg-gold/[0.06] text-gold'
+              : 'border-ink-line bg-ink-soft/50 text-cream-dim'
+          }`}
+        >
+          <IconWhatsApp size={14} />
+          {whatsappReport.enabled
+            ? fillHour(t('settings.whatsappStatusOn', 'Automated send is ON — sends daily at {hour}:00.'))
+            : t('settings.whatsappStatusOff', 'Automated send is OFF — nothing sends automatically.')}
+        </div>
 
         <p className="mt-3 text-xs text-cream-dim">
           {t(
