@@ -87,7 +87,9 @@ function MenuImage({ item }) {
 // quick-add to the current order.
 function MostOrderedCard({ item, onAdd }) {
   const [added, setAdded] = useState(false)
-  const hasVariants = item.variants && item.variants.length
+  // Boolean, not the raw length: an empty variants array (0) would otherwise
+  // render literally in JSX (`{0 && …}` prints "0") — the "0Rs. 550" bug.
+  const hasVariants = Boolean(item.variants && item.variants.length)
   const click = () => {
     onAdd(item)
     setAdded(true)
@@ -615,7 +617,9 @@ export default function POS() {
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
             {paginated.map((m) => {
               const count = qtyFor(m)
-              const hasVariants = m.variants && m.variants.length
+              // Boolean, not raw length — `{0 && …}` renders "0" in JSX (the
+              // "0Rs. 550" / "Coladas0" bug on items with an empty variants array).
+              const hasVariants = Boolean(m.variants && m.variants.length)
               const stock = stockByItem[m.id] || { status: 'none', maxServings: Infinity }
               // Disable when the recipe can't be made at all, or the cart has
               // already claimed every available serving.
