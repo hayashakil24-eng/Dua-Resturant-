@@ -61,6 +61,17 @@ function breakdownTable(title: string, rows: { name: string; amount: number }[])
     </table>`
 }
 
+function inventoryTable(rows: { name: string; qty: number; unit: string }[]): string {
+  if (rows.length === 0) return ''
+  return `
+    <table class="breakdown">
+      <thead><tr><th colspan="2">Inventory Used Today (آج استعمال ہونے والا اسٹاک)</th></tr></thead>
+      <tbody>
+        ${rows.map((r) => `<tr><td>${escapeHtml(r.name)}</td><td class="amount">${r.qty} ${escapeHtml(r.unit)}</td></tr>`).join('')}
+      </tbody>
+    </table>`
+}
+
 function reportHtml(report: ClosingReport, dayName: string): string {
   const fontB64 = nastaliqFontBase64()
   return `<!doctype html>
@@ -110,6 +121,8 @@ function reportHtml(report: ClosingReport, dayName: string): string {
     <div>${breakdownTable('Accounts (اکاؤنٹس)', report.accounts)}</div>
     <div>${breakdownTable('Expenses by Category (اخراجات کی قسم)', report.expensesByCategory.map((e) => ({ name: e.category, amount: e.amount })))}</div>
   </div>
+
+  ${inventoryTable(report.inventoryUsed)}
 
   <div class="footer">
     Orders: ${report.totalOrders} (Cancelled: ${report.cancelledOrders}) &nbsp;•&nbsp;
