@@ -26,6 +26,12 @@ export interface ClosingOrder {
   gstRate: number
   onlineAccountName?: string | null
   materialLoss?: number | null
+  // Client feedback on the WhatsApp report (client-reply-on-whatsapp-report.ogg):
+  // wants a per-order breakdown of the Discount line, same treatment Accounts
+  // and Expenses already get — which table, how much, why, who authorized it.
+  table?: number | null
+  discountReason?: string | null
+  discountBy?: string | null
 }
 
 export interface ClosingTransaction {
@@ -51,12 +57,20 @@ export interface InventoryUsedLine {
   unit: string
 }
 
+export interface DiscountBreakdownLine {
+  table: number | null
+  amount: number
+  reason: string
+  by: string
+}
+
 export interface ClosingReport {
   date: string
   totalOrders: number
   cancelledOrders: number
   grossSale: number
   discount: number
+  discountBreakdown: DiscountBreakdownLine[]
   netSale: number
   accounts: ClosingAccount[]
   cash: number
@@ -134,6 +148,13 @@ export function buildClosingReport(
 
   const netSale = cash + card + online + udhaar
   const discount = active.reduce((s, o) => s + (o.discountAmount || 0), 0)
+  // Client feedback on the WhatsApp report: wants to see which orders a
+  // discount applied to, not just the total — same per-line treatment as
+  // Accounts and Expenses already get.
+  const discountBreakdown: DiscountBreakdownLine[] = active
+    .filter((o) => (o.discountAmount || 0) > 0)
+    .map((o) => ({ table: o.table ?? null, amount: o.discountAmount || 0, reason: o.discountReason || '', by: o.discountBy || '' }))
+    .sort((a, b) => b.amount - a.amount)
   const grossSale = netSale + discount
   const netCashSales = cash // = NET SALE − accounts (all non-cash channels)
 
@@ -168,6 +189,7 @@ export function buildClosingReport(
     cancelledOrders: cancelled.length,
     grossSale,
     discount,
+    discountBreakdown,
     netSale,
     accounts,
     cash,

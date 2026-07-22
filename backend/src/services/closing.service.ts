@@ -35,6 +35,9 @@ async function gather() {
     gstRate: o.gstRate,
     onlineAccountName: o.onlineAccountName,
     materialLoss: o.materialLoss ?? 0,
+    table: o.table,
+    discountReason: o.discountReason,
+    discountBy: o.discountBy,
   }))
   const closingTxns: ClosingTransaction[] = transactions.map((t) => ({ type: t.type, amount: t.amount, date: t.date, category: t.category }))
   const inv: InventoryItemLike[] = inventory.map((i) => ({ id: i.id, unit: i.unit, stock: i.stock, threshold: i.threshold, costPerUnit: i.costPerUnit }))

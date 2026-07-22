@@ -42,6 +42,9 @@
     "win": {
       "target": "nsis",
       "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "perMachine": true
     }
   }
 }
