@@ -8,16 +8,26 @@
 //
 // Replies using the VPS's own synced data (DailyClosing, via
 // whatsapp/report.ts) — the VPS never reaches back to the local server; it
-// only ever replays the most recent closing that's already been synced to it.
+// only ever replays closings that have already been synced to it.
+//
+// Conversation flow (client feedback: wants a numbered menu, not just
+// always-the-latest-report) is deliberately stateless — no session/"what
+// did we last show this user" storage. Any inbound text that isn't a bare
+// number re-shows the menu; a bare number is interpreted against a freshly
+// recomputed list of recent closings. This avoids the class of bug where
+// stored conversation state goes stale (a webhook retry, a second device
+// messaging at the same time, a restart losing in-memory state) — the menu
+// is always exactly what "recent closings right now" actually is.
 
 import type { FastifyInstance } from 'fastify'
 import { env } from '../env.js'
-import { sendLatestClosingReport, loadLatestClosing } from './report.js'
+import { listRecentClosings, sendClosingReportById } from './report.js'
 import { sendTextMessage } from './client.js'
 
 interface InboundMessage {
   from: string
   type: string
+  text?: { body?: string }
 }
 
 interface WebhookPayload {
@@ -40,6 +50,52 @@ function extractMessages(payload: WebhookPayload): InboundMessage[] {
   return messages
 }
 
+function buildMenuText(closings: { dayNameUr: string; date: string }[]): string {
+  const lines = closings.map((c, i) => `${i + 1}. ${c.dayNameUr} — ${c.date}`)
+  const allOptionNumber = closings.length + 1
+  lines.push(`${allOptionNumber}. تمام رپورٹس بھیجیں`)
+  return `سلام! 👋\nکون سی رپورٹ چاہیے؟ نیچے دیے گئے نمبر میں سے کوئی ایک لکھ کر بھیجیں:\n\n${lines.join('\n')}`
+}
+
+async function handleInboundMessage(msg: InboundMessage): Promise<void> {
+  if (!env.whatsapp.reportRecipient || msg.from !== env.whatsapp.reportRecipient) {
+    // Not the configured admin number — the test-mode WhatsApp number can
+    // only receive from its own small allow-listed recipient set anyway,
+    // but this is the real authorization boundary: don't hand out business
+    // figures to whoever else can reach this number.
+    return
+  }
+
+  const closings = await listRecentClosings()
+  if (closings.length === 0) {
+    await sendTextMessage(msg.from, 'ابھی تک کوئی کلوزنگ رپورٹ محفوظ نہیں ہوئی۔')
+    return
+  }
+
+  const body = (msg.text?.body ?? '').trim()
+  const selection = /^\d+$/.test(body) ? Number(body) : null
+  const allOptionNumber = closings.length + 1
+
+  if (selection == null) {
+    // Any non-numeric message (including a first "hi") shows the menu.
+    await sendTextMessage(msg.from, buildMenuText(closings))
+    return
+  }
+
+  if (selection === allOptionNumber) {
+    await sendTextMessage(msg.from, `${closings.length} رپورٹس بھیجی جا رہی ہیں...`)
+    for (const c of closings) await sendClosingReportById(msg.from, c.id)
+    return
+  }
+
+  if (selection >= 1 && selection <= closings.length) {
+    await sendClosingReportById(msg.from, closings[selection - 1]!.id)
+    return
+  }
+
+  await sendTextMessage(msg.from, `معذرت، درست نمبر لکھیں۔\n\n${buildMenuText(closings)}`)
+}
+
 export function registerWhatsappWebhook(app: FastifyInstance): void {
   // Meta's one-time verification handshake when the callback URL is
   // registered/changed in the App Dashboard — echoes hub.challenge back only
@@ -60,21 +116,7 @@ export function registerWhatsappWebhook(app: FastifyInstance): void {
     reply.code(200).send('EVENT_RECEIVED') // ack immediately, process after
     try {
       const messages = extractMessages(req.body as WebhookPayload)
-      for (const msg of messages) {
-        if (!env.whatsapp.reportRecipient || msg.from !== env.whatsapp.reportRecipient) {
-          // Not the configured admin number — the test-mode WhatsApp number
-          // can only receive from its own small allow-listed recipient set
-          // anyway, but this is the real authorization boundary: don't hand
-          // out business figures to whoever else can reach this number.
-          continue
-        }
-        const latest = await loadLatestClosing()
-        if (!latest) {
-          await sendTextMessage(msg.from, 'No closing report has been saved yet.')
-          continue
-        }
-        await sendLatestClosingReport(msg.from)
-      }
+      for (const msg of messages) await handleInboundMessage(msg)
     } catch (err) {
       req.log.error(err, '[whatsapp-webhook] failed to process inbound message')
     }

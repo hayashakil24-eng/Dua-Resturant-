@@ -33,7 +33,22 @@
       },
       {
         "from": "../backend/node_modules",
-        "to": "backend-full-modules/node_modules"
+        "to": "backend-full-modules/node_modules",
+        "filter": [
+          "**/*",
+          "!.bin/**",
+          "!vitest/**",
+          "!@vitest/**",
+          "!tsx/**",
+          "!esbuild/**",
+          "!@esbuild/**",
+          "!typescript/**",
+          "!pm2/**",
+          "!@pm2/**",
+          "!@types/**",
+          "!embedded-postgres/**",
+          "!@embedded-postgres/**"
+        ]
       }
     ],
     "directories": {

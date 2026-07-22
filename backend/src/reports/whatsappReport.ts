@@ -42,16 +42,6 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
-const DAY_NAMES_UR: Record<string, string> = {
-  Sunday: 'اتوار',
-  Monday: 'پیر',
-  Tuesday: 'منگل',
-  Wednesday: 'بدھ',
-  Thursday: 'جمعرات',
-  Friday: 'جمعہ',
-  Saturday: 'ہفتہ',
-}
-
 // Translated where it's actually reliable to do so: EXPENSE_CATEGORIES /
 // INCOME_CATEGORIES (frontend/src/data/mockData.js) are a closed dropdown,
 // not free text, so every value that will ever appear here is known in
@@ -60,7 +50,19 @@ const DAY_NAMES_UR: Record<string, string> = {
 // Deliberately NOT attempted for account names, staff names, or discount/
 // expense descriptions — those are genuinely free text typed by whoever
 // entered them, and a wrong guessed translation of someone's name or a
-// vendor would be worse than leaving it as entered.
+// vendor would be worse than leaving it as entered. (Account names get a
+// separate, opt-in fix — OnlineAccount.nameUrdu, applied upstream in
+// whatsapp/report.ts before this module ever sees the report.)
+//
+// 'Card Account' / 'Udhaar / Credit' are the two exceptions among
+// report.accounts entries that AREN'T user data — they're fixed labels
+// core/closing.ts itself generates, so translating them here is exactly as
+// safe as the category dictionary below.
+const ACCOUNT_LABEL_UR: Record<string, string> = {
+  'Card Account': 'کارڈ اکاؤنٹ',
+  'Udhaar / Credit': 'ادھار / کریڈٹ',
+}
+
 const CATEGORY_UR: Record<string, string> = {
   Rent: 'کرایہ',
   Utilities: 'یوٹیلیٹیز',
@@ -154,9 +156,8 @@ function discountBreakdownTable(rows: { table: number | null; amount: number; re
     </table>`
 }
 
-function reportHtml(report: ClosingReport, dayName: string): string {
+function reportHtml(report: ClosingReport, dayNameUr: string): string {
   const fontB64 = nastaliqFontBase64()
-  const dayNameUr = DAY_NAMES_UR[dayName] ?? dayName
   return `<!doctype html>
 <html dir="rtl" lang="ur"><head><meta charset="utf-8" /><style>
   @font-face {
@@ -194,14 +195,14 @@ function reportHtml(report: ClosingReport, dayName: string): string {
     ${summaryRow('ٹوٹل سیل', report.grossSale)}
     ${summaryRow('کم: ڈسکاؤنٹ', report.discount)}
     ${summaryRow('نیٹ سیل', report.netSale, { strong: true })}
-    ${report.accounts.map((a) => summaryRow(a.name, a.amount)).join('')}
+    ${report.accounts.map((a) => summaryRow(tr(ACCOUNT_LABEL_UR, a.name), a.amount)).join('')}
     ${summaryRow('نیٹ کیش سیل', report.netCashSales, { strong: true })}
     ${summaryRow('کم: اخراجات', report.expenses)}
     ${summaryRow('باقی نقد رقم', report.remainingHandover, { strong: true })}
   </table>
 
   <div class="breakdowns">
-    <div>${breakdownTable('اکاؤنٹس', report.accounts)}</div>
+    <div>${breakdownTable('اکاؤنٹس', report.accounts.map((a) => ({ name: tr(ACCOUNT_LABEL_UR, a.name), amount: a.amount })))}</div>
     <div>${breakdownTable('اخراجات کی قسم', report.expensesByCategory.map((e) => ({ name: tr(CATEGORY_UR, e.category), amount: e.amount })))}</div>
   </div>
 
@@ -217,7 +218,9 @@ function reportHtml(report: ClosingReport, dayName: string): string {
 </body></html>`
 }
 
-export async function renderClosingReportImage(report: ClosingReport, dayName: string): Promise<Buffer> {
+// `dayNameUr` is the already-Urdu-translated day name (whatsapp/report.ts's
+// dayNameUrFor) — this module renders, it doesn't own the translation table.
+export async function renderClosingReportImage(report: ClosingReport, dayNameUr: string): Promise<Buffer> {
   const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] })
   try {
     const page = await browser.newPage()
@@ -226,7 +229,7 @@ export async function renderClosingReportImage(report: ClosingReport, dayName: s
     // setContent waitUntil option (only page.goto's), and isn't needed
     // anyway: the font is inlined as a data: URI, so there's no external
     // request to wait on.
-    await page.setContent(reportHtml(report, dayName), { waitUntil: 'domcontentloaded' })
+    await page.setContent(reportHtml(report, dayNameUr), { waitUntil: 'domcontentloaded' })
     const png = await page.screenshot({ type: 'png', fullPage: true })
     return Buffer.from(png)
   } finally {

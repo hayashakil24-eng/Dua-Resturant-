@@ -86,21 +86,27 @@ export async function listOnlineAccounts() {
   return prisma.onlineAccount.findMany({ orderBy: { name: 'asc' } })
 }
 
-export async function addOnlineAccount(ctx: Ctx, input: { name?: string; type?: string; number?: string }) {
+export async function addOnlineAccount(ctx: Ctx, input: { name?: string; type?: string; number?: string; nameUrdu?: string }) {
   const name = (input.name ?? '').trim()
   if (!name) throw new ServiceError('Account name is required.')
   return prisma.$transaction(async (tx) => {
     const all = await tx.onlineAccount.findMany({ select: { name: true } })
     if (all.some((a) => a.name.toLowerCase() === name.toLowerCase())) throw new ServiceError('An account with this name already exists.')
     const account = await tx.onlineAccount.create({
-      data: { name, type: (input.type ?? '').trim() || 'Other', number: (input.number ?? '').trim() || null, active: true },
+      data: {
+        name,
+        type: (input.type ?? '').trim() || 'Other',
+        number: (input.number ?? '').trim() || null,
+        nameUrdu: (input.nameUrdu ?? '').trim() || null,
+        active: true,
+      },
     })
     await writeAudit(tx, { action: 'ONLINE_ACCOUNT_ADDED', actor: ctx.actor, details: { account: account.name } })
     return account
   })
 }
 
-export async function updateOnlineAccount(ctx: Ctx, id: string, patch: { name?: string; type?: string; number?: string }) {
+export async function updateOnlineAccount(ctx: Ctx, id: string, patch: { name?: string; type?: string; number?: string; nameUrdu?: string }) {
   const cleanName = patch.name != null ? String(patch.name).trim() : null
   if (cleanName === '') throw new ServiceError('Account name is required.')
   return prisma.$transaction(async (tx) => {
@@ -112,6 +118,7 @@ export async function updateOnlineAccount(ctx: Ctx, id: string, patch: { name?: 
     if (cleanName != null) data.name = cleanName
     if (patch.type != null) data.type = patch.type
     if (patch.number != null) data.number = patch.number
+    if (patch.nameUrdu != null) data.nameUrdu = String(patch.nameUrdu).trim() || null
     const updated = await tx.onlineAccount.update({ where: { id }, data })
     await writeAudit(tx, { action: 'ONLINE_ACCOUNT_UPDATED', actor: ctx.actor, details: { accountId: id } })
     return updated

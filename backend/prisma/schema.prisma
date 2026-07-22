@@ -577,11 +577,19 @@ model AppSettings {
 }
 
 model OnlineAccount {
-  id     String  @id @default(cuid())
-  name   String  @unique
-  type   String // "JazzCash" | "Easypaisa" | "Bank Account" | ...
-  number String?
-  active Boolean @default(true)
+  id       String  @id @default(cuid())
+  name     String  @unique
+  type     String // "JazzCash" | "Easypaisa" | "Bank Account" | ...
+  number   String?
+  active   Boolean @default(true)
+  // Optional Urdu display name (same pattern as Department.nameUrdu) — used
+  // by the WhatsApp daily report (client-reply-on-whatsapp-report.ogg asked
+  // for the whole report in Urdu, including account names, not just section
+  // headers). A live lookup at report-render time, not a per-order snapshot
+  // like Order.onlineAccountName — display-label drift if an account is
+  // later renamed is an acceptable simplification here, unlike the
+  // financial snapshot fields, which exist for audit accuracy, not cosmetics.
+  nameUrdu String?
 }
 
 // ---------------------------------------------------------------------------
