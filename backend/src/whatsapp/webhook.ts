@@ -58,7 +58,7 @@ function buildMenuText(closings: { dayNameUr: string; date: string }[]): string 
 }
 
 async function handleInboundMessage(msg: InboundMessage): Promise<void> {
-  if (!env.whatsapp.reportRecipient || msg.from !== env.whatsapp.reportRecipient) {
+  if (!env.whatsapp.reportRecipients.includes(msg.from)) {
     // Not the configured admin number — the test-mode WhatsApp number can
     // only receive from its own small allow-listed recipient set anyway,
     // but this is the real authorization boundary: don't hand out business

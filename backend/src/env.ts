@@ -84,7 +84,11 @@ export const env = {
     // Deliberately a VPS-local env var, not read from synced AppSettings —
     // this is a security-relevant allowlist for a publicly-reachable
     // endpoint, so it shouldn't depend on outbox sync timing/availability.
-    // Digits only, same convention as AppSettings.whatsappReportRecipient.
-    reportRecipient: process.env.WHATSAPP_REPORT_RECIPIENT ?? null,
+    // Comma-separated, digits only per entry (e.g. "923001234567,923341234567") —
+    // more than one admin/manager may need to request the report by text.
+    reportRecipients: (process.env.WHATSAPP_REPORT_RECIPIENT ?? '')
+      .split(',')
+      .map((s) => s.trim().replace(/\D/g, ''))
+      .filter(Boolean),
   },
 }
