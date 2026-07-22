@@ -263,7 +263,7 @@ export const INITIAL_MENU = withEstimatedCost([
 
   // Chicken Karahi
   { id: 'ckh1', name: 'Chicken Shahi Karahi', category: 'Chicken Karahi', price: 2699, image: '/chicken karahi.jfif', active: true },
-  { id: 'ckh2', name: 'Chicken White Karahi', category: 'Chicken Karahi', price: 2699, active: true },
+  { id: 'ckh2', name: 'Chicken White Karahi', category: 'Chicken Karahi', price: 2699, image: '/Chicken White Karahi.jpg', active: true },
   { id: 'ckh3', name: 'Chicken Boneless Karahi', category: 'Chicken Karahi', price: 3799, active: true },
   { id: 'ckh4', name: 'Chicken Brown Karahi', category: 'Chicken Karahi', price: 2699, image: '/Chicken Brown Karah.jfif', active: true },
   { id: 'ckh5', name: 'Chicken Peshawari Karahi', category: 'Chicken Karahi', price: 2699, active: true },

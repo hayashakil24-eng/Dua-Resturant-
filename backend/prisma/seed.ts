@@ -154,7 +154,7 @@ export async function seed() {
     { id: 'jc1', name: 'Apple Juice', category: 'Fresh Juice', price: 350, image: '/Apple Juice.jfif' },
     { id: 'sk1', name: 'Icecream Shake', category: 'Shakes', price: 550, image: '/Icecream Shake.jfif' },
     { id: 'ckh1', name: 'Chicken Shahi Karahi', category: 'Chicken Karahi', price: 2699, image: '/chicken karahi.jfif' },
-    { id: 'ckh2', name: 'Chicken White Karahi', category: 'Chicken Karahi', price: 2699, image: null },
+    { id: 'ckh2', name: 'Chicken White Karahi', category: 'Chicken Karahi', price: 2699, image: '/Chicken White Karahi.jpg' },
     { id: 'pk5', name: 'Special Chicken Biryani Double', category: 'Pakistani Cuisine', price: 700, image: '/briyani picture.jpg' },
     { id: 'br2', name: 'Garlic Naan', category: 'Breads', price: 150, image: '/naan.jfif' },
     { id: 'sp1', name: 'Chicken Corn Soup', category: 'Soups', price: 499, image: '/Soups.jfif' },
