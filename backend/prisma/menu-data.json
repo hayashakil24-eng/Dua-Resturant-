@@ -168,18 +168,21 @@
     "description": null
   },
   {
-    "name": "Two Scoops",
-    "category": "Ice Cream",
-    "price": 350,
-    "image": "/Two Scoops.jpg",
-    "description": null
-  },
-  {
-    "name": "Single Scoops",
+    "name": "Scoops",
     "category": "Ice Cream",
     "price": 180,
-    "image": "/Single Scoops.jpg",
-    "description": null
+    "image": "/Two Scoops.jpg",
+    "description": null,
+    "variants": [
+      {
+        "label": "Single",
+        "price": 180
+      },
+      {
+        "label": "Two",
+        "price": 350
+      }
+    ]
   },
   {
     "name": "Special Faluda",
@@ -191,107 +194,257 @@
   {
     "name": "Mutton Shahi Karahi",
     "category": "Café Ali Special Karahi",
-    "price": 4999,
+    "price": 3000,
     "image": "/Mutton Shahi Karahi.webp",
-    "description": "Per Kg"
+    "description": "Per Kg",
+    "variants": [
+      {
+        "label": "Half",
+        "price": 3000
+      },
+      {
+        "label": "Full",
+        "price": 4999
+      }
+    ]
   },
   {
     "name": "Mutton White Karahi",
     "category": "Café Ali Special Karahi",
-    "price": 5199,
+    "price": 3100,
     "image": "/Mutton White Karahi.png",
-    "description": "Per Kg"
+    "description": "Per Kg",
+    "variants": [
+      {
+        "label": "Half",
+        "price": 3100
+      },
+      {
+        "label": "Full",
+        "price": 5199
+      }
+    ]
   },
   {
     "name": "Mutton Peshawari Karahi",
     "category": "Café Ali Special Karahi",
-    "price": 4999,
+    "price": 3000,
     "image": "/Mutton Peshawari Karahi.webp",
-    "description": "Per Kg"
+    "description": "Per Kg",
+    "variants": [
+      {
+        "label": "Half",
+        "price": 3000
+      },
+      {
+        "label": "Full",
+        "price": 4999
+      }
+    ]
   },
   {
     "name": "Mutton Sizzling Karahi",
     "category": "Café Ali Special Karahi",
-    "price": 4999,
+    "price": 3000,
     "image": "/Mutton Sizzling Karahi.webp",
-    "description": "Per Kg"
+    "description": "Per Kg",
+    "variants": [
+      {
+        "label": "Half",
+        "price": 3000
+      },
+      {
+        "label": "Full",
+        "price": 4999
+      }
+    ]
   },
   {
     "name": "Lamb Peshawari Karahi",
     "category": "Café Ali Special Karahi",
-    "price": 5499,
+    "price": 3300,
     "image": "/Lamb Peshawari Karahi.webp",
-    "description": "Per Kg"
+    "description": "Per Kg",
+    "variants": [
+      {
+        "label": "Half",
+        "price": 3300
+      },
+      {
+        "label": "Full",
+        "price": 5499
+      }
+    ]
   },
   {
     "name": "Lamb White Karahi",
     "category": "Café Ali Special Karahi",
-    "price": 5699,
+    "price": 3400,
     "image": "/Lamb White Karahi.jpg",
-    "description": "Per Kg"
+    "description": "Per Kg",
+    "variants": [
+      {
+        "label": "Half",
+        "price": 3400
+      },
+      {
+        "label": "Full",
+        "price": 5699
+      }
+    ]
   },
   {
     "name": "Lamb Brown Karahi",
     "category": "Café Ali Special Karahi",
-    "price": 4999,
+    "price": 3000,
     "image": "/Lamb Brown Karahi.jpg",
-    "description": "Per Kg"
+    "description": "Per Kg",
+    "variants": [
+      {
+        "label": "Half",
+        "price": 3000
+      },
+      {
+        "label": "Full",
+        "price": 4999
+      }
+    ]
   },
   {
     "name": "Mutton Brown Karahi",
     "category": "Café Ali Special Karahi",
-    "price": 4999,
+    "price": 3000,
     "image": "/Mutton Brown Karahi.jpg",
-    "description": "Per Kg"
+    "description": "Per Kg",
+    "variants": [
+      {
+        "label": "Half",
+        "price": 3000
+      },
+      {
+        "label": "Full",
+        "price": 4999
+      }
+    ]
   },
   {
     "name": "Mutton Namkee Bonles Karahi",
     "category": "Café Ali Special Karahi",
-    "price": 6799,
+    "price": 4100,
     "image": "/Mutton Namkee Bonles Karahi.jpg",
-    "description": "Per Kg"
+    "description": "Per Kg",
+    "variants": [
+      {
+        "label": "Half",
+        "price": 4100
+      },
+      {
+        "label": "Full",
+        "price": 6799
+      }
+    ]
   },
   {
     "name": "Desi Murga Karahi",
     "category": "Café Ali Special Karahi",
-    "price": 4999,
+    "price": 3000,
     "image": "/Desi Murga Karahi.png",
-    "description": "Per Kg"
+    "description": "Per Kg",
+    "variants": [
+      {
+        "label": "Half",
+        "price": 3000
+      },
+      {
+        "label": "Full",
+        "price": 4999
+      }
+    ]
   },
   {
     "name": "Prawn Karahi Red/White",
     "category": "Café Ali Special Karahi",
-    "price": 4699,
+    "price": 2800,
     "image": "/Prawn Karahi Red-White.jpg",
-    "description": "Per Kg"
+    "description": "Per Kg",
+    "variants": [
+      {
+        "label": "Half",
+        "price": 2800
+      },
+      {
+        "label": "Full",
+        "price": 4699
+      }
+    ]
   },
   {
     "name": "Batair Karahi",
     "category": "Café Ali Special Karahi",
-    "price": 3699,
+    "price": 2200,
     "image": "/Batair Karahi.jpg",
-    "description": "Per Kg"
+    "description": "Per Kg",
+    "variants": [
+      {
+        "label": "Half",
+        "price": 2200
+      },
+      {
+        "label": "Full",
+        "price": 3699
+      }
+    ]
   },
   {
     "name": "Lamb Zaitoon Karahi",
     "category": "Café Ali Special Karahi",
-    "price": 5660,
+    "price": 3400,
     "image": "/Lamb Zaitoon Karahi.jpg",
-    "description": "Per Kg"
+    "description": "Per Kg",
+    "variants": [
+      {
+        "label": "Half",
+        "price": 3400
+      },
+      {
+        "label": "Full",
+        "price": 5660
+      }
+    ]
   },
   {
     "name": "Mutton Zaitoon Karahi",
     "category": "Café Ali Special Karahi",
-    "price": 5560,
+    "price": 3350,
     "image": "/Mutton Zaitoon Karahi.jpg",
-    "description": "Per Kg"
+    "description": "Per Kg",
+    "variants": [
+      {
+        "label": "Half",
+        "price": 3350
+      },
+      {
+        "label": "Full",
+        "price": 5560
+      }
+    ]
   },
   {
     "name": "Balochi Tikkah Karahi",
     "category": "Café Ali Special Karahi",
-    "price": 2549,
+    "price": 1550,
     "image": "/Balochi Tikkah Karahi.webp",
-    "description": "Per Kg"
+    "description": "Per Kg",
+    "variants": [
+      {
+        "label": "Half",
+        "price": 1550
+      },
+      {
+        "label": "Full",
+        "price": 2549
+      }
+    ]
   },
   {
     "name": "Chicken Boneless Karahi",
@@ -324,58 +477,138 @@
   {
     "name": "Mutton Shahi Handi Boneless",
     "category": "Tempting Handi",
-    "price": 7400,
+    "price": 4450,
     "image": "/Mutton Shahi Handi Boneless.jpg",
-    "description": "Per Kg"
+    "description": "Per Kg",
+    "variants": [
+      {
+        "label": "Half",
+        "price": 4450
+      },
+      {
+        "label": "Full",
+        "price": 7400
+      }
+    ]
   },
   {
     "name": "Mutton Paneer Handi",
     "category": "Tempting Handi",
-    "price": 7560,
+    "price": 4550,
     "image": "/Mutton Paneer Handi.jpg",
-    "description": "Per Kg"
+    "description": "Per Kg",
+    "variants": [
+      {
+        "label": "Half",
+        "price": 4550
+      },
+      {
+        "label": "Full",
+        "price": 7560
+      }
+    ]
   },
   {
     "name": "Mutton Makhni Handi",
     "category": "Tempting Handi",
-    "price": 7399,
+    "price": 4450,
     "image": "/Mutton Makhni Handi.jpg",
-    "description": "Per Kg"
+    "description": "Per Kg",
+    "variants": [
+      {
+        "label": "Half",
+        "price": 4450
+      },
+      {
+        "label": "Full",
+        "price": 7399
+      }
+    ]
   },
   {
     "name": "Chicken Shahi Handi",
     "category": "Tempting Handi",
-    "price": 3299,
+    "price": 2000,
     "image": "/Chicken Shahi Handi.jpg",
-    "description": "Per Kg"
+    "description": "Per Kg",
+    "variants": [
+      {
+        "label": "Half",
+        "price": 2000
+      },
+      {
+        "label": "Full",
+        "price": 3299
+      }
+    ]
   },
   {
     "name": "Chicken Makhni Handi",
     "category": "Tempting Handi",
-    "price": 3199,
+    "price": 1900,
     "image": "/Chicken Makhni Handi.webp",
-    "description": "Per Kg"
+    "description": "Per Kg",
+    "variants": [
+      {
+        "label": "Half",
+        "price": 1900
+      },
+      {
+        "label": "Full",
+        "price": 3199
+      }
+    ]
   },
   {
     "name": "Chicken Tikkah Handi",
     "category": "Tempting Handi",
-    "price": 3299,
+    "price": 2000,
     "image": "/Chicken Tikkah Handi.jpg",
-    "description": "Per Kg"
+    "description": "Per Kg",
+    "variants": [
+      {
+        "label": "Half",
+        "price": 2000
+      },
+      {
+        "label": "Full",
+        "price": 3299
+      }
+    ]
   },
   {
     "name": "Chicken Paneer Reshmi",
     "category": "Tempting Handi",
-    "price": 3299,
+    "price": 2000,
     "image": "/Chicken Paneer Reshmi.jpg",
-    "description": "Per Kg"
+    "description": "Per Kg",
+    "variants": [
+      {
+        "label": "Half",
+        "price": 2000
+      },
+      {
+        "label": "Full",
+        "price": 3299
+      }
+    ]
   },
   {
     "name": "Prawn Handi",
     "category": "Tempting Handi",
-    "price": 5999,
+    "price": 3600,
     "image": "/Prawn Handi.jpg",
-    "description": "Per Kg"
+    "description": "Per Kg",
+    "variants": [
+      {
+        "label": "Half",
+        "price": 3600
+      },
+      {
+        "label": "Full",
+        "price": 5999
+      }
+    ]
   },
   {
     "name": "Mutton Pulao",
@@ -490,11 +723,21 @@
     "description": null
   },
   {
-    "name": "Special Chicken Biryani Single",
+    "name": "Special Chicken Biryani",
     "category": "Pakistani Cuisine",
     "price": 400,
     "image": "/Special Chicken Biryani Single.webp",
-    "description": null
+    "description": null,
+    "variants": [
+      {
+        "label": "Single",
+        "price": 400
+      },
+      {
+        "label": "Double",
+        "price": 700
+      }
+    ]
   },
   {
     "name": "Daal Mash Fry",
@@ -1062,32 +1305,38 @@
     "description": "Per Kg"
   },
   {
-    "name": "Café Ali Special Platter Full",
-    "category": "Chef Special",
-    "price": 11999,
-    "image": "/Café Ali Special Platter Full.jpg",
-    "description": "Per Kg"
-  },
-  {
-    "name": "Café Ali Special Platter Half",
+    "name": "Café Ali Special Platter",
     "category": "Chef Special",
     "price": 6200,
-    "image": "/Café Ali Special Platter Half.webp",
-    "description": "Per Kg"
+    "image": "/Café Ali Special Platter Full.jpg",
+    "description": "Per Kg",
+    "variants": [
+      {
+        "label": "Half",
+        "price": 6200
+      },
+      {
+        "label": "Full",
+        "price": 11999
+      }
+    ]
   },
   {
-    "name": "Chicken Platter Full",
-    "category": "Chef Special",
-    "price": 7500,
-    "image": "/Chicken Platter Full.png",
-    "description": "Per Kg"
-  },
-  {
-    "name": "Chicken Platter Half",
+    "name": "Chicken Platter",
     "category": "Chef Special",
     "price": 3800,
-    "image": "/Chicken Platter Half.png",
-    "description": "Per Kg"
+    "image": "/Chicken Platter Full.png",
+    "description": "Per Kg",
+    "variants": [
+      {
+        "label": "Half",
+        "price": 3800
+      },
+      {
+        "label": "Full",
+        "price": 7500
+      }
+    ]
   },
   {
     "name": "Chicken Shashlik with Rice",
@@ -1258,18 +1507,21 @@
     "description": null
   },
   {
-    "name": "Broast Quarter (Leg/Chest)",
+    "name": "Broast (Leg/Chest)",
     "category": "Broast",
     "price": 799,
     "image": "/Broast Quarter (Leg-Chest).webp",
-    "description": null
-  },
-  {
-    "name": "Broast Half (Leg/Chest)",
-    "category": "Broast",
-    "price": 1299,
-    "image": "/Broast Half (Leg-Chest).jpg",
-    "description": null
+    "description": null,
+    "variants": [
+      {
+        "label": "Quarter",
+        "price": 799
+      },
+      {
+        "label": "Half",
+        "price": 1299
+      }
+    ]
   },
   {
     "name": "Chicken Cheesy Roll",

@@ -87,7 +87,9 @@ function MenuImage({ item }) {
 // quick-add to the current order.
 function MostOrderedCard({ item, onAdd }) {
   const [added, setAdded] = useState(false)
-  const hasVariants = item.variants && item.variants.length
+  // Boolean, not the raw length: an empty variants array (0) would otherwise
+  // render literally in JSX (`{0 && …}` prints "0") — the "0Rs. 550" bug.
+  const hasVariants = Boolean(item.variants && item.variants.length)
   const click = () => {
     onAdd(item)
     setAdded(true)
@@ -311,6 +313,16 @@ export default function POS() {
     [orders],
   )
 
+  // The selected table already has a running order → a second separate order
+  // isn't allowed (add to it instead). One source of truth for the warning,
+  // the disabled checkout buttons, and validate(). Delivery/Takeaway (orderType)
+  // are exempt; not relevant when continuing (appending to that same order).
+  const selectedTableBusy =
+    !isContinuing &&
+    Boolean(table) &&
+    !tables.find((t) => t.id === Number(table))?.orderType &&
+    occupiedTables.has(Number(table))
+
   // Once a table is chosen AND items are on the order, lock the table until
   // checkout. Locking only after a table is picked avoids stranding an
   // items-first order (the selector stays usable until a table is set).
@@ -373,6 +385,13 @@ export default function POS() {
   const validate = () => {
     if (items.length === 0) return 'Add at least one item to the order.'
     if (!table) return 'Please select a table number.'
+    // Safety net behind the disabled checkout buttons: a physical table holds
+    // only ONE running order at a time (Delivery/Takeaway exempt via
+    // selectedTableBusy). Add to the existing order instead.
+    if (selectedTableBusy) {
+      const running = orders.find((o) => o.table === Number(table) && o.payment === 'Unpaid' && !o.cancelled)
+      return `Table ${tableLabel(Number(table))} already has a running order${running ? ` (${running.id})` : ''} — add items to it from the Tables page, or settle it first.`
+    }
     if (!waiter) return 'Please assign a waiter.'
     // Prevent out-of-stock orders: the cart's recipes must not exceed stock.
     const short = getStockShortfall(
@@ -465,14 +484,15 @@ export default function POS() {
     const onKey = (e) => {
       if (e.key !== 'F12') return
       // Only the new-order form (the continuing-bill flow appends instead of
-      // creating a new order) and never while a modal owns the screen.
-      if (isContinuing || showPayment || variantPick || activeReceipt) return
+      // creating a new order), never while a modal owns the screen, and not on
+      // a busy table (mirrors the disabled Place-as-Unpaid button).
+      if (isContinuing || showPayment || variantPick || activeReceipt || selectedTableBusy) return
       e.preventDefault()
       placeUnpaidRef.current()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [isContinuing, showPayment, variantPick, activeReceipt])
+  }, [isContinuing, showPayment, variantPick, activeReceipt, selectedTableBusy])
 
   // Running bill: append the cart's new items to the existing order, then return
   // to the floor. The combined bill is settled later at billing/checkout.
@@ -615,7 +635,9 @@ export default function POS() {
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
             {paginated.map((m) => {
               const count = qtyFor(m)
-              const hasVariants = m.variants && m.variants.length
+              // Boolean, not raw length — `{0 && …}` renders "0" in JSX (the
+              // "0Rs. 550" / "Coladas0" bug on items with an empty variants array).
+              const hasVariants = Boolean(m.variants && m.variants.length)
               const stock = stockByItem[m.id] || { status: 'none', maxServings: Infinity }
               // Disable when the recipe can't be made at all, or the cart has
               // already claimed every available serving.
@@ -774,6 +796,13 @@ export default function POS() {
                       </optgroup>
                     ))}
                   </select>
+                  {/* A busy physical table can't take a second order — one warning
+                      here + disabled checkout buttons (below) say it cleanly. */}
+                  {selectedTableBusy && (
+                    <p className="mt-1.5 text-xs text-amber-300">
+                      ⚠️ {tableLabel(Number(table))} is already in use — add to its order from Tables, or pick a free table.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
@@ -793,7 +822,7 @@ export default function POS() {
                   </select>
                 </div>
               </div>
-              {tableLocked && (
+              {tableLocked && !selectedTableBusy && (
                 // Compact single-line banner: the tall multi-line version stole
                 // enough vertical space from the (max-height-capped) card that
                 // the items list collapsed to ~one row, hiding added items.
@@ -807,7 +836,7 @@ export default function POS() {
             {/* Items — flex-1 so the list scrolls and yields space to the pinned
                 totals/checkout buttons on short screens (a fixed min-height here
                 pushed the checkout buttons below the viewport). */}
-            <div className="flex-1 overflow-y-auto p-5">
+            <div className="min-h-0 flex-1 overflow-y-auto p-5">
               {items.length === 0 ? (
                 <div className="grid h-40 place-items-center text-center">
                   <div>
@@ -904,12 +933,19 @@ export default function POS() {
                 </button>
               ) : (
                 <>
-                  <button onClick={openPayment} className="btn-gold mt-4 w-full py-3">
+                  <button
+                    onClick={openPayment}
+                    disabled={selectedTableBusy}
+                    title={selectedTableBusy ? `${tableLabel(Number(table))} is already in use` : undefined}
+                    className="btn-gold mt-4 w-full py-3 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
                     <IconCash size={18} /> Pay Now · {money(total)}
                   </button>
                   <button
                     onClick={placeUnpaid}
-                    className="btn-ghost mt-2 flex w-full items-center justify-center gap-2 py-2.5 text-sm"
+                    disabled={selectedTableBusy}
+                    title={selectedTableBusy ? `${tableLabel(Number(table))} is already in use` : undefined}
+                    className="btn-ghost mt-2 flex w-full items-center justify-center gap-2 py-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <IconReceipt size={16} /> Place as Unpaid
                     <kbd className="rounded border border-ink-line bg-ink-soft px-1.5 py-0.5 text-[10px] font-semibold text-cream-dim">
