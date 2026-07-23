@@ -119,10 +119,12 @@ const REPORT_SECTIONS: { key: Exclude<ReportSection, 'all'>; label: string }[] =
   { key: 'complimentary', label: 'آفشل بل' },
 ]
 const ALL_SECTIONS_OPTION = REPORT_SECTIONS.length + 1 // 5
+const BACK_OPTION = 0
 
 function buildSectionMenuText(): string {
   const lines = REPORT_SECTIONS.map((s, i) => `${i + 1}. ${s.label}`)
   lines.push(`${ALL_SECTIONS_OPTION}. تمام رپورٹس بھیجیں`)
+  lines.push(`${BACK_OPTION}. واپس جائیں`)
   return `کون سی رپورٹ دیکھنی ہے؟ نمبر لکھ کر بھیجیں:\n\n${lines.join('\n')}`
 }
 
@@ -170,7 +172,19 @@ async function sendClosingMenu(from: string): Promise<void> {
 // pending for this sender. Always reloads the closing fresh (never trusts a
 // cached report), so even a stale/edge-case pending entry can only ever
 // point at a real, current closing or fail closed into "load it again."
+//
+// Loops rather than resolving after one report: after any report is sent
+// (or an "empty section" notice), the section menu fires again for the same
+// closing instead of dropping back to step 1 — the admin can pull several
+// sections for one closing without re-picking it each time. `0` is the
+// explicit way out, back to the step-1 closing picker.
 async function handleSectionSelection(from: string, closingId: string, selection: number): Promise<void> {
+  if (selection === BACK_OPTION) {
+    clearPending(from)
+    await sendClosingMenu(from)
+    return
+  }
+
   const loaded = await loadClosingById(closingId)
   if (!loaded) {
     // The pending closing id no longer resolves (deleted, or this process
@@ -182,25 +196,28 @@ async function handleSectionSelection(from: string, closingId: string, selection
   }
 
   if (selection === ALL_SECTIONS_OPTION) {
-    clearPending(from)
     await sendTextMessage(from, 'رپورٹس بھیجی جا رہی ہیں...')
     await sendClosingSection(from, loaded, 'all')
+    setPending(from, closingId) // refresh the TTL — still browsing this closing
+    await sendTextMessage(from, buildSectionMenuText())
     return
   }
 
   const chosen = REPORT_SECTIONS[selection - 1]
   if (!chosen) {
+    setPending(from, closingId) // refresh the TTL — still browsing this closing
     await sendTextMessage(from, `معذرت، درست نمبر لکھیں۔\n\n${buildSectionMenuText()}`)
     return
   }
 
-  clearPending(from)
   const sentCount = await sendClosingSection(from, loaded, chosen.key)
   if (sentCount === 0) {
     // A real, empty section (e.g. no cancelled orders that day) — say so
     // rather than sending nothing with no explanation.
     await sendTextMessage(from, `اس دن کے لیے "${chosen.label}" میں کوئی انٹری نہیں ملی۔`)
   }
+  setPending(from, closingId) // refresh the TTL — still browsing this closing
+  await sendTextMessage(from, buildSectionMenuText())
 }
 
 async function respond(msg: InboundMessage): Promise<void> {
