@@ -85,9 +85,53 @@ async function withAccountUrduNames(report: ClosingReport): Promise<ClosingRepor
   return { ...report, accounts: report.accounts.map((a) => ({ ...a, name: urduByName.get(a.name) ?? a.name })) }
 }
 
+// DailyClosing.reportJson is a frozen snapshot taken at save time (schema
+// comment: "the full buildClosingReport() output ... a frozen historical
+// snapshot"), NOT re-derived when the report shape changes later. A closing
+// saved before discountBreakdown/udhaarByAccount/accountLedgers/
+// cancelledItems/complimentaryItems existed has none of those keys in its
+// stored JSON — JSON.parse gives back an object genuinely missing them, and
+// the render layer's `.length`/`.map`/`.reduce` calls on those fields would
+// throw (this crashed the webhook in production the first time a report
+// section other than the summary was picked against an old closing). Every
+// consumer downstream should be able to trust the full ClosingReport shape,
+// so the backfill happens once, here, at the JSON.parse boundary — not
+// scattered as defensive checks through every render function.
+function normalizeReport(raw: Partial<ClosingReport>): ClosingReport {
+  return {
+    date: raw.date ?? '',
+    totalOrders: raw.totalOrders ?? 0,
+    cancelledOrders: raw.cancelledOrders ?? 0,
+    grossSale: raw.grossSale ?? 0,
+    discount: raw.discount ?? 0,
+    discountBreakdown: raw.discountBreakdown ?? [],
+    netSale: raw.netSale ?? 0,
+    accounts: raw.accounts ?? [],
+    cash: raw.cash ?? 0,
+    card: raw.card ?? 0,
+    online: raw.online ?? 0,
+    onlineByAccount: raw.onlineByAccount ?? [],
+    udhaar: raw.udhaar ?? 0,
+    udhaarByAccount: raw.udhaarByAccount ?? [],
+    accountLedgers: raw.accountLedgers ?? [],
+    netCashSales: raw.netCashSales ?? 0,
+    expenses: raw.expenses ?? 0,
+    expensesByCategory: raw.expensesByCategory ?? [],
+    remainingHandover: raw.remainingHandover ?? 0,
+    gstCollected: raw.gstCollected ?? 0,
+    materialLoss: raw.materialLoss ?? 0,
+    inventoryUsed: raw.inventoryUsed ?? [],
+    cancelledItems: raw.cancelledItems ?? [],
+    cancelledTotal: raw.cancelledTotal ?? 0,
+    complimentaryItems: raw.complimentaryItems ?? [],
+    complimentaryTotal: raw.complimentaryTotal ?? 0,
+  }
+}
+
 function parseClosing(row: { id: string; date: string; reportJson: string }): LoadedClosing | null {
   try {
-    return { id: row.id, report: JSON.parse(row.reportJson) as ClosingReport, dayNameUr: dayNameUrFor(row.date) }
+    const raw = JSON.parse(row.reportJson) as Partial<ClosingReport>
+    return { id: row.id, report: normalizeReport(raw), dayNameUr: dayNameUrFor(row.date) }
   } catch {
     return null
   }
