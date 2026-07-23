@@ -10,18 +10,35 @@
 // whatsapp/report.ts) — the VPS never reaches back to the local server; it
 // only ever replays closings that have already been synced to it.
 //
-// Conversation flow (client feedback: wants a numbered menu, not just
-// always-the-latest-report) is deliberately stateless — no session/"what
-// did we last show this user" storage. Any inbound text that isn't a bare
-// number re-shows the menu; a bare number is interpreted against a freshly
-// recomputed list of recent closings. This avoids the class of bug where
-// stored conversation state goes stale (a webhook retry, a second device
-// messaging at the same time, a restart losing in-memory state) — the menu
-// is always exactly what "recent closings right now" actually is.
+// Conversation flow (client feedback: wants a two-step menu — pick a
+// closing, THEN pick which report section of that closing to see — instead
+// of one merged image): this now needs a small amount of remembered state
+// between the two messages ("which closing did this number just pick"),
+// which the original design deliberately avoided (a webhook retry, a second
+// device messaging at the same time, a restart losing in-memory state were
+// all real risks flagged when this file was first written). The trade-off
+// is accepted deliberately, scoped as tightly as possible: an in-memory,
+// short-TTL (PENDING_TTL_MS) map, keyed by sender, holding nothing but a
+// closing id. Worst case if it's lost (restart, TTL expiry, a race between
+// two devices) is simply falling back to the step-1 menu again — never a
+// wrong report sent to the wrong person, since step 2 is re-validated
+// against a freshly loaded closing every time, not a cached one.
+//
+// Any inbound text that isn't a bare number always resets to the step-1
+// (closing) menu, dropping any pending selection — same "always show a
+// sane menu" fallback the original stateless design had.
 
 import type { FastifyInstance } from 'fastify'
 import { env } from '../env.js'
-import { listRecentClosings, sendClosingReportById } from './report.js'
+import {
+  listRecentClosingDays,
+  loadClosingById,
+  sendClosingSection,
+  dateLabelUr,
+  timeLabelUr,
+  type ClosingDayGroup,
+  type ReportSection,
+} from './report.js'
 import { sendTextMessage } from './client.js'
 
 interface InboundMessage {
@@ -50,11 +67,63 @@ function extractMessages(payload: WebhookPayload): InboundMessage[] {
   return messages
 }
 
-function buildMenuText(closings: { dayNameUr: string; date: string }[]): string {
-  const lines = closings.map((c, i) => `${i + 1}. ${c.dayNameUr} — ${c.date}`)
-  const allOptionNumber = closings.length + 1
-  lines.push(`${allOptionNumber}. تمام رپورٹس بھیجیں`)
-  return `سلام! 👋\nکون سی رپورٹ چاہیے؟ نیچے دیے گئے نمبر میں سے کوئی ایک لکھ کر بھیجیں:\n\n${lines.join('\n')}`
+// Step 1 — "which closing" — keyed by sender, holding just the closing id
+// picked, so step 2 knows which report to load. Cleared on selection,
+// on an invalid/expired lookup, or on any non-numeric message.
+const PENDING_TTL_MS = 10 * 60 * 1000
+const pendingSelection = new Map<string, { closingId: string; expiresAt: number }>()
+
+function getPending(from: string): string | null {
+  const entry = pendingSelection.get(from)
+  if (!entry) return null
+  if (entry.expiresAt < Date.now()) {
+    pendingSelection.delete(from)
+    return null
+  }
+  return entry.closingId
+}
+
+function setPending(from: string, closingId: string): void {
+  pendingSelection.set(from, { closingId, expiresAt: Date.now() + PENDING_TTL_MS })
+}
+
+function clearPending(from: string): void {
+  pendingSelection.delete(from)
+}
+
+// Flattens the day-grouped list into one numbered sequence (day headings
+// aren't selectable, only the closings under them) — the *displayed* order
+// is exactly the *selectable* order, so "type 3" always means the 3rd line
+// with a number next to it.
+function flattenClosingIds(days: ClosingDayGroup[]): string[] {
+  return days.flatMap((d) => d.closings.map((c) => c.id))
+}
+
+function buildClosingMenuText(days: ClosingDayGroup[]): string {
+  let n = 0
+  const lines: string[] = []
+  for (const day of days) {
+    lines.push(`\n*${day.dayNameUr} — ${dateLabelUr(day.date)}*`)
+    for (const c of day.closings) {
+      n += 1
+      lines.push(`${n}. ${timeLabelUr(c.closingTime)}`)
+    }
+  }
+  return `سلام! 👋\nکون سی کلوزنگ دیکھنی ہے؟ نمبر لکھ کر بھیجیں:\n${lines.join('\n')}`
+}
+
+const REPORT_SECTIONS: { key: Exclude<ReportSection, 'all'>; label: string }[] = [
+  { key: 'summary', label: 'خلاصہ' },
+  { key: 'ledgers', label: 'اکاؤنٹ لیجرز' },
+  { key: 'cancelled', label: 'کینسل بل' },
+  { key: 'complimentary', label: 'آفشل بل' },
+]
+const ALL_SECTIONS_OPTION = REPORT_SECTIONS.length + 1 // 5
+
+function buildSectionMenuText(): string {
+  const lines = REPORT_SECTIONS.map((s, i) => `${i + 1}. ${s.label}`)
+  lines.push(`${ALL_SECTIONS_OPTION}. تمام رپورٹس بھیجیں`)
+  return `کون سی رپورٹ دیکھنی ہے؟ نمبر لکھ کر بھیجیں:\n\n${lines.join('\n')}`
 }
 
 async function handleInboundMessage(msg: InboundMessage): Promise<void> {
@@ -85,35 +154,91 @@ async function handleInboundMessage(msg: InboundMessage): Promise<void> {
   }
 }
 
+// Step 1 — always recomputed fresh from "recent closings right now" (never
+// cached), so a slow reply or a race with a second device can't show a menu
+// that's already gone stale.
+async function sendClosingMenu(from: string): Promise<void> {
+  const days = await listRecentClosingDays()
+  if (days.length === 0) {
+    await sendTextMessage(from, 'ابھی تک کوئی کلوزنگ رپورٹ محفوظ نہیں ہوئی۔')
+    return
+  }
+  await sendTextMessage(from, buildClosingMenuText(days))
+}
+
+// Step 2 — a report-section number, against whichever closing step 1 left
+// pending for this sender. Always reloads the closing fresh (never trusts a
+// cached report), so even a stale/edge-case pending entry can only ever
+// point at a real, current closing or fail closed into "load it again."
+async function handleSectionSelection(from: string, closingId: string, selection: number): Promise<void> {
+  const loaded = await loadClosingById(closingId)
+  if (!loaded) {
+    // The pending closing id no longer resolves (deleted, or this process
+    // restarted and lost real backing data some other way) — fall back to
+    // the top-level menu rather than erroring.
+    clearPending(from)
+    await sendClosingMenu(from)
+    return
+  }
+
+  if (selection === ALL_SECTIONS_OPTION) {
+    clearPending(from)
+    await sendTextMessage(from, 'رپورٹس بھیجی جا رہی ہیں...')
+    await sendClosingSection(from, loaded, 'all')
+    return
+  }
+
+  const chosen = REPORT_SECTIONS[selection - 1]
+  if (!chosen) {
+    await sendTextMessage(from, `معذرت، درست نمبر لکھیں۔\n\n${buildSectionMenuText()}`)
+    return
+  }
+
+  clearPending(from)
+  const sentCount = await sendClosingSection(from, loaded, chosen.key)
+  if (sentCount === 0) {
+    // A real, empty section (e.g. no cancelled orders that day) — say so
+    // rather than sending nothing with no explanation.
+    await sendTextMessage(from, `اس دن کے لیے "${chosen.label}" میں کوئی انٹری نہیں ملی۔`)
+  }
+}
+
 async function respond(msg: InboundMessage): Promise<void> {
-  const closings = await listRecentClosings()
-  if (closings.length === 0) {
+  const body = (msg.text?.body ?? '').trim()
+  const selection = /^\d+$/.test(body) ? Number(body) : null
+  const pendingClosingId = selection != null ? getPending(msg.from) : null
+
+  // Step 2: a pending closing selection exists and this is a number — treat
+  // it as a report-section pick against that closing.
+  if (selection != null && pendingClosingId) {
+    await handleSectionSelection(msg.from, pendingClosingId, selection)
+    return
+  }
+
+  // Step 1: no pending selection, or a non-numeric message (which always
+  // resets to the top-level menu, dropping any pending selection).
+  clearPending(msg.from)
+  const days = await listRecentClosingDays()
+  if (days.length === 0) {
     await sendTextMessage(msg.from, 'ابھی تک کوئی کلوزنگ رپورٹ محفوظ نہیں ہوئی۔')
     return
   }
 
-  const body = (msg.text?.body ?? '').trim()
-  const selection = /^\d+$/.test(body) ? Number(body) : null
-  const allOptionNumber = closings.length + 1
-
   if (selection == null) {
     // Any non-numeric message (including a first "hi") shows the menu.
-    await sendTextMessage(msg.from, buildMenuText(closings))
+    await sendTextMessage(msg.from, buildClosingMenuText(days))
     return
   }
 
-  if (selection === allOptionNumber) {
-    await sendTextMessage(msg.from, `${closings.length} رپورٹس بھیجی جا رہی ہیں...`)
-    for (const c of closings) await sendClosingReportById(msg.from, c.id)
+  const flatIds = flattenClosingIds(days)
+  const pickedId = flatIds[selection - 1]
+  if (!pickedId) {
+    await sendTextMessage(msg.from, `معذرت، درست نمبر لکھیں۔\n\n${buildClosingMenuText(days)}`)
     return
   }
 
-  if (selection >= 1 && selection <= closings.length) {
-    await sendClosingReportById(msg.from, closings[selection - 1]!.id)
-    return
-  }
-
-  await sendTextMessage(msg.from, `معذرت، درست نمبر لکھیں۔\n\n${buildMenuText(closings)}`)
+  setPending(msg.from, pickedId)
+  await sendTextMessage(msg.from, buildSectionMenuText())
 }
 
 export function registerWhatsappWebhook(app: FastifyInstance): void {

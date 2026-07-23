@@ -8,7 +8,12 @@
 
 import { prisma } from '../db/client.js'
 import { getLatestClosing } from '../services/closing.service.js'
-import { renderClosingReportImage } from '../reports/whatsappReport.js'
+import {
+  renderSummarySection,
+  renderLedgersSection,
+  renderCancelledSection,
+  renderComplimentarySection,
+} from '../reports/whatsappReport.js'
 import { sendReportImage } from './client.js'
 import type { ClosingReport } from '../core/closing.js'
 
@@ -32,9 +37,35 @@ export function dayNameUrFor(dateStr: string): string {
   return DAY_NAMES_UR[dayNameFor(dateStr)] ?? ''
 }
 
+const MONTHS_UR = ['جنوری', 'فروری', 'مارچ', 'اپریل', 'مئی', 'جون', 'جولائی', 'اگست', 'ستمبر', 'اکتوبر', 'نومبر', 'دسمبر']
+
+// "22 جولائی 2026" — deliberately NOT the raw "YYYY-MM-DD" `date` string.
+// WhatsApp's own client auto-detects ISO-looking dates and renders them as a
+// highlighted, tappable green chip (what made the old closing-picker menu
+// look broken — every line was just that chip, styling WhatsApp itself
+// injected, not something in our message text). A month-name date isn't
+// pattern-matched by that detector. Digits stay Latin, matching the client's
+// own real reports (whatsappReport.ts's top comment).
+export function dateLabelUr(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return dateStr
+  return `${d.getDate()} ${MONTHS_UR[d.getMonth()]} ${d.getFullYear()}`
+}
+
+// "6:05 شام" — same صبح/شام (morning/evening) 12-hour convention as the
+// frontend's format.js `time()`, Latin digits (see dateLabelUr above for why).
+export function timeLabelUr(iso: string | Date): string {
+  const d = new Date(iso)
+  const period = d.getHours() >= 12 ? 'شام' : 'صبح'
+  const h12 = d.getHours() % 12 || 12
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `${h12}:${mm} ${period}`
+}
+
 export interface LoadedClosing {
   id: string
   report: ClosingReport
+  dayNameUr: string
 }
 
 // Client feedback on the WhatsApp report: wants account names in Urdu too,
@@ -54,9 +85,9 @@ async function withAccountUrduNames(report: ClosingReport): Promise<ClosingRepor
   return { ...report, accounts: report.accounts.map((a) => ({ ...a, name: urduByName.get(a.name) ?? a.name })) }
 }
 
-function parseClosing(row: { id: string; reportJson: string }): ClosingReport | null {
+function parseClosing(row: { id: string; date: string; reportJson: string }): LoadedClosing | null {
   try {
-    return JSON.parse(row.reportJson) as ClosingReport
+    return { id: row.id, report: JSON.parse(row.reportJson) as ClosingReport, dayNameUr: dayNameUrFor(row.date) }
   } catch {
     return null
   }
@@ -66,56 +97,107 @@ function parseClosing(row: { id: string; reportJson: string }): ClosingReport | 
 export async function loadLatestClosing(): Promise<LoadedClosing | null> {
   const latest = await getLatestClosing()
   if (!latest) return null
-  const report = parseClosing(latest)
-  if (!report) return null
-  return { id: latest.id, report: await withAccountUrduNames(report) }
+  const loaded = parseClosing(latest)
+  if (!loaded) return null
+  return { ...loaded, report: await withAccountUrduNames(loaded.report) }
 }
 
 export async function loadClosingById(id: string): Promise<LoadedClosing | null> {
   const row = await prisma.dailyClosing.findUnique({ where: { id } })
   if (!row) return null
-  const report = parseClosing(row)
-  if (!report) return null
-  return { id: row.id, report: await withAccountUrduNames(report) }
+  const loaded = parseClosing(row)
+  if (!loaded) return null
+  return { ...loaded, report: await withAccountUrduNames(loaded.report) }
 }
 
-export interface ClosingSummary {
+export interface ClosingMenuItem {
   id: string
+  closingTime: string // ISO
+}
+
+export interface ClosingDayGroup {
   date: string
   dayNameUr: string
+  closings: ClosingMenuItem[] // chronological within the day (oldest first)
 }
 
 // Client feedback (requirements.md §7's "admin can request a report by
-// messaging the system directly"): the webhook should offer a numbered
-// Urdu menu of recent closings rather than always just the latest one.
-// Capped at 7 (about a week) — a "send all" option pointed at an unbounded
-// history would be an unbounded number of WhatsApp API calls per tap.
-const RECENT_CLOSINGS_LIMIT = 7
+// messaging the system directly"): wants the picker grouped by calendar day
+// (heading) with each closing under it shown by time, and wants the last 7
+// DAYS, not the last 7 closing RECORDS — closing is per-session, not
+// per-day (core/closing.ts), so multiple closings can share one calendar
+// date, and a flat "last 7 rows" cap could otherwise show only one day
+// repeated 7 times (exactly what happened during testing on 2026-07-22).
+const RECENT_DAYS_LIMIT = 7
 
-export async function listRecentClosings(): Promise<ClosingSummary[]> {
-  const rows = await prisma.dailyClosing.findMany({
-    orderBy: { closingTime: 'desc' },
-    take: RECENT_CLOSINGS_LIMIT,
-    select: { id: true, date: true },
+export async function listRecentClosingDays(): Promise<ClosingDayGroup[]> {
+  const recentDates = await prisma.dailyClosing.groupBy({
+    by: ['date'],
+    orderBy: { date: 'desc' },
+    take: RECENT_DAYS_LIMIT,
   })
-  return rows.map((r) => ({ id: r.id, date: r.date, dayNameUr: dayNameUrFor(r.date) }))
+  const dates = recentDates.map((d) => d.date)
+  if (dates.length === 0) return []
+  const rows = await prisma.dailyClosing.findMany({
+    where: { date: { in: dates } },
+    orderBy: { closingTime: 'asc' },
+    select: { id: true, date: true, closingTime: true },
+  })
+  const closingsByDate = new Map<string, ClosingMenuItem[]>()
+  for (const r of rows) {
+    const list = closingsByDate.get(r.date) ?? []
+    list.push({ id: r.id, closingTime: r.closingTime.toISOString() })
+    closingsByDate.set(r.date, list)
+  }
+  return dates.map((date) => ({ date, dayNameUr: dayNameUrFor(date), closings: closingsByDate.get(date) ?? [] }))
 }
 
-async function sendOne(recipient: string, loaded: LoadedClosing): Promise<void> {
-  const png = await renderClosingReportImage(loaded.report, dayNameUrFor(loaded.report.date))
-  await sendReportImage(recipient, png, `Cafe Ali — Daily Closing Report (${loaded.report.date})`)
+// One "report type" within a closing — mirrors the four sections
+// whatsappReport.ts can render independently. 'all' sends every non-empty
+// section as its own image (an album), same as the client's own habit of
+// sending several separate photos for one day's closing.
+export type ReportSection = 'summary' | 'ledgers' | 'cancelled' | 'complimentary' | 'all'
+
+const SECTION_RENDERERS: Record<Exclude<ReportSection, 'all'>, (report: ClosingReport, dayNameUr: string) => Promise<Buffer | null>> = {
+  summary: renderSummarySection,
+  ledgers: renderLedgersSection,
+  cancelled: renderCancelledSection,
+  complimentary: renderComplimentarySection,
+}
+
+const SECTION_CAPTION: Record<Exclude<ReportSection, 'all'>, string> = {
+  summary: 'خلاصہ',
+  ledgers: 'اکاؤنٹ لیجرز',
+  cancelled: 'کینسل بل',
+  complimentary: 'آفشل بل',
+}
+
+async function sendSection(recipient: string, loaded: LoadedClosing, section: Exclude<ReportSection, 'all'>): Promise<boolean> {
+  const png = await SECTION_RENDERERS[section](loaded.report, loaded.dayNameUr)
+  if (!png) return false
+  await sendReportImage(recipient, png, `Cafe Ali — ${SECTION_CAPTION[section]} (${loaded.report.date})`)
+  return true
+}
+
+// Sends every non-empty section as its own image. Used for the on-demand
+// "5. تمام رپورٹس بھیجیں" option and for the automated daily push (which has
+// no menu to choose from, so it always sends the full album).
+export async function sendAllSections(recipient: string, loaded: LoadedClosing): Promise<number> {
+  let sent = 0
+  for (const section of Object.keys(SECTION_RENDERERS) as Exclude<ReportSection, 'all'>[]) {
+    if (await sendSection(recipient, loaded, section)) sent += 1
+  }
+  return sent
+}
+
+export async function sendClosingSection(recipient: string, loaded: LoadedClosing, section: ReportSection): Promise<number> {
+  if (section === 'all') return sendAllSections(recipient, loaded)
+  return (await sendSection(recipient, loaded, section)) ? 1 : 0
 }
 
 export async function sendLatestClosingReport(recipient: string): Promise<{ sent: boolean; closingId?: string }> {
   const latest = await loadLatestClosing()
   if (!latest) return { sent: false }
-  await sendOne(recipient, latest)
+  await sendAllSections(recipient, latest)
   return { sent: true, closingId: latest.id }
-}
-
-export async function sendClosingReportById(recipient: string, id: string): Promise<{ sent: boolean }> {
-  const loaded = await loadClosingById(id)
-  if (!loaded) return { sent: false }
-  await sendOne(recipient, loaded)
-  return { sent: true }
 }

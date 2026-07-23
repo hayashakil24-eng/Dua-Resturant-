@@ -226,7 +226,12 @@ function discountBreakdownTable(rows: { table: number | null; amount: number; re
     </table>`
 }
 
-function reportHtml(report: ClosingReport, dayNameUr: string): string {
+// One page per section (client feedback: wants the client's own habit of
+// sending several separate photos for one closing — a summary photo, a
+// ledger photo, a cancelled-bill photo — reproduced as separate WhatsApp
+// images picked from a menu, instead of one long scrolled image). Shared
+// head/branding, different body per section.
+function pageShell(dayNameUr: string, date: string, title: string, bodyHtml: string): string {
   const fontB64 = nastaliqFontBase64()
   return `<!doctype html>
 <html dir="rtl" lang="ur"><head><meta charset="utf-8" /><style>
@@ -236,67 +241,41 @@ function reportHtml(report: ClosingReport, dayNameUr: string): string {
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; padding: 24px; width: 720px;
+    margin: 0; padding: 28px; width: 720px;
     font-family: 'Nastaliq', sans-serif;
     direction: rtl;
-    color: #111; background: #fff;
+    color: #1c1c1c; background: #fff;
   }
-  h1 { text-align: center; font-size: 30px; margin: 0 0 6px; font-family: -apple-system, Segoe UI, Arial, sans-serif; letter-spacing: 0.5px; }
-  .subtitle { text-align: center; font-size: 17px; color: #444; margin-bottom: 18px; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
-  table.summary td { border: 1px solid #999; padding: 9px 14px; font-size: 17px; }
+  .brand { text-align: center; border-bottom: 3px solid #b8860b; padding-bottom: 14px; margin-bottom: 18px; }
+  .brand h1 { font-size: 30px; margin: 0; font-family: -apple-system, Segoe UI, Arial, sans-serif; letter-spacing: 1px; color: #1c1c1c; }
+  .brand .title { font-size: 18px; font-weight: 700; color: #b8860b; margin-top: 6px; }
+  .brand .subtitle { font-size: 15px; color: #666; margin-top: 4px; font-family: -apple-system, Segoe UI, Arial, sans-serif; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 18px; border-radius: 6px; overflow: hidden; }
+  table.summary td { border: 1px solid #ddd; padding: 10px 14px; font-size: 17px; }
   table.summary td.label { text-align: right; }
   table.summary td.amount { text-align: left; direction: ltr; font-variant-numeric: tabular-nums; width: 140px; font-family: -apple-system, Segoe UI, Arial, sans-serif; }
-  table.summary tr.strong td { font-weight: 700; background: #f3f3f3; }
+  table.summary tr.strong td { font-weight: 700; background: #faf6ec; }
   table.breakdown { font-size: 15px; }
-  table.breakdown th { border: 1px solid #999; background: #eee; padding: 7px 10px; text-align: right; }
-  table.breakdown td { border: 1px solid #ccc; padding: 6px 10px; text-align: right; }
+  table.breakdown th { border: 1px solid #ccc; background: #f3f3f3; padding: 8px 10px; text-align: right; font-weight: 700; }
+  table.breakdown td { border: 1px solid #e2e2e2; padding: 7px 10px; text-align: right; }
   table.breakdown td.amount, table.breakdown th:nth-child(2) { text-align: left; direction: ltr; font-variant-numeric: tabular-nums; width: 110px; font-family: -apple-system, Segoe UI, Arial, sans-serif; }
-  table.breakdown tr.total td { font-weight: 700; background: #f7f7f7; }
+  table.breakdown tr.total td { font-weight: 700; background: #faf6ec; }
   .breakdowns { display: flex; gap: 16px; }
   .breakdowns > div { flex: 1; }
-  .footer { font-size: 13px; color: #777; text-align: center; margin-top: 8px; font-family: -apple-system, Segoe UI, Arial, sans-serif; }
+  .footer { font-size: 13px; color: #999; text-align: center; margin-top: 4px; font-family: -apple-system, Segoe UI, Arial, sans-serif; }
 </style></head>
 <body>
-  <h1>CAFÉ ALI</h1>
-  <div class="subtitle">${escapeHtml(dayNameUr)} — ${escapeHtml(report.date)}</div>
-
-  <table class="summary">
-    ${summaryRow('ٹوٹل سیل', report.grossSale)}
-    ${summaryRow('کم: ڈسکاؤنٹ', report.discount)}
-    ${summaryRow('نیٹ سیل', report.netSale, { strong: true })}
-    ${report.accounts.map((a) => summaryRow(tr(ACCOUNT_LABEL_UR, a.name), a.amount)).join('')}
-    ${summaryRow('نیٹ کیش سیل', report.netCashSales, { strong: true })}
-    ${summaryRow('کم: اخراجات', report.expenses)}
-    ${summaryRow('باقی نقد رقم', report.remainingHandover, { strong: true })}
-  </table>
-
-  <div class="breakdowns">
-    <div>${breakdownTable('اکاؤنٹس', report.accounts.map((a) => ({ name: tr(ACCOUNT_LABEL_UR, a.name), amount: a.amount })))}</div>
-    <div>${breakdownTable('اخراجات کی قسم', report.expensesByCategory.map((e) => ({ name: tr(CATEGORY_UR, e.category), amount: e.amount })))}</div>
+  <div class="brand">
+    <h1>CAFÉ ALI</h1>
+    <div class="title">${escapeHtml(title)}</div>
+    <div class="subtitle">${escapeHtml(dayNameUr)} — ${escapeHtml(date)}</div>
   </div>
-
-  ${discountBreakdownTable(report.discountBreakdown)}
-
-  ${report.accountLedgers.length > 0 ? `<div class="breakdowns">${report.accountLedgers.map((l) => `<div>${accountLedgerTable(l)}</div>`).join('')}</div>` : ''}
-
-  ${cancelledItemsTable(report.cancelledItems, report.cancelledTotal)}
-
-  ${complimentaryItemsTable(report.complimentaryItems, report.complimentaryTotal)}
-
-  ${inventoryTable(report.inventoryUsed.map((i) => ({ ...i, name: tr(INVENTORY_NAME_UR, i.name) })))}
-
-  <div class="footer">
-    آرڈرز: ${report.totalOrders} (منسوخ شدہ: ${report.cancelledOrders}) &nbsp;•&nbsp;
-    جی ایس ٹی وصول شدہ: ${money(report.gstCollected)} &nbsp;•&nbsp;
-    کیفے علی مینجمنٹ سسٹم کی جانب سے تیار کردہ
-  </div>
+  ${bodyHtml}
+  <div class="footer">کیفے علی مینجمنٹ سسٹم کی جانب سے تیار کردہ</div>
 </body></html>`
 }
 
-// `dayNameUr` is the already-Urdu-translated day name (whatsapp/report.ts's
-// dayNameUrFor) — this module renders, it doesn't own the translation table.
-export async function renderClosingReportImage(report: ClosingReport, dayNameUr: string): Promise<Buffer> {
+async function renderHtmlToPng(html: string): Promise<Buffer> {
   const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] })
   try {
     const page = await browser.newPage()
@@ -305,10 +284,62 @@ export async function renderClosingReportImage(report: ClosingReport, dayNameUr:
     // setContent waitUntil option (only page.goto's), and isn't needed
     // anyway: the font is inlined as a data: URI, so there's no external
     // request to wait on.
-    await page.setContent(reportHtml(report, dayNameUr), { waitUntil: 'domcontentloaded' })
+    await page.setContent(html, { waitUntil: 'domcontentloaded' })
     const png = await page.screenshot({ type: 'png', fullPage: true })
     return Buffer.from(png)
   } finally {
     await browser.close()
   }
+}
+
+// The headline sheet — gross/discount/net/accounts/net-cash/expenses/handover,
+// plus the accounts and expense-category breakdowns, the discount breakdown,
+// inventory used, and the day's order/GST footer stats. Always renders
+// (never null) — this is the one section every closing has.
+export async function renderSummarySection(report: ClosingReport, dayNameUr: string): Promise<Buffer> {
+  const body = `
+    <table class="summary">
+      ${summaryRow('ٹوٹل سیل', report.grossSale)}
+      ${summaryRow('کم: ڈسکاؤنٹ', report.discount)}
+      ${summaryRow('نیٹ سیل', report.netSale, { strong: true })}
+      ${report.accounts.map((a) => summaryRow(tr(ACCOUNT_LABEL_UR, a.name), a.amount)).join('')}
+      ${summaryRow('نیٹ کیش سیل', report.netCashSales, { strong: true })}
+      ${summaryRow('کم: اخراجات', report.expenses)}
+      ${summaryRow('باقی نقد رقم', report.remainingHandover, { strong: true })}
+    </table>
+
+    <div class="breakdowns">
+      <div>${breakdownTable('اکاؤنٹس', report.accounts.map((a) => ({ name: tr(ACCOUNT_LABEL_UR, a.name), amount: a.amount })))}</div>
+      <div>${breakdownTable('اخراجات کی قسم', report.expensesByCategory.map((e) => ({ name: tr(CATEGORY_UR, e.category), amount: e.amount })))}</div>
+    </div>
+
+    ${discountBreakdownTable(report.discountBreakdown)}
+
+    ${inventoryTable(report.inventoryUsed.map((i) => ({ ...i, name: tr(INVENTORY_NAME_UR, i.name) })))}
+
+    <div class="footer">
+      آرڈرز: ${report.totalOrders} (منسوخ شدہ: ${report.cancelledOrders}) &nbsp;•&nbsp;
+      جی ایس ٹی وصول شدہ: ${money(report.gstCollected)}
+    </div>`
+  return renderHtmlToPng(pageShell(dayNameUr, report.date, 'خلاصہ', body))
+}
+
+// Ali Kakar / Hotel-style per-account ledgers (reports/3.png, reports/5.png).
+// Null when the day had no named-account Udhaar activity — nothing to send.
+export async function renderLedgersSection(report: ClosingReport, dayNameUr: string): Promise<Buffer | null> {
+  if (report.accountLedgers.length === 0) return null
+  const body = `<div class="breakdowns">${report.accountLedgers.map((l) => `<div>${accountLedgerTable(l)}</div>`).join('')}</div>`
+  return renderHtmlToPng(pageShell(dayNameUr, report.date, 'اکاؤنٹ لیجرز', body))
+}
+
+// "Kainsal Bill" (reports/4.png). Null when nothing was cancelled that day.
+export async function renderCancelledSection(report: ClosingReport, dayNameUr: string): Promise<Buffer | null> {
+  if (report.cancelledItems.length === 0) return null
+  return renderHtmlToPng(pageShell(dayNameUr, report.date, 'کینسل بل', cancelledItemsTable(report.cancelledItems, report.cancelledTotal)))
+}
+
+// "آفشل بل" (reports/7.png). Null when nothing was comped that day.
+export async function renderComplimentarySection(report: ClosingReport, dayNameUr: string): Promise<Buffer | null> {
+  if (report.complimentaryItems.length === 0) return null
+  return renderHtmlToPng(pageShell(dayNameUr, report.date, 'آفشل بل', complimentaryItemsTable(report.complimentaryItems, report.complimentaryTotal)))
 }
