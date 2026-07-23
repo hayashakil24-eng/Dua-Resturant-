@@ -142,8 +142,17 @@ const BACK_OPTION = 0
 function buildSectionMenuText(): string {
   const lines = REPORT_SECTIONS.map((s, i) => rtlLine(`${isolateNum(i + 1)}. ${s.label}`))
   lines.push(rtlLine(`${isolateNum(ALL_SECTIONS_OPTION)}. تمام رپورٹس بھیجیں`))
-  lines.push(rtlLine(`${isolateNum(BACK_OPTION)}. واپس جائیں`))
-  return `${rtlLine('کون سی رپورٹ دیکھنی ہے؟ نمبر لکھ کر بھیجیں:')}\n\n${lines.join('\n')}`
+  // Deliberately NOT "0. واپس جائیں" as a 6th numbered line — client
+  // screenshot showed exactly that line rendering visibly less indented
+  // than 1–5. WhatsApp appears to auto-format a leading "digit + period"
+  // run as an ordered-list marker, and a list restarting at 0 (instead of
+  // continuing the 1–5 sequence) evidently isn't recognized as the same
+  // list, so it falls back to different alignment. Phrased as a standalone
+  // sentence instead, separated by a blank line, sidesteps that pattern
+  // entirely rather than fighting WhatsApp's own auto-formatting.
+  const menu = `${rtlLine('کون سی رپورٹ دیکھنی ہے؟ نمبر لکھ کر بھیجیں:')}\n\n${lines.join('\n')}`
+  const back = rtlLine(`پیچھے جانے کے لیے ${isolateNum(BACK_OPTION)} لکھیں۔`)
+  return `${menu}\n\n${back}`
 }
 
 async function handleInboundMessage(msg: InboundMessage): Promise<void> {
