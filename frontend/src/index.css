@@ -296,14 +296,18 @@
     overflow: hidden !important;
   }
 
-  /* Pin the receipt to the physical top-left of the page. `fixed` positions it
-     relative to the page box, escaping the centered modal ancestor that would
-     otherwise push its footer onto page 2. Kept as one unbreakable block. */
+  /* Pin the receipt to the top of the page and center it horizontally. `fixed`
+     positions it relative to the page box, escaping the centered modal ancestor
+     that would otherwise push its footer onto page 2; left:0 + right:0 + margin
+     auto then centers the fixed-width slip (matching the KOT) so it doesn't sit
+     in the corner of a wider sheet. Kept as one unbreakable block. */
   body.print-receipt #printable-receipt {
     position: fixed;
     left: 0;
+    right: 0;
     top: 0;
     width: 384px; /* matches the on-screen max-w-sm slip */
+    margin: 0 auto;
     background: #fff !important;
     color: #000 !important;
     page-break-inside: avoid;
