@@ -162,7 +162,9 @@ export async function approveSignup(ctx: Ctx, id: string, systemRole: unknown) {
     const at = new Date()
     const updated = await tx.staff.update({
       where: { id },
-      data: { systemRole: systemRole as Role, status: 'approved', approvedBy: ctx.actor.name, approvedAt: at },
+      // role is the placeholder 'Pending' job title set at signup; promote it to the
+      // assigned systemRole so the Employees table stops showing a "Pending" role badge.
+      data: { role: systemRole as Role, systemRole: systemRole as Role, status: 'approved', approvedBy: ctx.actor.name, approvedAt: at },
     })
     await writeAudit(tx, { action: 'STAFF_SIGNUP_APPROVED', actor: ctx.actor, at, details: { staffId: id, systemRole } })
     await enqueueOutbox(tx, 'Staff', updated.id, updated)

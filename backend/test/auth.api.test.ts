@@ -115,6 +115,9 @@ describe('approval queue: Admin-only', () => {
     const approved = JSON.parse(approve.body).staff
     expect(approved.systemRole).toBe('Cashier')
     expect(approved.status).toBe('approved')
+    // role (job-title column in the Employees table) must be promoted off the
+    // 'Pending' placeholder, not left stale.
+    expect(approved.role).toBe('Cashier')
 
     const login = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { username: 'approveme1', password: 'hunter2' } })
     expect(login.statusCode).toBe(200)
