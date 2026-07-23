@@ -36,10 +36,26 @@ import {
   sendClosingSection,
   dateLabelUr,
   timeLabelUr,
+  isolateNum,
   type ClosingDayGroup,
   type ReportSection,
 } from './report.js'
 import { sendTextMessage } from './client.js'
+
+// U+200F — Right-to-Left Mark. Every line sent to WhatsApp is prefixed with
+// this (invisible, no glyph) so its paragraph direction resolves to RTL
+// unambiguously from the very first character, instead of WhatsApp's bidi
+// layout having to scan forward for the first *strong*-direction character
+// (a Latin digit like "1." doesn't count as one) to decide. Without it,
+// different lines in the same message could resolve to different
+// directions depending on what they start with, which is what produced the
+// inconsistent indentation reported live. Paired with report.ts's
+// isolateNum() for the digit runs themselves — this fixes the *line*, that
+// fixes the *numbers within* the line.
+const RLM = '‏'
+function rtlLine(s: string): string {
+  return `${RLM}${s}`
+}
 
 interface InboundMessage {
   from: string
@@ -101,15 +117,17 @@ function flattenClosingIds(days: ClosingDayGroup[]): string[] {
 
 function buildClosingMenuText(days: ClosingDayGroup[]): string {
   let n = 0
-  const lines: string[] = []
+  const blocks: string[] = []
   for (const day of days) {
-    lines.push(`\n*${day.dayNameUr} — ${dateLabelUr(day.date)}*`)
+    const block = [rtlLine(`*${day.dayNameUr} — ${dateLabelUr(day.date)}*`)]
     for (const c of day.closings) {
       n += 1
-      lines.push(`${n}. ${timeLabelUr(c.closingTime)}`)
+      block.push(rtlLine(`${isolateNum(n)}. ${timeLabelUr(c.closingTime)}`))
     }
+    blocks.push(block.join('\n'))
   }
-  return `سلام! 👋\nکون سی کلوزنگ دیکھنی ہے؟ نمبر لکھ کر بھیجیں:\n${lines.join('\n')}`
+  const intro = `${rtlLine('سلام! 👋')}\n${rtlLine('کون سی کلوزنگ دیکھنی ہے؟ نمبر لکھ کر بھیجیں:')}`
+  return `${intro}\n\n${blocks.join('\n\n')}`
 }
 
 const REPORT_SECTIONS: { key: Exclude<ReportSection, 'all'>; label: string }[] = [
@@ -122,10 +140,10 @@ const ALL_SECTIONS_OPTION = REPORT_SECTIONS.length + 1 // 5
 const BACK_OPTION = 0
 
 function buildSectionMenuText(): string {
-  const lines = REPORT_SECTIONS.map((s, i) => `${i + 1}. ${s.label}`)
-  lines.push(`${ALL_SECTIONS_OPTION}. تمام رپورٹس بھیجیں`)
-  lines.push(`${BACK_OPTION}. واپس جائیں`)
-  return `کون سی رپورٹ دیکھنی ہے؟ نمبر لکھ کر بھیجیں:\n\n${lines.join('\n')}`
+  const lines = REPORT_SECTIONS.map((s, i) => rtlLine(`${isolateNum(i + 1)}. ${s.label}`))
+  lines.push(rtlLine(`${isolateNum(ALL_SECTIONS_OPTION)}. تمام رپورٹس بھیجیں`))
+  lines.push(rtlLine(`${isolateNum(BACK_OPTION)}. واپس جائیں`))
+  return `${rtlLine('کون سی رپورٹ دیکھنی ہے؟ نمبر لکھ کر بھیجیں:')}\n\n${lines.join('\n')}`
 }
 
 async function handleInboundMessage(msg: InboundMessage): Promise<void> {
@@ -148,7 +166,7 @@ async function handleInboundMessage(msg: InboundMessage): Promise<void> {
     await respond(msg)
   } catch (err) {
     try {
-      await sendTextMessage(msg.from, 'معذرت، رپورٹ بھیجنے میں مسئلہ ہوا۔ دوبارہ کوشش کریں۔')
+      await sendTextMessage(msg.from, rtlLine('معذرت، رپورٹ بھیجنے میں مسئلہ ہوا۔ دوبارہ کوشش کریں۔'))
     } catch {
       /* best-effort only */
     }
@@ -162,7 +180,7 @@ async function handleInboundMessage(msg: InboundMessage): Promise<void> {
 async function sendClosingMenu(from: string): Promise<void> {
   const days = await listRecentClosingDays()
   if (days.length === 0) {
-    await sendTextMessage(from, 'ابھی تک کوئی کلوزنگ رپورٹ محفوظ نہیں ہوئی۔')
+    await sendTextMessage(from, rtlLine('ابھی تک کوئی کلوزنگ رپورٹ محفوظ نہیں ہوئی۔'))
     return
   }
   await sendTextMessage(from, buildClosingMenuText(days))
@@ -196,7 +214,7 @@ async function handleSectionSelection(from: string, closingId: string, selection
   }
 
   if (selection === ALL_SECTIONS_OPTION) {
-    await sendTextMessage(from, 'رپورٹس بھیجی جا رہی ہیں...')
+    await sendTextMessage(from, rtlLine('رپورٹس بھیجی جا رہی ہیں...'))
     await sendClosingSection(from, loaded, 'all')
     setPending(from, closingId) // refresh the TTL — still browsing this closing
     await sendTextMessage(from, buildSectionMenuText())
@@ -206,7 +224,7 @@ async function handleSectionSelection(from: string, closingId: string, selection
   const chosen = REPORT_SECTIONS[selection - 1]
   if (!chosen) {
     setPending(from, closingId) // refresh the TTL — still browsing this closing
-    await sendTextMessage(from, `معذرت، درست نمبر لکھیں۔\n\n${buildSectionMenuText()}`)
+    await sendTextMessage(from, `${rtlLine('معذرت، درست نمبر لکھیں۔')}\n\n${buildSectionMenuText()}`)
     return
   }
 
@@ -214,7 +232,7 @@ async function handleSectionSelection(from: string, closingId: string, selection
   if (sentCount === 0) {
     // A real, empty section (e.g. no cancelled orders that day) — say so
     // rather than sending nothing with no explanation.
-    await sendTextMessage(from, `اس دن کے لیے "${chosen.label}" میں کوئی انٹری نہیں ملی۔`)
+    await sendTextMessage(from, rtlLine(`اس دن کے لیے "${chosen.label}" میں کوئی انٹری نہیں ملی۔`))
   }
   setPending(from, closingId) // refresh the TTL — still browsing this closing
   await sendTextMessage(from, buildSectionMenuText())
@@ -237,7 +255,7 @@ async function respond(msg: InboundMessage): Promise<void> {
   clearPending(msg.from)
   const days = await listRecentClosingDays()
   if (days.length === 0) {
-    await sendTextMessage(msg.from, 'ابھی تک کوئی کلوزنگ رپورٹ محفوظ نہیں ہوئی۔')
+    await sendTextMessage(msg.from, rtlLine('ابھی تک کوئی کلوزنگ رپورٹ محفوظ نہیں ہوئی۔'))
     return
   }
 
@@ -250,7 +268,7 @@ async function respond(msg: InboundMessage): Promise<void> {
   const flatIds = flattenClosingIds(days)
   const pickedId = flatIds[selection - 1]
   if (!pickedId) {
-    await sendTextMessage(msg.from, `معذرت، درست نمبر لکھیں۔\n\n${buildClosingMenuText(days)}`)
+    await sendTextMessage(msg.from, `${rtlLine('معذرت، درست نمبر لکھیں۔')}\n\n${buildClosingMenuText(days)}`)
     return
   }
 

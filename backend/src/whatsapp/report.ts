@@ -39,6 +39,22 @@ export function dayNameUrFor(dateStr: string): string {
 
 const MONTHS_UR = ['جنوری', 'فروری', 'مارچ', 'اپریل', 'مئی', 'جون', 'جولائی', 'اگست', 'ستمبر', 'اکتوبر', 'نومبر', 'دسمبر']
 
+// U+2066/U+2069 — Left-to-Right Isolate / Pop Directional Isolate. A bare
+// Latin digit run has no direction of its own inside an Urdu (RTL) line, so
+// WhatsApp's bidi text layout has to guess where it belongs relative to the
+// surrounding RTL words — reported live as dates/times/list numbers visibly
+// jumbled and lines indented inconsistently (client screenshot, closing-
+// picker menu). Wrapping every digit run in an isolate keeps it anchored
+// exactly where it's placed in the source string instead of being
+// reordered as a block by the RTL paragraph's bidi resolution. Exported so
+// whatsapp/webhook.ts can apply the same treatment to its own list-index
+// numbers ("1.", "2.", ...), not just the dates/times built here.
+const LRI = '⁦'
+const PDI = '⁩'
+export function isolateNum(s: string | number): string {
+  return `${LRI}${s}${PDI}`
+}
+
 // "22 جولائی 2026" — deliberately NOT the raw "YYYY-MM-DD" `date` string.
 // WhatsApp's own client auto-detects ISO-looking dates and renders them as a
 // highlighted, tappable green chip (what made the old closing-picker menu
@@ -49,7 +65,7 @@ const MONTHS_UR = ['جنوری', 'فروری', 'مارچ', 'اپریل', 'مئی
 export function dateLabelUr(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00`)
   if (Number.isNaN(d.getTime())) return dateStr
-  return `${d.getDate()} ${MONTHS_UR[d.getMonth()]} ${d.getFullYear()}`
+  return `${isolateNum(d.getDate())} ${MONTHS_UR[d.getMonth()]} ${isolateNum(d.getFullYear())}`
 }
 
 // "6:05 شام" — same صبح/شام (morning/evening) 12-hour convention as the
@@ -59,7 +75,7 @@ export function timeLabelUr(iso: string | Date): string {
   const period = d.getHours() >= 12 ? 'شام' : 'صبح'
   const h12 = d.getHours() % 12 || 12
   const mm = String(d.getMinutes()).padStart(2, '0')
-  return `${h12}:${mm} ${period}`
+  return `${isolateNum(`${h12}:${mm}`)} ${period}`
 }
 
 export interface LoadedClosing {
