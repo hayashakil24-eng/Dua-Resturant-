@@ -7,84 +7,84 @@
 ---
 
 ## 0. Setup & Launch
-- [ ] Backend start hota hai bina error (`:4000` pe listen)
-- [ ] Desktop app khulta hai (Electron window)
-- [ ] Server band ho to app "Cannot reach the server" dikhata hai
-- [ ] Server dobara chalu karne par app khud connect ho jata hai
+- [/] Backend start hota hai bina error (`:4000` pe listen)
+- [/] Desktop app khulta hai (Electron window)
+- [/] Server band ho to app "Cannot reach the server" dikhata hai
+- [/] Server dobara chalu karne par app khud connect ho jata hai
 
 ## 1. Login & Roles
-- [ ] `admin`/`1234` se login hota hai
-- [ ] `manager`/`1234` se login hota hai
-- [ ] `cashier`/`1234` se login hota hai
-- [ ] `kitchen`/`1234` se login hota hai
-- [ ] Galat password par error dikhata hai (login nahi hota)
-- [ ] Har role login ke baad apni sahi landing page par jata hai (Kitchen sirf /kitchen)
-- [ ] Logout kaam karta hai, wapas login screen aata hai
+- [/] `admin`/`1234` se login hota hai
+- [/] `manager`/`1234` se login hota hai
+- [/] `cashier`/`1234` se login hota hai
+- [/] `kitchen`/`1234` se login hota hai
+- [/] Galat password par error dikhata hai (login nahi hota)
+- [/] Har role login ke baad apni sahi landing page par jata hai (Kitchen sirf /kitchen)
+- [/] Logout kaam karta hai, wapas login screen aata hai
 
 ## 2. Staff Self-Signup + Admin Approval
-- [ ] Naya staff signup form se account bana sakta hai
-- [ ] Naya account "pending" rehta hai, login nahi hota jab tak approve na ho
-- [ ] Admin ko pending signup dikhta hai
-- [ ] Admin approve kare to woh staff login kar sakta hai
-- [ ] Admin reject kare to woh account login nahi kar sakta
+- [/] Naya staff signup form se account bana sakta hai
+- [/] Naya account "pending" rehta hai, login nahi hota jab tak approve na ho
+- [/] Admin ko pending signup dikhta hai
+- [/] Admin approve kare to woh staff login kar sakta hai
+- [/] Admin reject kare to woh account login nahi kar sakta
 
 ## 3. Menu (Real Menu ~170 items + Images)
-- [ ] POS/Menu par saare real items dikhte hain (Karahi, Biryani, Pizza, Shakes, BBQ, Chinese, etc.)
-- [ ] Har item ki asli photo load hoti hai (broken image nahi)
-- [ ] Categories sahi filter karti hain
-- [ ] Search se item milta hai
-- [ ] **Variants** wale items (Steak Beef/Chicken, Pizza S/M/L, Half/Full) sahi price/option dikhate hain
-- [ ] Menu Management (Admin) se item add/edit hota hai
+- [/] POS/Menu par saare real items dikhte hain (Karahi, Biryani, Pizza, Shakes, BBQ, Chinese, etc.)
+- [/] Har item ki asli photo load hoti hai (broken image nahi)
+- [/] Categories sahi filter karti hain
+- [/] Search se item milta hai
+- [/] **Variants** wale items (Steak Beef/Chicken, Pizza S/M/L, Half/Full) sahi price/option dikhate hain
+- [/] Menu Management (Admin) se item add/edit hota hai
 
 ## 4. POS — Naya Order
-- [ ] Order banate waqt **table select** karni parti hai
-- [ ] Item cart mein add hota hai, qty barhti hai
-- [ ] Variant select karne par sahi price aata hai
-- [ ] Cart total sahi calculate hota hai
-- [ ] Waiter/cashier name attach hota hai
-- [ ] Order place hota hai (Unpaid ya Paid)
+- [/] Order banate waqt **table select** karni parti hai
+- [/] Item cart mein add hota hai, qty barhti hai
+- [/] Variant select karne par sahi price aata hai
+- [/] Cart total sahi calculate hota hai
+- [/] Waiter/cashier name attach hota hai
+- [/] Order place hota hai (Unpaid ya Paid)
 - [ ] GST on ho to total mein sahi tax add hota hai
 - [ ] Rupees `Rs.` format mein dikhte hain (koi galat currency nahi)
 
 ## 5. Tables (Seating Map)
-- [ ] Saari tables grid mein dikhti hain (A1, A2... HUT, etc.)
-- [ ] Khaali table green, in-use table red dikhti hai
-- [ ] In-use table par order ki detail dikhti hai (items, waiter, minutes)
-- [ ] Khaali table par tap → POS khulta hai us table ke sath
-- [ ] Category chips (A–H, Special/HUT) sahi filter karti hain
-- [ ] Search se table milti hai
-- [ ] Tabs (Running / Available / All) sahi count dikhate hain
+- [/] Saari tables grid mein dikhti hain (A1, A2... HUT, etc.)
+- [/] Khaali table green, in-use table red dikhti hai
+- [/] In-use table par order ki detail dikhti hai (items, waiter, minutes)
+- [/] Khaali table par tap → POS khulta hai us table ke sath
+- [/] Category chips (A–H, Special/HUT) sahi filter karti hain
+- [/] Search se table milti hai
+- [/] Tabs (Running / Available / All) sahi count dikhate hain
 
 ## 6. Table Manage (Add / Rename / Delete)
-- [ ] "Manage" button (Admin/Manager) khulta hai
-- [ ] Nayi table add hoti hai (number, name, capacity, section)
-- [ ] Existing table ka **naam (rename)** change hota hai — edit button se
-- [ ] In-use table delete nahi hoti (button disabled)
-- [ ] Khaali table delete hoti hai (sirf Admin)
-- [ ] Duplicate table number par error aata hai
+- [/] "Manage" button (Admin/Manager) khulta hai
+- [/] Nayi table add hoti hai (number, name, capacity, section)
+- [/] Existing table ka **naam (rename)** change hota hai — edit button se
+- [/] In-use table delete nahi hoti (button disabled)
+- [/] Khaali table delete hoti hai (sirf Admin)
+- [/] Duplicate table number par error aata hai
 
 ## 7. Table Shift (Naya Feature) 🔄
-- [ ] Running order par "Shift Table" button dikhta hai (Orders page + Tables detail)
-- [ ] Modal khulta hai, current table `A1 → —` dikhta hai
-- [ ] **Search bar** se destination table filter hoti hai
-- [ ] **Pagination** (Prev · 1 2 3 · Next) kaam karti hai jab tables zyada hon
-- [ ] Occupied table "in use" flag ke sath dikhti hai
-- [ ] Nayi table select karne par summary `A1 → A3` update hoti hai
-- [ ] "Move Order" par order us nayi table par chala jata hai
-- [ ] Paid/cancelled order par Shift Table nahi hota (sirf running/unpaid)
+- [/] Running order par "Shift Table" button dikhta hai (Orders page + Tables detail)
+- [/] Modal khulta hai, current table `A1 → —` dikhta hai
+- [/] **Search bar** se destination table filter hoti hai
+- [/] **Pagination** (Prev · 1 2 3 · Next) kaam karti hai jab tables zyada hon
+- [/] Occupied table "in use" flag ke sath dikhti hai
+- [/] Nayi table select karne par summary `A1 → A3` update hoti hai
+- [/] "Move Order" par order us nayi table par chala jata hai
+- [/] Paid/cancelled order par Shift Table nahi hota (sirf running/unpaid)
 - [ ] Doosre device par bhi table change ~1 second mein update hota hai
 
 ## 8. Orders Page
-- [ ] Saare orders list mein dikhte hain (ORD-xxxx)
-- [ ] Filter (All / Paid / Unpaid / Udhaar / Complimentary / Cancelled) sahi count dikhata hai
-- [ ] Search (order/waiter/table) kaam karti hai
-- [ ] Running order mein **item add** hota hai (Add More Items)
-- [ ] Item ki **qty edit** hoti hai
-- [ ] Print Bill unpaid order ka bill nikaalta hai (paid mark nahi karta)
+- [/] Saare orders list mein dikhte hain (ORD-xxxx)
+- [/] Filter (All / Paid / Unpaid / Udhaar / Complimentary / Cancelled) sahi count dikhata hai
+- [/] Search (order/waiter/table) kaam karti hai
+- [/] Running order mein **item add** hota hai (Add More Items)
+- [/] Item ki **qty edit** hoti hai
+- [/] Print Bill unpaid order ka bill nikaalta hai (paid mark nahi karta)
 
 ## 9. Payment / Order Status
-- [ ] "Mark as Paid" → Cash / Card / Online choose hota hai
-- [ ] Online payment par account select hota hai
+- [/] "Mark as Paid" → Cash / Card / Online choose hota hai
+- [] Online payment par account select hota hai
 - [ ] "Udhaar" (on-account) → customer name/account se ledger mein charge lagta hai (Manager/Admin)
 - [ ] "Complimentary" → free order, authorizer name mangta hai (Manager/Admin)
 - [ ] "Cancel" → reason zaroori, audit log mein aata hai (sirf Admin)
@@ -177,7 +177,7 @@
 - [ ] Cashier ko sirf allowed pages dikhte hain (cancel/comp nahi)
 - [ ] Manager ko sahi pages (POS nahi, approvals haan)
 - [ ] Kitchen ko sirf /kitchen dikhta hai
-- [ ] Admin ko sab dikhta hai
+- [/xcvgm t] Admin ko sab dikhta hai
 - [ ] Restricted route par direct jaane se redirect ho jata hai
 
 ## 21. Language / i18n
