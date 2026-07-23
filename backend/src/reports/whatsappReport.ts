@@ -118,6 +118,76 @@ function breakdownTable(title: string, rows: { name: string; amount: number }[])
     </table>`
 }
 
+// Account ledgers (reports/3.png, reports/5.png): a numbered "S/N, ON A/C,
+// AMOUNT" list per named credit account, ending in TOTAL / PAID BILL /
+// BALANCE rows — same shape as the client's own "Ali Kakar Sahab Account" /
+// "Hotel Mobile Account" sheets, one table per account.
+function accountLedgerTable(ledger: { name: string; lines: { table: number | null; amount: number }[]; total: number; paidBill: number; balance: number }): string {
+  const label = tr(ACCOUNT_LABEL_UR, ledger.name)
+  return `
+    <table class="breakdown">
+      <thead><tr><th>#</th><th colspan="2">${escapeHtml(label)}</th></tr></thead>
+      <tbody>
+        ${ledger.lines
+          .map(
+            (l, i) => `<tr>
+              <td>${i + 1}</td>
+              <td>${l.table != null ? 'میز ' + l.table : '—'}</td>
+              <td class="amount">${money(l.amount)}</td>
+            </tr>`,
+          )
+          .join('')}
+        <tr class="total"><td colspan="2">ٹوٹل</td><td class="amount">${money(ledger.total)}</td></tr>
+        <tr><td colspan="2">وصول شدہ بل</td><td class="amount">${money(ledger.paidBill)}</td></tr>
+        <tr class="total"><td colspan="2">باقی رقم</td><td class="amount">${money(ledger.balance)}</td></tr>
+      </tbody>
+    </table>`
+}
+
+// "Kainsal Bill" — the day's cancelled orders, itemized (reports/4.png), not
+// just the count/materialLoss totals the summary table already shows.
+function cancelledItemsTable(rows: { table: number | null; description: string; amount: number }[], total: number): string {
+  if (rows.length === 0) return ''
+  return `
+    <table class="breakdown">
+      <thead><tr><th>رقم</th><th>تفصیلات</th><th># ٹیبل</th></tr></thead>
+      <tbody>
+        ${rows
+          .map(
+            (r) => `<tr>
+              <td class="amount">${money(r.amount)}</td>
+              <td>${escapeHtml(r.description)}</td>
+              <td>${r.table != null ? r.table : '—'}</td>
+            </tr>`,
+          )
+          .join('')}
+        <tr class="total"><td class="amount">${money(total)}</td><td colspan="2">ٹوٹل — کینسل بل</td></tr>
+      </tbody>
+    </table>`
+}
+
+// "آفشل بل" (Aafshal / staff-comp bill) — the day's Complimentary orders,
+// itemized by recipient (reports/7.png).
+function complimentaryItemsTable(rows: { name: string; description: string; amount: number }[], total: number): string {
+  if (rows.length === 0) return ''
+  return `
+    <table class="breakdown">
+      <thead><tr><th>رقم</th><th>تفصیلات</th><th>نام</th></tr></thead>
+      <tbody>
+        ${rows
+          .map(
+            (r) => `<tr>
+              <td class="amount">${money(r.amount)}</td>
+              <td>${escapeHtml(r.description)}</td>
+              <td>${escapeHtml(r.name)}</td>
+            </tr>`,
+          )
+          .join('')}
+        <tr class="total"><td class="amount">${money(total)}</td><td colspan="2">ٹوٹل — آفشل بل</td></tr>
+      </tbody>
+    </table>`
+}
+
 function inventoryTable(rows: { name: string; qty: number; unit: string }[]): string {
   if (rows.length === 0) return ''
   return `
@@ -207,6 +277,12 @@ function reportHtml(report: ClosingReport, dayNameUr: string): string {
   </div>
 
   ${discountBreakdownTable(report.discountBreakdown)}
+
+  ${report.accountLedgers.length > 0 ? `<div class="breakdowns">${report.accountLedgers.map((l) => `<div>${accountLedgerTable(l)}</div>`).join('')}</div>` : ''}
+
+  ${cancelledItemsTable(report.cancelledItems, report.cancelledTotal)}
+
+  ${complimentaryItemsTable(report.complimentaryItems, report.complimentaryTotal)}
 
   ${inventoryTable(report.inventoryUsed.map((i) => ({ ...i, name: tr(INVENTORY_NAME_UR, i.name) })))}
 

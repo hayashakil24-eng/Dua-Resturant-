@@ -32,6 +32,16 @@ export interface ClosingOrder {
   table?: number | null
   discountReason?: string | null
   discountBy?: string | null
+  // Which named credit account (e.g. "Ali Kakar Account", "Hotel Account") an
+  // Udhaar order was booked against — mirrors onlineAccountName. Client's own
+  // reference sheets (../../../reports/ in the repo root) always break Udhaar
+  // out per named account, never as one lump "Udhaar" total, so this has to
+  // be per-order data, same as the online-payment account name already is.
+  udhaarCustomerName?: string | null
+  // Who a Complimentary order was given to (Order.complimentaryOrderedBy) —
+  // the "آفشل بل" / staff-comp report (reports/7.png) lists each free order
+  // by recipient name, not by table.
+  orderedBy?: string | null
 }
 
 export interface ClosingTransaction {
@@ -64,6 +74,53 @@ export interface DiscountBreakdownLine {
   by: string
 }
 
+// One named credit account's ledger for the day (e.g. "Ali Kakar Account"),
+// matching the client's own ledger sheets (reports/3.png, reports/5.png):
+// a numbered list of that day's Udhaar orders against the account, with a
+// running total. "Paid Bill" always starts at 0 / balance = total on a
+// freshly-generated closing — a same-day Udhaar sale can't have already been
+// paid off within the same session it was booked in; settlement happens
+// later, against the Receivable, on a different day.
+export interface AccountLedgerLine {
+  table: number | null
+  amount: number
+}
+
+export interface AccountLedger {
+  name: string
+  lines: AccountLedgerLine[]
+  total: number
+  paidBill: number
+  balance: number
+}
+
+// One cancelled order — the "Kainsal Bill" report (reports/4.png) lists every
+// cancelled order for the day (table + item description + amount), not just
+// a count/loss total. One row per order, not per item — orders are cancelled
+// as a whole in this app (Order.cancelled is order-level, not per-line), and
+// the client's own sheet groups a multi-item order into one described row.
+export interface CancelledOrderLine {
+  table: number | null
+  description: string
+  amount: number
+}
+
+// One Complimentary order — the "آفشل بل" (staff/comp bill) report
+// (reports/7.png) lists every free order for the day by recipient name +
+// item description + the bill amount that was waived.
+export interface ComplimentaryOrderLine {
+  name: string
+  description: string
+  amount: number
+}
+
+// "1x Chicken Karahi, 2x Garlic Naan" — shared by the Kainsal Bill and Aafshal
+// Bill breakdowns, matching how the client's own sheets describe a multi-item
+// order as one combined line rather than splitting it into per-item rows.
+function describeItems(items: { name: string; qty: number }[]): string {
+  return items.map((it) => `${it.qty}x ${it.name}`).join(', ')
+}
+
 export interface ClosingReport {
   date: string
   totalOrders: number
@@ -78,6 +135,8 @@ export interface ClosingReport {
   online: number
   onlineByAccount: [string, number][]
   udhaar: number
+  udhaarByAccount: [string, number][]
+  accountLedgers: AccountLedger[]
   netCashSales: number
   expenses: number
   expensesByCategory: ExpenseCategoryLine[]
@@ -85,6 +144,10 @@ export interface ClosingReport {
   gstCollected: number
   materialLoss: number
   inventoryUsed: InventoryUsedLine[]
+  cancelledItems: CancelledOrderLine[]
+  cancelledTotal: number
+  complimentaryItems: ComplimentaryOrderLine[]
+  complimentaryTotal: number
 }
 
 // 'YYYY-MM-DD' local-day key — matches the Reports page's day bucketing so the
@@ -139,12 +202,40 @@ export function buildClosingReport(
   ).sort((a, b) => b[1] - a[1])
   const online = onlineByAccount.reduce((s, [, v]) => s + v, 0)
 
+  // Udhaar broken down by the named credit account it was booked against
+  // (e.g. "Ali Kakar Account", "Hotel Account") — the client's own sheets
+  // never show one lump "Udhaar" total, always a line per named account
+  // (reports/2.png, reports/6.png). Falls back to a generic label only for
+  // orders that predate udhaarCustomerName being captured.
+  const udhaarOrders = settled.filter((o) => o.payment === 'Udhaar')
+  const udhaarByAccount = Object.entries(
+    udhaarOrders.reduce<Record<string, number>>((acc, o) => {
+      const k = o.udhaarCustomerName || 'Udhaar / Credit'
+      acc[k] = (acc[k] || 0) + totalOf(o).total
+      return acc
+    }, {}),
+  ).sort((a, b) => b[1] - a[1])
+
   // Non-cash "account" channels, in the client's layout (named accounts first).
   const accounts: ClosingAccount[] = [
     ...onlineByAccount.map(([name, amount]) => ({ name, amount })),
     ...(card > 0 ? [{ name: 'Card Account', amount: card }] : []),
-    ...(udhaar > 0 ? [{ name: 'Udhaar / Credit', amount: udhaar }] : []),
+    ...udhaarByAccount.map(([name, amount]) => ({ name, amount })),
   ]
+
+  // Per-account ledgers (reports/3.png, reports/5.png) — a numbered list of
+  // that day's Udhaar orders per named account, backing the account line in
+  // `accounts` above with the same per-order detail the Discount/Expense
+  // breakdowns already get.
+  const accountLedgers: AccountLedger[] = udhaarByAccount.map(([name, total]) => ({
+    name,
+    lines: udhaarOrders
+      .filter((o) => (o.udhaarCustomerName || 'Udhaar / Credit') === name)
+      .map((o) => ({ table: o.table ?? null, amount: totalOf(o).total })),
+    total,
+    paidBill: 0,
+    balance: total,
+  }))
 
   const netSale = cash + card + online + udhaar
   const discount = active.reduce((s, o) => s + (o.discountAmount || 0), 0)
@@ -176,6 +267,22 @@ export function buildClosingReport(
   // Extras kept for the on-screen detail / saved record (not on the summary sheet).
   const gstCollected = settled.reduce((s, o) => s + totalOf(o).tax, 0)
   const materialLoss = cancelled.reduce((s, o) => s + (o.materialLoss || 0), 0)
+  // "Kainsal Bill" — every cancelled order, itemized (reports/4.png), not
+  // just the count/materialLoss totals already tracked above.
+  const cancelledItems: CancelledOrderLine[] = cancelled
+    .map((o) => ({ table: o.table ?? null, description: describeItems(o.items), amount: totalOf(o).total }))
+    .sort((a, b) => b.amount - a.amount)
+  const cancelledTotal = cancelledItems.reduce((s, i) => s + i.amount, 0)
+
+  // "آفشل بل" (Aafshal / staff-comp bill) — every Complimentary order,
+  // itemized by recipient (reports/7.png). Complimentary orders are excluded
+  // from `settled`/sales entirely (the bill was waived, not paid), so this is
+  // the only place their amount is reported at all.
+  const complimentary = active.filter((o) => o.payment === 'Complimentary')
+  const complimentaryItems: ComplimentaryOrderLine[] = complimentary
+    .map((o) => ({ name: o.orderedBy || '—', description: describeItems(o.items), amount: totalOf(o).total }))
+    .sort((a, b) => b.amount - a.amount)
+  const complimentaryTotal = complimentaryItems.reduce((s, i) => s + i.amount, 0)
   // Approved-recipe deductions across the day's items — same source as live
   // inventory deduction (inventoryFlow.ts), not a separate hand-maintained map.
   const deductions = calculateDeductions(active.flatMap((o) => o.items), inventory, recipes)
@@ -197,6 +304,8 @@ export function buildClosingReport(
     online,
     onlineByAccount,
     udhaar,
+    udhaarByAccount,
+    accountLedgers,
     netCashSales,
     expenses,
     expensesByCategory,
@@ -204,5 +313,9 @@ export function buildClosingReport(
     gstCollected,
     materialLoss,
     inventoryUsed,
+    cancelledItems,
+    cancelledTotal,
+    complimentaryItems,
+    complimentaryTotal,
   }
 }
