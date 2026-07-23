@@ -49,12 +49,26 @@ import { sendTextMessage } from './client.js'
 // (a Latin digit like "1." doesn't count as one) to decide. Without it,
 // different lines in the same message could resolve to different
 // directions depending on what they start with, which is what produced the
-// inconsistent indentation reported live. Paired with report.ts's
-// isolateNum() for the digit runs themselves — this fixes the *line*, that
-// fixes the *numbers within* the line.
+// inconsistent indentation reported live.
 const RLM = '‏'
 function rtlLine(s: string): string {
   return `${RLM}${s}`
+}
+
+// U+200E — Left-to-Right Mark. RLM + isolates (report.ts's isolateNum) fixed
+// every pure-Urdu-label line (e.g. "1. خلاصہ") and the day headings, but the
+// closing-picker's per-entry lines mix TWO digit runs (the list number AND
+// the time) plus a trailing Urdu period word ("1. 4:57 صبح") in one line —
+// confirmed still jumbled live even with RLM+isolates (client screenshot:
+// "4:57 صبح .1", the number end up on the wrong side). Forcing those
+// specific lines LTR instead sidesteps the ambiguity entirely: under an
+// unambiguous LTR paragraph, visual order is *guaranteed* to match source
+// order exactly, with the Urdu word simply appearing wherever it's typed —
+// no bidi reordering judgement call left to make. Headings/pure-Urdu-label
+// lines keep rtlLine; only lines built from `${n}. ${timeLabelUr(...)}` use this.
+const LRM = '‎'
+function ltrLine(s: string): string {
+  return `${LRM}${s}`
 }
 
 interface InboundMessage {
@@ -122,7 +136,7 @@ function buildClosingMenuText(days: ClosingDayGroup[]): string {
     const block = [rtlLine(`*${day.dayNameUr} — ${dateLabelUr(day.date)}*`)]
     for (const c of day.closings) {
       n += 1
-      block.push(rtlLine(`${isolateNum(n)}. ${timeLabelUr(c.closingTime)}`))
+      block.push(ltrLine(`${n}. ${timeLabelUr(c.closingTime)}`))
     }
     blocks.push(block.join('\n'))
   }
