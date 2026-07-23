@@ -182,8 +182,16 @@ async function startBackend() {
     // Dynamic import: must happen AFTER the env vars above are set, since
     // @cafe-ali/backend's db/client.ts constructs its PrismaClient (which
     // reads DATABASE_URL) at module-load time.
-    const { buildApp, attachSocket, startDiscoveryResponder, startBackupSchedule, startSyncSchedule, startWhatsappReportSchedule, env } =
+    const { buildApp, attachSocket, startDiscoveryResponder, startBackupSchedule, startSyncSchedule, startWhatsappReportSchedule, seedBaseline, env } =
       await import('@cafe-ali/backend')
+
+    // `migrate deploy` only creates empty tables (no prisma/seed.ts, unlike dev)
+    // — so without this a fresh install has a working login but an empty menu
+    // and no tables, and the POS can't take an order. Idempotent + non-
+    // destructive (only fills empty collections), so running it on every launch
+    // is a no-op once seeded, and it back-fills an already-set-up empty install
+    // on its next launch too.
+    await seedBaseline()
 
     const fastify = buildApp()
     await fastify.listen({ port: env.port, host: '0.0.0.0' })

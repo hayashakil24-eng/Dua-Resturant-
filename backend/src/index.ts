@@ -25,3 +25,7 @@ export { hashPassword, verifyPassword } from './auth/password.js'
 // Gives a freshly-migrated (unseeded) Control Panel database exactly one
 // working staff login — see bootstrap.ts's header for why this is needed.
 export { ensureAdminAccount } from './auth/bootstrap.js'
+// Idempotent baseline reference data (settings, tables, real menu) for the same
+// unseeded Control Panel database — without it a fresh install has an empty menu
+// and no tables. See db/seedBaseline.ts's header.
+export { seedBaseline } from './db/seedBaseline.js'
