@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { money } from '../utils/format.js'
 import { useApp } from '../context/AppContext.jsx'
 import { IconCash, IconLogout } from './Icons.jsx'
+import { BiLabel } from './ui.jsx'
 
 // Blocking prompt shown to a cashier who has no open shift. They must count the
 // cash already in the drawer and enter it as the opening balance before taking
@@ -15,7 +16,7 @@ export default function ShiftStartModal({ onStart }) {
 
   const submit = () => {
     if (!opening || Number.isNaN(amount) || amount < 0) {
-      return setError('Enter the opening cash amount in the drawer.')
+      return setError('Drawer ka cash likhein · Enter the opening cash amount.')
     }
     setError('')
     onStart(amount)
@@ -31,16 +32,16 @@ export default function ShiftStartModal({ onStart }) {
               <IconCash size={22} />
             </span>
             <div>
-              <h3 className="font-serif text-2xl text-cream">Start Your Shift</h3>
+              <h3 className="font-serif text-2xl text-cream">Drawer kholein</h3>
               <p className="text-xs text-cream-dim">
-                Count the cash in the drawer to open the till.
+                Shuru mein drawer ka cash gin kar likhein · Count the cash in the drawer to open the till.
               </p>
             </div>
           </div>
 
           <div className="mt-6">
             <label className="mb-2 block text-[11px] uppercase tracking-wider text-cream-dim">
-              Opening cash amount (Rs.)
+              Shuruati cash (Rs.) · Opening cash amount
             </label>
             <input
               type="number"
@@ -66,10 +67,10 @@ export default function ShiftStartModal({ onStart }) {
 
           <div className="mt-6 flex gap-3">
             <button onClick={logout} className="btn-ghost px-4 py-3 text-sm">
-              <IconLogout size={16} /> Log out
+              <IconLogout size={16} /> <BiLabel ur="Log out" en="Not me" />
             </button>
             <button onClick={submit} className="btn-gold flex-1 py-3">
-              <IconCash size={18} /> Start Shift
+              <IconCash size={18} /> <BiLabel ur="Drawer kholein" en="Start shift" />
             </button>
           </div>
         </div>

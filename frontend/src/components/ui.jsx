@@ -1,6 +1,20 @@
 // Small shared presentational components
 import { useT } from '../i18n/LanguageContext.jsx'
 
+// Two-line bilingual label for cashier action buttons — a bold Roman-Urdu
+// primary line over a muted English subline, ALWAYS both (independent of the
+// app-language toggle) so any staff member understands these money/drawer
+// actions regardless of which language they read. Kept LTR (no Urdu script)
+// on purpose: the cashier flow modals are LTR and Roman Urdu avoids RTL churn.
+export function BiLabel({ ur, en }) {
+  return (
+    <span className="flex flex-col items-center leading-tight">
+      <span className="text-sm font-semibold">{ur}</span>
+      <span className="text-[11px] font-normal opacity-70">{en}</span>
+    </span>
+  )
+}
+
 export function PaymentBadge({ status }) {
   const t = useT()
   // Four states: Paid (emerald), Udhaar/on-account (sky), Complimentary/free

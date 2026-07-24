@@ -23,8 +23,9 @@ const RTL_ROUTES = new Set([
   '/handovers',
   '/kitchen',
 ])
-import { dateLong } from '../utils/format.js'
-import { IconLogout, IconMenu, IconClose, IconCash, IconChevronDown } from './Icons.jsx'
+import { dateLong, money } from '../utils/format.js'
+import { IconLogout, IconMenu, IconClose, IconCash, IconChevronDown, IconClock, IconWallet } from './Icons.jsx'
+import { BiLabel } from './ui.jsx'
 import ShiftStartModal from './ShiftStartModal.jsx'
 import ShiftEndModal from './ShiftEndModal.jsx'
 import AutoResumeModal from './AutoResumeModal.jsx'
@@ -308,21 +309,21 @@ export default function Layout({ children }) {
                     title={`Rs. ${myPendingHandover.amount} to ${myPendingHandover.toName} — awaiting their approval`}
                     className="hidden items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-300 sm:inline-flex"
                   >
-                    ⏳ Handover pending approval
+                    <IconClock size={13} /> Cash di — manzoori ka intezar
                   </span>
                 ) : (
                   <button
                     onClick={() => setHandoverOpen(true)}
                     className="hidden items-center gap-1.5 rounded-full border border-ink-line bg-ink-soft px-3 py-1.5 text-xs font-semibold text-cream-dim transition hover:text-cream sm:inline-flex"
                   >
-                    💸 Partial handover
+                    <IconWallet size={14} /> Manager ko cash dena
                   </button>
                 )}
                 <button
                   onClick={handleExit}
                   className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20"
                 >
-                  <IconCash size={14} /> {t('app.logout')}
+                  <IconLogout size={14} /> {t('app.logout')}
                 </button>
               </>
             )}
@@ -355,6 +356,7 @@ export default function Layout({ children }) {
             setResumed(true)
             setEndOpen(true)
           }}
+          onLogout={logout}
         />
       )}
 
@@ -385,14 +387,24 @@ export default function Layout({ children }) {
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setExitChoice(false)} />
           <div className="relative z-10 w-full max-w-sm animate-fade-up">
             <div className="card p-6">
-              <h3 className="font-serif text-2xl text-cream">Log out</h3>
-              <p className="mt-1 text-xs text-cream-dim">
-                Pause keeps your drawer open to resume later. End shift counts the
-                cash and closes the drawer.
-              </p>
+              <h3 className="font-serif text-2xl text-cream">Log out — kya karein?</h3>
+              {activeShift && (
+                <div className="mt-3 flex items-center justify-between rounded-xl border border-ink-line bg-ink-soft px-4 py-2.5 text-xs">
+                  <span className="text-cream-dim">
+                    Drawer: <span className="text-cream">{activeShift.cashierName}</span>
+                  </span>
+                  <span className="text-cream-dim">
+                    Expected{' '}
+                    <span className="font-semibold text-gold">
+                      {money(calculateShiftSales(activeShift.id)?.expectedCash ?? activeShift.openingCash)}
+                    </span>
+                  </span>
+                </div>
+              )}
               <div className="mt-5 flex flex-col gap-2">
                 <button onClick={pauseAndLogout} className="btn-ghost w-full py-3">
-                  ⏸ Pause &amp; Log out
+                  <IconClock size={18} />{' '}
+                  <BiLabel ur="Thodi der ke liye ja rahe hain" en="Step away — keep drawer open" />
                 </button>
                 <button
                   onClick={() => {
@@ -401,10 +413,11 @@ export default function Layout({ children }) {
                   }}
                   className="btn-gold w-full py-3"
                 >
-                  <IconCash size={18} /> End Shift &amp; Reconcile
+                  <IconCash size={18} />{' '}
+                  <BiLabel ur="Shift khatam — cash ginein" en="End shift & count cash" />
                 </button>
                 <button onClick={() => setExitChoice(false)} className="mt-1 text-xs text-cream-dim hover:text-cream">
-                  Cancel · Keep working
+                  Wapas kaam par · Back to work
                 </button>
               </div>
             </div>
