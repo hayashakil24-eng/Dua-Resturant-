@@ -38,6 +38,10 @@ function CancelledBadge() {
 function CancelModal({ order, orderTotal, materialLoss = 0, onConfirm, onClose }) {
   const [reason, setReason] = useState('')
   const [notes, setNotes] = useState('')
+  // Ingredients are only wasted if the dish was actually cooked. Defaults to the
+  // order's ready state; the "Mark as Ready" button lets the Manager/Admin
+  // confirm it was cooked (then the material loss applies).
+  const [cooked, setCooked] = useState(order.kitchen === 'Ready')
   useEscapeKey(onClose)
   const { total } = orderTotal(order.items, order.discount?.amount, order.gstRate)
 
@@ -70,13 +74,30 @@ function CancelModal({ order, orderTotal, materialLoss = 0, onConfirm, onClose }
             </div>
           </div>
 
-          {/* Material write-off: cancelling does NOT restock — the recipe
-              ingredients already consumed are booked as a loss. */}
-          {materialLoss > 0 && (
-            <div className="mt-3 flex items-center justify-between rounded-xl border border-rose-500/25 bg-rose-500/[0.06] px-3 py-2 text-sm">
-              <span className="text-cream-dim">Material loss (ingredients wasted)</span>
-              <span className="font-semibold text-rose-300">{money(materialLoss)}</span>
-            </div>
+          {/* Material write-off applies ONLY when the dish was cooked (ready) —
+              a not-yet-cooked order wastes nothing, so its ingredients restock. */}
+          {cooked ? (
+            materialLoss > 0 && (
+              <div className="mt-3 flex items-center justify-between rounded-xl border border-rose-500/25 bg-rose-500/[0.06] px-3 py-2 text-sm">
+                <span className="text-cream-dim">Material loss (ingredients wasted)</span>
+                <span className="font-semibold text-rose-300">{money(materialLoss)}</span>
+              </div>
+            )
+          ) : (
+            materialLoss > 0 && (
+              <div className="mt-3 rounded-xl border border-ink-line bg-ink-soft px-3 py-2.5">
+                <p className="text-xs text-cream-dim">
+                  Not cooked yet — no ingredients wasted. If it was already made, mark it ready to
+                  book the material loss.
+                </p>
+                <button
+                  onClick={() => setCooked(true)}
+                  className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-500/15"
+                >
+                  <IconCheck size={14} /> Mark as Ready
+                </button>
+              </div>
+            )
           )}
 
           <div className="mt-4">
@@ -110,7 +131,7 @@ function CancelModal({ order, orderTotal, materialLoss = 0, onConfirm, onClose }
               Keep Order
             </button>
             <button
-              onClick={() => onConfirm({ reason, notes: notes.trim() })}
+              onClick={() => onConfirm({ reason, notes: notes.trim(), cooked })}
               disabled={!reason}
               title={reason ? 'Cancel this order' : 'Select a reason first'}
               className="flex-1 rounded-xl bg-gradient-to-r from-rose-500 to-red-600 py-3 font-semibold text-white transition-all duration-200 hover:from-rose-400 hover:to-red-500 hover:shadow-lg hover:shadow-rose-500/40 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:shadow-none"
@@ -428,8 +449,8 @@ export default function Orders() {
           order={cancelTarget}
           orderTotal={orderTotal}
           materialLoss={orderMaterialLoss(cancelTarget.items)}
-          onConfirm={({ reason, notes }) => {
-            cancelOrder(cancelTarget.id, { reason, notes })
+          onConfirm={({ reason, notes, cooked }) => {
+            cancelOrder(cancelTarget.id, { reason, notes, cooked })
             setCancelTarget(null)
           }}
           onClose={() => setCancelTarget(null)}

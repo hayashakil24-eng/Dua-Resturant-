@@ -78,7 +78,15 @@ export const TABLES = generateTables()
 // (Orders/Dashboard used to print the raw id, e.g. "T281" instead of "HUT1").
 // Falls back to "T<id>" for any id not in the current table set.
 const TABLE_LABELS = new Map(TABLES.map((t) => [t.id, t.number]))
-export const tableLabel = (id) => TABLE_LABELS.get(Number(id)) || `T${id}`
+// Live overlay registered by AppContext from the fetched tables, so a renamed
+// table/category shows everywhere without threading a label fn through every
+// component (many are nested presentational children with no context access).
+let LIVE_TABLE_LABELS = null
+export const registerTableLabels = (tables) => {
+  LIVE_TABLE_LABELS = new Map((tables || []).map((t) => [Number(t.id), t.number]))
+}
+export const tableLabel = (id) =>
+  LIVE_TABLE_LABELS?.get(Number(id)) || TABLE_LABELS.get(Number(id)) || `T${id}`
 
 // Account receivables — regular credit customers whose bills accumulate ("on
 // account") and are settled later. `balance` is the outstanding amount (بقایا).

@@ -211,12 +211,13 @@ export async function deleteAdvance(_ctx: Ctx, id: string) {
   return { success: true }
 }
 
-// Mark a month's pending advances recovered (called on payroll confirm).
-export async function recoverAdvances(_ctx: Ctx, year: number, monthIndex: number) {
+// Mark a month's pending advances recovered. Whole-month (payroll confirm) when
+// staffId is omitted, or scoped to one staff (their "Done" in the payroll modal).
+export async function recoverAdvances(_ctx: Ctx, year: number, monthIndex: number, staffId?: string) {
   const start = new Date(year, monthIndex, 1)
   const end = new Date(year, monthIndex + 1, 1)
   const result = await prisma.advance.updateMany({
-    where: { status: 'pending', date: { gte: start, lt: end } },
+    where: { status: 'pending', date: { gte: start, lt: end }, ...(staffId ? { staffId } : {}) },
     data: { status: 'recovered' },
   })
   return { recovered: result.count }

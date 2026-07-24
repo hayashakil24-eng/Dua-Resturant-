@@ -113,7 +113,7 @@ function Row({ label, value }) {
   )
 }
 
-function EditModal({ staff, att, calculated, advances, onAddAdvance, onDeleteAdvance, onClose }) {
+function EditModal({ staff, att, calculated, advances, onAddAdvance, onDeleteAdvance, onDone, onClose }) {
   const t = useT()
   const [amount, setAmount] = useState('')
   const [reason, setReason] = useState('')
@@ -233,7 +233,7 @@ function EditModal({ staff, att, calculated, advances, onAddAdvance, onDeleteAdv
             </div>
           </div>
 
-          <button onClick={onClose} className="btn-ghost mt-6 w-full py-3">
+          <button onClick={onDone} className="btn-ghost mt-6 w-full py-3">
             <IconCheck size={18} /> {t('payroll.done')}
           </button>
         </div>
@@ -463,6 +463,12 @@ export default function Payroll() {
             addAdvance({ staffId: editRow.staff.id, amount, reason, date: advanceDate() })
           }
           onDeleteAdvance={deleteAdvance}
+          onDone={() => {
+            // "Done" confirms this staff's advances immediately (recovered),
+            // without waiting for the whole-payroll "Save & Confirm".
+            recoverAdvances(year, monthIndex, editRow.staff.id)
+            setEditStaff(null)
+          }}
           onClose={() => setEditStaff(null)}
         />
       )}

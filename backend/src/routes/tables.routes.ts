@@ -16,4 +16,14 @@ export async function tableRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string }
     return await tables.deleteTable(ctx(req), Number(id))
   })
+
+  // Category-level ops: rename relabels the group's tables; delete removes them.
+  app.post('/api/tables/category/rename', { preHandler: requirePermission('tableAdd') }, async (req) => {
+    const { from, name } = (req.body ?? {}) as { from?: string; name?: string }
+    return await tables.renameTableCategory(ctx(req), String(from ?? ''), String(name ?? ''))
+  })
+  app.post('/api/tables/category/delete', { preHandler: requireRole('Admin') }, async (req) => {
+    const { category } = (req.body ?? {}) as { category?: string }
+    return await tables.deleteTableCategory(ctx(req), String(category ?? ''))
+  })
 }

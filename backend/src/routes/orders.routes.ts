@@ -54,8 +54,8 @@ export async function orderRoutes(app: FastifyInstance): Promise<void> {
   // Cancel (Admin only, per orderCancel).
   app.post('/api/orders/:id/cancel', { preHandler: requirePermission('orderCancel') }, async (req) => {
     const { id } = req.params as { id: string }
-    const { reason, notes } = (req.body ?? {}) as { reason?: string; notes?: string }
-    return { order: await orders.cancelOrder(ctx(req), id, { reason, notes }) }
+    const { reason, notes, cooked } = (req.body ?? {}) as { reason?: string; notes?: string; cooked?: boolean }
+    return { order: await orders.cancelOrder(ctx(req), id, { reason, notes, cooked }) }
   })
 
   // Discount (Admin/Manager, per discount).
@@ -87,6 +87,10 @@ export async function orderRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/orders/:id/ready', { preHandler: requirePermission('kds') }, async (req) => {
     const { id } = req.params as { id: string }
     return { order: await orders.markReady(ctx(req), id) }
+  })
+  app.post('/api/orders/:id/items/:itemId/ready', { preHandler: requirePermission('kds') }, async (req) => {
+    const { id, itemId } = req.params as { id: string; itemId: string }
+    return { order: await orders.markItemReady(ctx(req), id, itemId) }
   })
   app.post('/api/orders/:id/served', { preHandler: requirePermission('kds') }, async (req) => {
     const { id } = req.params as { id: string }

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { io } from 'socket.io-client'
-import { INITIAL_ATTENDANCE, MENU_CATEGORIES, TAX_RATE } from '../data/mockData.js'
+import { INITIAL_ATTENDANCE, MENU_CATEGORIES, TAX_RATE, registerTableLabels } from '../data/mockData.js'
 import { calculateOrderMaterialCost } from '../utils/inventoryFlow.js'
 import { apiGet, apiPost, apiPatch, apiPut, apiDelete, setToken, getToken, ApiError, BASE } from '../api/client.js'
 
@@ -16,6 +16,7 @@ const ACTION_REFETCH_MAP = {
   ORDER_PLACED: ['orders'],
   ORDER_PAID: ['orders'],
   ORDER_READY: ['orders'],
+  ITEM_READY: ['orders'],
   ORDER_SERVED: ['orders'],
   ORDER_ITEMS_ADDED: ['orders'],
   ORDER_QTY_UPDATED: ['orders'],
@@ -32,6 +33,8 @@ const ACTION_REFETCH_MAP = {
   TABLE_ADDED: ['tables'],
   TABLE_UPDATED: ['tables'],
   TABLE_DELETED: ['tables'],
+  TABLE_CATEGORY_RENAMED: ['tables'],
+  TABLE_CATEGORY_DELETED: ['tables'],
   STAFF_ADDED: ['staff'],
   STAFF_DELETED: ['staff'],
   STAFF_SIGNUP_REQUESTED: ['pendingSignups'],
@@ -130,7 +133,13 @@ export function AppProvider({ children }) {
     inventory: () => apiGet('/api/inventory').then((d) => setInventory(d.inventory || [])),
     menu: () => apiGet('/api/menu').then((d) => setMenu(d.menu || [])),
     categories: () => apiGet('/api/categories').then((d) => setCustomCategories(d.categories || [])),
-    tables: () => apiGet('/api/tables').then((d) => setTables(d.tables || [])),
+    tables: () =>
+      apiGet('/api/tables').then((d) => {
+        // Register live labels so tableLabel() reflects renamed tables/categories
+        // everywhere (POS/Orders/KDS/bill) — see registerTableLabels in mockData.
+        registerTableLabels(d.tables || [])
+        setTables(d.tables || [])
+      }),
     staff: () => apiGet('/api/staff').then((d) => setStaff(d.staff || [])),
     pendingSignups: () => apiGet('/api/staff/pending-signups').then((d) => setPendingSignups(d.pendingSignups || [])),
     advances: () => apiGet('/api/advances').then((d) => setAdvances(d.advances || [])),
@@ -386,6 +395,16 @@ export function AppProvider({ children }) {
       return toError(e)
     }
   }
+  // Toggle one line ready on the KDS; the order auto-flips to Ready when all
+  // lines are done. `itemId` is the OrderItem DB id (order.items[].itemId).
+  const markItemReady = async (id, itemId) => {
+    try {
+      await apiPost(`/api/orders/${orderSid(id)}/items/${itemId}/ready`)
+      await refresh(['orders'])
+    } catch (e) {
+      return toError(e)
+    }
+  }
   const clearKitchen = async (id) => {
     try {
       await apiPost(`/api/orders/${orderSid(id)}/served`)
@@ -395,9 +414,9 @@ export function AppProvider({ children }) {
     }
   }
 
-  const cancelOrder = async (id, { reason, notes = '' } = {}) => {
+  const cancelOrder = async (id, { reason, notes = '', cooked } = {}) => {
     try {
-      await apiPost(`/api/orders/${orderSid(id)}/cancel`, { reason, notes })
+      await apiPost(`/api/orders/${orderSid(id)}/cancel`, { reason, notes, cooked })
       await refresh(['orders', 'inventory'])
     } catch (e) {
       return toError(e)
@@ -618,6 +637,24 @@ export function AppProvider({ children }) {
       return toError(e)
     }
   }
+  const renameTableCategory = async (from, name) => {
+    try {
+      await apiPost('/api/tables/category/rename', { from, name })
+      await refresh(['tables'])
+      return { success: true }
+    } catch (e) {
+      return toError(e)
+    }
+  }
+  const deleteTableCategory = async (category) => {
+    try {
+      await apiPost('/api/tables/category/delete', { category })
+      await refresh(['tables'])
+      return { success: true }
+    } catch (e) {
+      return toError(e)
+    }
+  }
 
   // ---- Employees + advances ---------------------------------------------
   const waiters = useMemo(() => staff.filter((s) => s.active !== false && s.role === 'Waiter'), [staff])
@@ -690,9 +727,11 @@ export function AppProvider({ children }) {
       return toError(e)
     }
   }
-  const recoverAdvances = async (year, monthIndex) => {
+  // staffId omitted → recover the whole month (payroll confirm); with staffId →
+  // just that staff's advances (their "Done" in the payroll modal).
+  const recoverAdvances = async (year, monthIndex, staffId) => {
     try {
-      await apiPost('/api/advances/recover', { year, monthIndex })
+      await apiPost('/api/advances/recover', { year, monthIndex, staffId })
       await refresh(['advances'])
     } catch (e) {
       return toError(e)
@@ -999,6 +1038,7 @@ export function AppProvider({ children }) {
     appendOrderItems,
     markPaid,
     markReady,
+    markItemReady,
     clearKitchen,
     cancelOrder,
     orderMaterialLoss,
@@ -1058,6 +1098,8 @@ export function AppProvider({ children }) {
     addTable,
     updateTable,
     deleteTable,
+    renameTableCategory,
+    deleteTableCategory,
     staff,
     waiters,
     addStaff,

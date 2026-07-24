@@ -7,11 +7,12 @@ import { IconClose, IconCheck, IconClock } from '../components/Icons.jsx'
 const elapsedMin = (iso, now) =>
   Math.max(0, Math.floor((now - new Date(iso).getTime()) / 60000))
 
-function OrderCard({ order, items, now, onReady, onClear, deptFor, showDeptTag }) {
+function OrderCard({ order, items, now, onReady, onItemReady, onClear, deptFor, showDeptTag }) {
   const ready = order.kitchen === 'Ready'
   const mins = elapsedMin(order.createdAt, now)
   const urgent = !ready && mins >= 15
   const lines = items || order.items
+  const readyCount = lines.filter((it) => it.ready).length
 
   const border = ready
     ? 'border-emerald-500/70 bg-emerald-500/10'
@@ -28,31 +29,55 @@ function OrderCard({ order, items, now, onReady, onClear, deptFor, showDeptTag }
           </p>
           <p className="mt-1 text-lg text-cream-dim">{order.waiter}</p>
         </div>
-        <span
-          className={`rounded-lg px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${
-            ready ? 'bg-emerald-500/20 text-emerald-300' : 'bg-gold/15 text-gold'
-          }`}
-        >
-          {order.id}
-        </span>
+        <div className="flex flex-col items-end gap-1">
+          <span
+            className={`rounded-lg px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${
+              ready ? 'bg-emerald-500/20 text-emerald-300' : 'bg-gold/15 text-gold'
+            }`}
+          >
+            {order.id}
+          </span>
+          <span className={`text-xs font-bold ${readyCount === lines.length ? 'text-emerald-300' : 'text-cream-dim'}`}>
+            {readyCount} / {lines.length} ready
+          </span>
+        </div>
       </div>
 
       <div className="my-4 border-t border-ink-line" />
 
-      <ul className="flex-1 space-y-2.5">
+      {/* Tap a line to mark it ready (toggle) — the order goes Ready when all lines are done. */}
+      <ul className="flex-1 space-y-2">
         {lines.map((it) => {
           const dept = showDeptTag && deptFor ? deptFor(it.id) : null
           return (
-            <li key={it.id} className="flex items-baseline justify-between gap-3 text-cream">
-              <span className="min-w-0 text-lg leading-tight">
-                {it.name}
-                {dept && (
-                  <span className="ms-2 rounded bg-white/5 px-1.5 py-0.5 align-middle text-[11px] font-medium text-cream-dim ring-1 ring-ink-line">
-                    {dept.name}
+            <li key={it.id}>
+              <button
+                onClick={() => onItemReady(order.id, it.itemId)}
+                className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition ${
+                  it.ready
+                    ? 'border-emerald-500/40 bg-emerald-500/10'
+                    : 'border-ink-line bg-white/[0.02] hover:border-gold/40'
+                }`}
+              >
+                <span className="flex min-w-0 items-center gap-2.5">
+                  <span
+                    className={`grid h-6 w-6 shrink-0 place-items-center rounded-md border ${
+                      it.ready ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-300' : 'border-ink-line text-transparent'
+                    }`}
+                  >
+                    <IconCheck size={15} />
                   </span>
-                )}
-              </span>
-              <span className="shrink-0 text-lg font-bold text-gold">×{it.qty}</span>
+                  <span className={`min-w-0 text-lg leading-tight ${it.ready ? 'text-cream-dim line-through' : 'text-cream'}`}>
+                    {it.name}
+                    {dept && (
+                      <span className="ms-2 rounded bg-white/5 px-1.5 py-0.5 align-middle text-[11px] font-medium text-cream-dim ring-1 ring-ink-line">
+                        {dept.name}
+                      </span>
+                    )}
+                  </span>
+                </span>
+                <span className={`shrink-0 text-lg font-bold ${it.ready ? 'text-emerald-300/70' : 'text-gold'}`}>×{it.qty}</span>
+              </button>
             </li>
           )
         })}
@@ -78,7 +103,7 @@ function OrderCard({ order, items, now, onReady, onClear, deptFor, showDeptTag }
             onClick={() => onReady(order.id)}
             className="rounded-xl bg-gold-grad px-5 py-2.5 text-lg font-bold text-ink transition hover:brightness-110"
           >
-            Mark Ready
+            Mark all ready
           </button>
         )}
       </div>
@@ -87,7 +112,7 @@ function OrderCard({ order, items, now, onReady, onClear, deptFor, showDeptTag }
 }
 
 export default function KitchenDisplay() {
-  const { orders, markReady, clearKitchen, departments, getDepartmentForItem } = useApp()
+  const { orders, markReady, markItemReady, clearKitchen, departments, getDepartmentForItem } = useApp()
   const [now, setNow] = useState(() => Date.now())
   const [dept, setDept] = useState('all') // 'all' | department id
 
@@ -197,6 +222,7 @@ export default function KitchenDisplay() {
                 items={items}
                 now={now}
                 onReady={markReady}
+                onItemReady={markItemReady}
                 onClear={clearKitchen}
                 deptFor={getDepartmentForItem}
                 showDeptTag={dept === 'all'}

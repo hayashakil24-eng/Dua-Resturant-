@@ -104,6 +104,7 @@ export function serializeOrder(o: OrderWithItems) {
       addedAt: it.addedAt ? it.addedAt.toISOString() : undefined,
       cost: it.cost,
       costEstimated: it.costEstimated,
+      ready: it.ready,
     })),
     payment: o.payment,
     method: o.method,
@@ -425,7 +426,7 @@ export async function markPaid(ctx: Ctx, orderId: string, method = 'Cash', onlin
   })
 }
 
-export async function cancelOrder(ctx: Ctx, orderId: string, opts: { reason?: string; notes?: string } = {}) {
+export async function cancelOrder(ctx: Ctx, orderId: string, opts: { reason?: string; notes?: string; cooked?: boolean } = {}) {
   const reason = opts.reason
   if (!reason) throw new ServiceError('A cancellation reason is required.')
   const notes = opts.notes ?? ''
@@ -434,20 +435,27 @@ export async function cancelOrder(ctx: Ctx, orderId: string, opts: { reason?: st
     const o = await fetchOrder(tx, orderId)
     if (o.payment !== 'Unpaid' || o.cancelled) throw new ServiceError('Only an unpaid order can be cancelled.')
 
+    // "cooked" decides whether ingredients were actually wasted. Defaults to the
+    // order's live ready state (marked on the KDS), but the Cancel modal can set
+    // it explicitly via "Mark as Ready". Not cooked → nothing was wasted, so
+    // restock EVERYTHING and book no loss.
+    const cooked = opts.cooked ?? o.kitchen === 'Ready'
+
     // Reusable items (cold drinks, bread, sides) are re-servable → restock, not
-    // a loss. The rest were cooked-to-order → stay deducted, booked as loss.
+    // a loss. Cooked-to-order items are a loss ONLY if the dish was cooked;
+    // otherwise they restock too.
     const menuIds = [...new Set(o.items.map((i) => i.menuItemId))]
     const menuItems = await tx.menuItem.findMany({ where: { id: { in: menuIds } } })
     const reusable = new Set(menuItems.filter((m) => m.reusable).map((m) => m.id))
     const asItems = o.items.map((i) => ({ menuItemId: i.menuItemId, qty: i.qty }))
-    const reusableItems = asItems.filter((i) => reusable.has(i.menuItemId))
-    const wastedItems = asItems.filter((i) => !reusable.has(i.menuItemId))
+    const wastedItems = cooked ? asItems.filter((i) => !reusable.has(i.menuItemId)) : []
+    const restockItems = cooked ? asItems.filter((i) => reusable.has(i.menuItemId)) : asItems
 
     const inventory = await loadInventory(tx)
     const recipes = await loadApprovedRecipes(tx)
     const materialLoss = Math.round(calculateOrderMaterialCost(wastedItems, inventory, recipes))
-    if (reusableItems.length) {
-      await applyStockChanges(tx, inventory, calculateRestocks(reusableItems, inventory, recipes), 1, ctx.actor)
+    if (restockItems.length) {
+      await applyStockChanges(tx, inventory, calculateRestocks(restockItems, inventory, recipes), 1, ctx.actor)
     }
 
     const at = new Date()
@@ -628,8 +636,36 @@ export async function markOrderComplimentary(ctx: Ctx, orderId: string, opts: { 
 }
 
 export async function markReady(ctx: Ctx, orderId: string) {
-  const updated = await prisma.order.update({ where: { id: orderId }, data: { kitchen: 'Ready' }, include: { items: true } })
+  // Whole-order "mark all ready" — also flip every line ready so the per-item
+  // KDS view stays consistent with the order-level flag.
+  const updated = await prisma.$transaction(async (tx) => {
+    await tx.orderItem.updateMany({ where: { orderId }, data: { ready: true } })
+    return tx.order.update({ where: { id: orderId }, data: { kitchen: 'Ready' }, include: { items: true } })
+  })
   broadcastEvent({ action: 'ORDER_READY', actor: ctx.actor, details: { orderId, table: updated.table } })
+  return serializeOrder(updated)
+}
+
+// Toggle one line's ready state (KDS per-item ticking). The order auto-flips to
+// 'Ready' once every line is ready, and back to 'Pending' if a ready order has a
+// line un-ticked (a mis-tap is recoverable). No-op once the order is 'Served'.
+export async function markItemReady(ctx: Ctx, orderId: string, itemId: string) {
+  const updated = await prisma.$transaction(async (tx) => {
+    const order = await tx.order.findUnique({ where: { id: orderId }, include: { items: true } })
+    if (!order) throw new NotFoundError('Order not found.')
+    if (order.kitchen === 'Served') return order
+    const item = order.items.find((it) => it.id === itemId)
+    if (!item) throw new NotFoundError('Order item not found.')
+    await tx.orderItem.update({ where: { id: itemId }, data: { ready: !item.ready } })
+    const allReady = order.items.every((it) => (it.id === itemId ? !item.ready : it.ready))
+    const kitchen = allReady ? 'Ready' : 'Pending'
+    return tx.order.update({ where: { id: orderId }, data: { kitchen }, include: { items: true } })
+  })
+  broadcastEvent({
+    action: updated.kitchen === 'Ready' ? 'ORDER_READY' : 'ITEM_READY',
+    actor: ctx.actor,
+    details: { orderId, itemId, table: updated.table },
+  })
   return serializeOrder(updated)
 }
 

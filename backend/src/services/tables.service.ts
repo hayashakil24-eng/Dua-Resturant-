@@ -57,3 +57,38 @@ export async function deleteTable(ctx: Ctx, id: number) {
   broadcastEvent({ action: 'TABLE_DELETED', actor: ctx.actor, details: { table: id } })
   return { success: true }
 }
+
+// Rename a whole category and relabel its tables to "<newName> 1..N" (ordered by
+// id). Labels are read live across the app, so this shows on POS/KDS/bill too.
+export async function renameTableCategory(ctx: Ctx, fromCategory: string, newName: string) {
+  const name = (newName ?? '').trim()
+  if (!fromCategory || !name) throw new ServiceError('A category and a new name are required.')
+  return prisma.$transaction(async (tx) => {
+    const members = await tx.table.findMany({ where: { category: fromCategory }, orderBy: { id: 'asc' } })
+    if (members.length === 0) throw new ServiceError('No tables found in this category.', 404)
+    let i = 0
+    for (const tbl of members) {
+      i += 1
+      await tx.table.update({ where: { id: tbl.id }, data: { category: name, number: `${name} ${i}` } })
+    }
+    await writeAudit(tx, { action: 'TABLE_CATEGORY_RENAMED', actor: ctx.actor, details: { from: fromCategory, to: name, count: members.length } })
+    return { renamed: members.length }
+  })
+}
+
+// Delete every table in a category. Blocks if any member has a running order;
+// locked (Delivery/Takeaway) tables are skipped, never removed.
+export async function deleteTableCategory(ctx: Ctx, category: string) {
+  if (!category) throw new ServiceError('A category is required.')
+  return prisma.$transaction(async (tx) => {
+    const members = await tx.table.findMany({ where: { category } })
+    if (members.length === 0) throw new ServiceError('No tables found in this category.', 404)
+    const ids = members.map((m) => m.id)
+    const running = await tx.order.count({ where: { table: { in: ids }, payment: 'Unpaid', cancelled: false } })
+    if (running > 0) throw new ServiceError('Some tables in this category are in use — settle their orders first.')
+    const deletable = members.filter((m) => !m.locked).map((m) => m.id)
+    await tx.table.deleteMany({ where: { id: { in: deletable } } })
+    await writeAudit(tx, { action: 'TABLE_CATEGORY_DELETED', actor: ctx.actor, details: { category, count: deletable.length } })
+    return { deleted: deletable.length }
+  })
+}

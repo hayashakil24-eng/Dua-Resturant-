@@ -18,6 +18,9 @@ import {
 
 // Base units an inventory item can be tracked in.
 const UNITS = ['kg', 'g', 'L', 'ml', 'pcs', 'packs']
+// Sentinel for the "New category…" option in the add-item dropdown (mirrors
+// MenuManagement's MenuItemModal so Inventory can introduce a fresh category).
+const NEW_CAT = '__new__'
 
 // Stock status helper — critical (<=50% of threshold), low (<=threshold), ok.
 function stockLevel(item) {
@@ -41,7 +44,9 @@ function AddItemModal({ categories, onClose, onSave }) {
   const t = useT()
   const [name, setName] = useState('')
   const [nameUr, setNameUr] = useState('')
-  const [category, setCategory] = useState(categories[0] || 'Other')
+  // Default to the "new category" input when the inventory has no categories yet.
+  const [category, setCategory] = useState(categories[0] || NEW_CAT)
+  const [newCat, setNewCat] = useState('')
   const [unit, setUnit] = useState(UNITS[0])
   const [stock, setStock] = useState('0')
   const [threshold, setThreshold] = useState('0')
@@ -49,13 +54,16 @@ function AddItemModal({ categories, onClose, onSave }) {
   const [error, setError] = useState('')
   useEscapeKey(onClose)
 
-  const valid = name.trim().length > 0
+  // Categories are derived from existing items, so a brand-new one is just a
+  // string typed here — it appears in the dropdown once this item is saved.
+  const resolvedCategory = category === NEW_CAT ? newCat.trim() : category
+  const valid = name.trim().length > 0 && resolvedCategory.length > 0
 
   const submit = async () => {
     const res = await onSave({
       name: name.trim(),
       nameUr: nameUr.trim(),
-      category,
+      category: resolvedCategory,
       unit,
       stock: Number(stock) || 0,
       threshold: Number(threshold) || 0,
@@ -128,7 +136,16 @@ function AddItemModal({ categories, onClose, onSave }) {
                       {c}
                     </option>
                   ))}
+                  <option value={NEW_CAT}>{t('inventory.newCategoryOpt')}</option>
                 </select>
+                {category === NEW_CAT && (
+                  <input
+                    className="input mt-2 py-2"
+                    value={newCat}
+                    onChange={(e) => setNewCat(e.target.value)}
+                    placeholder={t('inventory.newCategoryPh')}
+                  />
+                )}
               </div>
               <div>
                 <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">

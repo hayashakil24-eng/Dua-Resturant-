@@ -46,7 +46,7 @@ export async function staffRoutes(app: FastifyInstance): Promise<void> {
     return await staff.deleteAdvance(ctx(req), id)
   })
   app.post('/api/advances/recover', { preHandler: requirePermission('payroll') }, async (req) => {
-    const { year, monthIndex } = (req.body ?? {}) as { year?: number; monthIndex?: number }
-    return await staff.recoverAdvances(ctx(req), Number(year), Number(monthIndex))
+    const { year, monthIndex, staffId } = (req.body ?? {}) as { year?: number; monthIndex?: number; staffId?: string }
+    return await staff.recoverAdvances(ctx(req), Number(year), Number(monthIndex), staffId || undefined)
   })
 }

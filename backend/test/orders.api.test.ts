@@ -145,6 +145,33 @@ describe('orders', () => {
     expect(JSON.parse(ok.body).order.cancelled).toBe(true)
   })
 
+  it('cooked=false restocks everything with no material loss; cooked=true books the loss', async () => {
+    const cashier = await tokenFor('cashier')
+    const admin = await tokenFor('admin')
+    const place = () =>
+      app.inject({
+        method: 'POST',
+        url: '/api/orders',
+        headers: auth(cashier),
+        payload: { table: 21, items: [{ menuItemId: 'ckh1', name: 'Chicken Shahi Karahi', price: 2699, qty: 1 }], payment: 'Unpaid' },
+      })
+
+    const before = await chickenStock()
+
+    // Not cooked → full restock, no loss (net-zero on chicken).
+    const id1 = JSON.parse((await place()).body).order.id
+    const c1 = await app.inject({ method: 'POST', url: `/api/orders/${id1}/cancel`, headers: auth(admin), payload: { reason: 'x', cooked: false } })
+    expect(c1.statusCode).toBe(200)
+    expect(JSON.parse(c1.body).order.materialLoss ?? 0).toBe(0)
+    expect(await chickenStock()).toBeCloseTo(before, 5)
+
+    // Cooked → material loss booked, the non-reusable dish stays deducted.
+    const id2 = JSON.parse((await place()).body).order.id
+    const c2 = await app.inject({ method: 'POST', url: `/api/orders/${id2}/cancel`, headers: auth(admin), payload: { reason: 'x', cooked: true } })
+    expect(JSON.parse(c2.body).order.materialLoss).toBeGreaterThan(0)
+    expect(await chickenStock()).toBeLessThan(before)
+  })
+
   it('requires a reason to cancel (400)', async () => {
     const admin = await tokenFor('admin')
     const cashier = await tokenFor('cashier')

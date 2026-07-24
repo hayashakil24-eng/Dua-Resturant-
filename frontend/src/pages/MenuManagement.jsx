@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { useT, useLang } from '../i18n/LanguageContext.jsx'
 import { itemNameLabel, categoryLabel } from '../i18n/dataDict.js'
@@ -316,13 +316,11 @@ export default function MenuManagement() {
   const {
     menu,
     menuCategories,
-    addCategory,
     deleteCategory,
     addMenuItem,
     updateMenuItem,
     deleteMenuItem,
     toggleMenuItem,
-    replaceMenu,
     user,
   } = useApp()
   const { t, lang } = useLang()
@@ -331,12 +329,13 @@ export default function MenuManagement() {
   const [catFilter, setCatFilter] = useState('All')
   const [modalItem, setModalItem] = useState(undefined) // undefined=closed, null=add, obj=edit
   const [notice, setNotice] = useState('')
-  const [newCategory, setNewCategory] = useState('')
   const [categoryError, setCategoryError] = useState('')
   const [confirmingDelete, setConfirmingDelete] = useState(null)
-  const fileRef = useRef(null)
+  const [showCatManager, setShowCatManager] = useState(false)
 
-  const canAddCategory = user && canModify(user.role, 'categoryAdd')
+  // Gate the "Manage categories" popover (delete). Category creation now happens
+  // in the item modal's "+ New category"; this permission still governs delete.
+  const canManageCategories = user && canModify(user.role, 'categoryAdd')
 
   // Item count per category (case-insensitive), for the chip badges + delete guard.
   const categoryCounts = useMemo(() => {
@@ -347,14 +346,6 @@ export default function MenuManagement() {
     })
     return counts
   }, [menu])
-
-  const submitCategory = async () => {
-    setCategoryError('')
-    const result = await addCategory(newCategory)
-    if (result?.error) return setCategoryError(result.error)
-    flash(`Category “${newCategory.trim()}” added.`)
-    setNewCategory('')
-  }
 
   // Non-empty → block immediately with the counted error. Empty → confirm first.
   const requestDeleteCategory = async (cat) => {
@@ -397,35 +388,6 @@ export default function MenuManagement() {
     setTimeout(() => setNotice(''), 3500)
   }
 
-  const exportMenu = () => {
-    const blob = new Blob([JSON.stringify(menu, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'cafe-ali-menu.json'
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  const importMenu = (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => {
-      try {
-        const data = JSON.parse(reader.result)
-        const items = Array.isArray(data) ? data : data.items
-        if (!Array.isArray(items) || !items.length) throw new Error('empty')
-        replaceMenu(items)
-        flash(`Imported ${items.length} items.`)
-      } catch {
-        flash('Invalid menu file.')
-      }
-    }
-    reader.readAsText(file)
-    e.target.value = ''
-  }
-
   const onSave = (payload) => {
     if (modalItem) updateMenuItem(modalItem.id, payload)
     else addMenuItem(payload)
@@ -435,13 +397,6 @@ export default function MenuManagement() {
     <div>
       <PageHeader title={t('menu.title')} subtitle={t('menu.subtitle')}>
         <div className="flex flex-wrap gap-2">
-          <button onClick={exportMenu} className="btn-ghost px-4 py-2 text-sm">
-            {t('menu.export')}
-          </button>
-          <button onClick={() => fileRef.current?.click()} className="btn-ghost px-4 py-2 text-sm">
-            {t('menu.import')}
-          </button>
-          <input ref={fileRef} type="file" accept="application/json" className="hidden" onChange={importMenu} />
           <button onClick={() => setModalItem(null)} className="btn-gold px-4 py-2 text-sm">
             <IconPlus size={16} /> {t('menu.addItem')}
           </button>
@@ -457,58 +412,6 @@ export default function MenuManagement() {
       {notice && (
         <div className="mb-4 rounded-xl border border-gold/30 bg-gold/10 px-4 py-2.5 text-sm text-gold">
           {notice}
-        </div>
-      )}
-
-      {/* Add category — free text, Admin/Manager only. No fixed/predefined list. */}
-      {canAddCategory && (
-        <div className="card mb-5 p-4">
-          <p className="mb-2 text-[11px] uppercase tracking-wider text-cream-dim">{t('menu.addCategory')}</p>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <input
-              className="input flex-1"
-              placeholder={t('menu.categoryPlaceholder')}
-              value={newCategory}
-              onChange={(e) => setNewCategory(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && submitCategory()}
-            />
-            <button onClick={submitCategory} className="btn-gold px-4 py-2 text-sm sm:w-auto">
-              <IconPlus size={16} /> {t('menu.addCategoryBtn')}
-            </button>
-          </div>
-          {categoryError && (
-            <p className="mt-2 flex items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
-              <IconAlert size={14} className="shrink-0" /> {categoryError}
-            </p>
-          )}
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {menuCategories.map((c) => {
-              const count = categoryCounts[c.toLowerCase()] || 0
-              const empty = count === 0
-              return (
-                <span
-                  key={c}
-                  className="badge bg-gold/10 text-gold ring-1 ring-gold/25"
-                >
-                  {c}
-                  <span className="text-[10px] text-gold">({count})</span>
-                  <button
-                    onClick={() => requestDeleteCategory(c)}
-                    title={
-                      empty
-                        ? `Delete “${c}”`
-                        : `Cannot delete — ${count} item${count > 1 ? 's' : ''} in use`
-                    }
-                    className={`ms-0.5 transition ${
-                      empty ? 'hover:text-rose-300' : 'text-gold hover:text-rose-300'
-                    }`}
-                  >
-                    <IconClose size={12} />
-                  </button>
-                </span>
-              )
-            })}
-          </div>
         </div>
       )}
 
@@ -537,6 +440,18 @@ export default function MenuManagement() {
             </option>
           ))}
         </select>
+        {canManageCategories && (
+          <button
+            onClick={() => {
+              setCategoryError('')
+              setShowCatManager(true)
+            }}
+            className="btn-ghost shrink-0 px-4 py-2 text-sm"
+            title={t('menu.manageCategories')}
+          >
+            <IconEdit size={16} /> {t('menu.manageCategories')}
+          </button>
+        )}
       </div>
 
       {/* Table */}
@@ -632,8 +547,66 @@ export default function MenuManagement() {
         />
       )}
 
-      {confirmingDelete && (
+      {/* Manage categories — delete only (empty categories); add is done in the
+          item modal's "+ New category". Delete guard mirrors the backend. */}
+      {showCatManager && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => setShowCatManager(false)}
+          />
+          <div className="relative z-10 w-full max-w-md animate-fade-up">
+            <div className="card p-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="font-serif text-2xl text-cream">{t('menu.manageCategories')}</h3>
+                  <p className="mt-0.5 text-xs text-cream-dim">{t('menu.manageCategoriesHint')}</p>
+                </div>
+                <button onClick={() => setShowCatManager(false)} className="text-cream-dim hover:text-cream">
+                  <IconClose size={20} />
+                </button>
+              </div>
+
+              {categoryError && (
+                <p className="mt-4 flex items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+                  <IconAlert size={14} className="shrink-0" /> {categoryError}
+                </p>
+              )}
+
+              <div className="mt-4 max-h-[55vh] space-y-1.5 overflow-y-auto">
+                {menuCategories.map((c) => {
+                  const count = categoryCounts[c.toLowerCase()] || 0
+                  const empty = count === 0
+                  return (
+                    <div
+                      key={c}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-ink-line bg-white/[0.02] px-4 py-2.5"
+                    >
+                      <span className="min-w-0 truncate text-cream">
+                        {c} <span className="text-[11px] text-cream-dim">({count})</span>
+                      </span>
+                      {empty ? (
+                        <button
+                          onClick={() => requestDeleteCategory(c)}
+                          title={t('common.delete')}
+                          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-ink-line text-cream-dim transition hover:border-rose-500/40 hover:text-rose-300"
+                        >
+                          <IconTrash size={15} />
+                        </button>
+                      ) : (
+                        <span className="shrink-0 text-[11px] text-cream-dim">{t('menu.inUse')}</span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmingDelete && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
             onClick={() => setConfirmingDelete(null)}

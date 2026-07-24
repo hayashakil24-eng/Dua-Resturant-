@@ -427,6 +427,10 @@ model OrderItem {
   addedAt       DateTime? // set when appended to an already-placed order
   cost          Int? // snapshot
   costEstimated Boolean?
+  // Per-item kitchen progress (KDS). The order-level Order.kitchen flag flips to
+  // 'Ready' only once every item here is ready — lets the chef tick a multi-item
+  // order line-by-line instead of all-or-nothing.
+  ready         Boolean @default(false)
 
   @@index([orderId])
   @@index([menuItemId])
