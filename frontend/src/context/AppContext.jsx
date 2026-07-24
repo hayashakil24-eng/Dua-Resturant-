@@ -829,9 +829,11 @@ export function AppProvider({ children }) {
     const shift = activeShift?.id === shiftId ? activeShift : shiftReconciliations.find((s) => s.id === shiftId)
     if (!shift) return null
     const { totalCashSales, totalCardSales } = shiftSalesForShift(shift.id)
-    // Accepted handovers left the drawer, reducing accountable cash.
+    // Accepted mid-shift handovers left the drawer, reducing accountable cash.
+    // A 'shift_end' handover is the whole counted drawer handed over after
+    // reconciliation, so it must not reduce this shift's expectedCash.
     const handedOver = pendingHandovers
-      .filter((h) => h.shiftId === shift.id && h.status === 'accepted')
+      .filter((h) => h.shiftId === shift.id && h.status === 'accepted' && h.kind !== 'shift_end')
       .reduce((s, h) => s + h.amount, 0)
     return { totalCashSales, totalCardSales, handedOver, expectedCash: shift.openingCash + totalCashSales - handedOver }
   }
@@ -864,7 +866,9 @@ export function AppProvider({ children }) {
   const endShift = async (shiftId, actualCash, handover = {}) => {
     try {
       const { shift } = await apiPost(`/api/shifts/${shiftId}/end`, { actualCash, handover })
-      await refresh(['shifts', 'activeShift'])
+      // 'handovers' too: ending a shift with a recipient creates a pending
+      // shift-end handover for the Manager/Admin to approve.
+      await refresh(['shifts', 'activeShift', 'handovers'])
       return shift
     } catch (e) {
       return toError(e)

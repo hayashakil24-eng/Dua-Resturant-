@@ -36,7 +36,10 @@ async function computeSales(tx: Tx, shift: Shift) {
     if (o.method === 'Cash') totalCashSales += total
     else if (o.method === 'Card') totalCardSales += total
   }
-  const accepted = await tx.pendingHandover.findMany({ where: { shiftId: shift.id, status: 'accepted' } })
+  // Only mid-shift handovers reduce the drawer; a 'shift_end' handover is the
+  // whole counted drawer handed over AFTER reconciliation, so it must not be
+  // subtracted here (it would double-count against a shift's expectedCash).
+  const accepted = await tx.pendingHandover.findMany({ where: { shiftId: shift.id, status: 'accepted', kind: 'mid_shift' } })
   const handedOver = accepted.reduce((s, h) => s + h.amount, 0)
   return { totalCashSales, totalCardSales, handedOver, expectedCash: shift.openingCash + totalCashSales - handedOver }
 }
@@ -161,6 +164,32 @@ export async function endShift(
       details: { expectedCash: sales.expectedCash, actualCash: actual, difference, status, handedTo, handedToName, handoverReason },
     })
     await enqueueOutbox(tx, 'ShiftReconciliation', closed.id, closed)
+
+    // The counted drawer is handed over to a Manager/Admin at shift end — create
+    // an approval so the recipient confirms receipt (like a mid-shift handover),
+    // tagged kind:'shift_end' so it never reduces this shift's expectedCash. The
+    // HANDOVER_INITIATED audit broadcasts, so the approvals page updates live.
+    if (handedTo && actual > 0) {
+      const ho = await tx.pendingHandover.create({
+        data: {
+          shiftId,
+          fromName: closed.cashierName,
+          toName: handedToName ?? 'Manager',
+          toRole: handedTo,
+          amount: actual,
+          reason: handoverReason,
+          status: 'pending',
+          kind: 'shift_end',
+          initiatedAt: at,
+        },
+      })
+      await writeAudit(tx, {
+        action: 'HANDOVER_INITIATED',
+        actor: { id: ctx.actor.id, name: closed.cashierName, role: ctx.actor.role },
+        at,
+        details: { amount: actual, from: closed.cashierName, to: ho.toName, kind: 'shift_end' },
+      })
+    }
     return closed
   })
 }

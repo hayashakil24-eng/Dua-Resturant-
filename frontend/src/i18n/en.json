@@ -108,7 +108,9 @@
     "statusRejected": "Rejected",
     "resolvedBy": "By",
     "noPending": "No pending handovers.",
-    "noProcessed": "No processed handovers yet."
+    "noProcessed": "No processed handovers yet.",
+    "kindShiftEnd": "Shift-end drawer",
+    "kindPartial": "Partial"
   },
   "recipe": {
     "title": "Create Recipe",

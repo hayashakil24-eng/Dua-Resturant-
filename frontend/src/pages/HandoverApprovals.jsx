@@ -25,6 +25,20 @@ export default function HandoverApprovals() {
     [pendingHandovers],
   )
 
+  // Distinguish a whole-drawer shift-end handover from a mid-shift partial one,
+  // so the Manager knows what they're approving.
+  const kindBadge = (h) => (
+    <span
+      className={`badge ring-1 ${
+        h.kind === 'shift_end'
+          ? 'bg-sky-500/12 text-sky-300 ring-sky-500/30'
+          : 'bg-white/5 text-cream-dim ring-ink-line'
+      }`}
+    >
+      {h.kind === 'shift_end' ? t('handover.kindShiftEnd') : t('handover.kindPartial')}
+    </span>
+  )
+
   const tabBtn = (key, label, count) => (
     <button
       onClick={() => setTab(key)}
@@ -59,10 +73,13 @@ export default function HandoverApprovals() {
                   <span className="font-serif text-lg font-semibold text-gold">{money(h.amount)}</span>{' '}
                   <span className="text-cream-dim">→ {h.toName}</span>
                 </p>
-                <p className="mt-1 text-xs text-cream-dim">
-                  {dateShort(h.initiatedAt)} · {time(h.initiatedAt)}
-                  {h.reason ? ` · ${h.reason}` : ''}
-                </p>
+                <div className="mt-1.5 flex items-center gap-2 text-xs text-cream-dim">
+                  {kindBadge(h)}
+                  <span>
+                    {dateShort(h.initiatedAt)} · {time(h.initiatedAt)}
+                    {h.reason ? ` · ${h.reason}` : ''}
+                  </span>
+                </div>
               </div>
               <button onClick={() => setSelected(h)} className="btn-gold shrink-0">
                 {t('handover.review')}
@@ -91,7 +108,12 @@ export default function HandoverApprovals() {
               <tbody className="divide-y divide-ink-line">
                 {processed.map((h) => (
                   <tr key={h.id} className="transition hover:bg-white/[0.02]">
-                    <td className="px-5 py-3 font-semibold text-cream">{h.fromName}</td>
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-cream">{h.fromName}</span>
+                        {kindBadge(h)}
+                      </div>
+                    </td>
                     <td className="px-5 py-3 text-cream-dim">{h.toName}</td>
                     <td className="px-5 py-3 text-right font-semibold text-gold">{money(h.amount)}</td>
                     <td className="px-5 py-3 text-center">

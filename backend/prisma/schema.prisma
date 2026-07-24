@@ -481,6 +481,11 @@ model PendingHandover {
   amount       Int
   reason       String?
   status       String   @default("pending") // "pending" | "accepted" | "rejected"
+  // "mid_shift" = partial handover that left the drawer during the shift (reduces
+  // expectedCash); "shift_end" = the whole counted drawer handed over AFTER
+  // reconciliation, which must NOT reduce the shift's expectedCash (see
+  // computeSales' kind filter). Defaults keep every existing row as mid_shift.
+  kind         String   @default("mid_shift") // "mid_shift" | "shift_end"
   initiatedAt  DateTime @default(now())
   resolvedAt   DateTime?
   resolvedBy   String?

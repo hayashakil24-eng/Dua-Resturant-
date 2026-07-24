@@ -108,7 +108,9 @@
     "statusRejected": "مسترد شدہ",
     "resolvedBy": "بذریعہ",
     "noPending": "کوئی زیرِ التوا حوالہ نہیں۔",
-    "noProcessed": "ابھی کوئی طے شدہ حوالہ نہیں۔"
+    "noProcessed": "ابھی کوئی طے شدہ حوالہ نہیں۔",
+    "kindShiftEnd": "شفٹ کے اختتام کا دراز",
+    "kindPartial": "جزوی"
   },
   "recipe": {
     "title": "ریسپی بنائیں",
