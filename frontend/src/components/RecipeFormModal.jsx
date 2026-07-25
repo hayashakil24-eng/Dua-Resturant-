@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { useT } from '../i18n/LanguageContext.jsx'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
-import { IconClose, IconPlus, IconTrash, IconAlert } from './Icons.jsx'
+import { IconClose, IconPlus, IconTrash, IconAlert, IconLock } from './Icons.jsx'
 
 // Kitchen recipe builder: pick a menu item, then add ingredient rows drawn from
 // live inventory. Each ingredient defaults to its inventory item's own unit, but
@@ -214,19 +214,28 @@ export default function RecipeFormModal({ menu, inventory, existingRecipes = [],
                   />
                   {/* Unit picker: defaults to the item's base unit but lets the chef
                       measure in tbsp/tsp/cup; deduction converts it back on order.
-                      Locked (single option) for count-based items with no conversion. */}
-                  <select
-                    value={row.unit || ''}
-                    onChange={(e) => updateRow(idx, 'unit', e.target.value)}
-                    disabled={unitOpts.length <= 1}
-                    title={t('recipe.unit')}
-                    className="input w-20 shrink-0 px-2 disabled:opacity-60"
-                  >
-                    {unitOpts.length === 0 && <option value="">—</option>}
-                    {unitOpts.map((u) => (
-                      <option key={u} value={u}>{u}</option>
-                    ))}
-                  </select>
+                      Count-based items (packs/pcs) have no conversion → shown as a
+                      locked badge (with a lock icon) instead of a greyed dropdown. */}
+                  {unitOpts.length <= 1 ? (
+                    <div
+                      title={t('recipe.unitLocked')}
+                      className="input flex w-20 shrink-0 items-center justify-center gap-1 px-2 text-cream-dim"
+                    >
+                      <IconLock size={12} className="shrink-0" />
+                      <span className="truncate">{row.unit || '—'}</span>
+                    </div>
+                  ) : (
+                    <select
+                      value={row.unit || ''}
+                      onChange={(e) => updateRow(idx, 'unit', e.target.value)}
+                      title={t('recipe.unit')}
+                      className="input w-20 shrink-0 px-2"
+                    >
+                      {unitOpts.map((u) => (
+                        <option key={u} value={u}>{u}</option>
+                      ))}
+                    </select>
+                  )}
                   <button
                     onClick={() => removeRow(idx)}
                     className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-ink-line bg-ink-soft text-cream-dim transition hover:border-rose-500/40 hover:text-rose-300"

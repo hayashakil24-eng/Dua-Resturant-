@@ -126,6 +126,7 @@
     "pendingRequest": "(Pending Request)",
     "qty": "Qty",
     "unit": "Unit",
+    "unitLocked": "Counted in its own unit (packs/pcs can't be converted)",
     "needsApproval": "This recipe needs Admin approval before it affects inventory deduction.",
     "submitForApproval": "Submit for Approval",
     "errSelectItem": "Select a menu item.",
