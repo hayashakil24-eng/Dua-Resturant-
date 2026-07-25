@@ -74,27 +74,39 @@ function CancelModal({ order, orderTotal, materialLoss = 0, onConfirm, onClose }
             </div>
           </div>
 
-          {/* Material write-off applies ONLY when the dish was cooked (ready) —
-              a not-yet-cooked order wastes nothing, so its ingredients restock. */}
+          {/* Material write-off applies ONLY when the dish was cooked — a
+              not-yet-cooked order wastes nothing, so its ingredients restock. */}
           {cooked ? (
             materialLoss > 0 && (
-              <div className="mt-3 flex items-center justify-between rounded-xl border border-rose-500/25 bg-rose-500/[0.06] px-3 py-2 text-sm">
-                <span className="text-cream-dim">Material loss (ingredients wasted)</span>
-                <span className="font-semibold text-rose-300">{money(materialLoss)}</span>
+              <div className="mt-3 rounded-xl border border-rose-500/25 bg-rose-500/[0.06] px-3 py-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-cream-dim">Material loss (ingredients wasted)</span>
+                  <span className="font-semibold text-rose-300">{money(materialLoss)}</span>
+                </div>
+                {/* Revert a mistaken "Mark as Cooked" — but not when the order is
+                    genuinely Ready on the KDS (then it really was cooked). */}
+                {order.kitchen !== 'Ready' && (
+                  <button
+                    onClick={() => setCooked(false)}
+                    className="mt-1.5 text-[11px] text-cream-dim underline underline-offset-2 transition hover:text-cream"
+                  >
+                    Undo — not cooked (no loss)
+                  </button>
+                )}
               </div>
             )
           ) : (
             materialLoss > 0 && (
               <div className="mt-3 rounded-xl border border-ink-line bg-ink-soft px-3 py-2.5">
                 <p className="text-xs text-cream-dim">
-                  Not cooked yet — no ingredients wasted. If it was already made, mark it ready to
+                  Not cooked yet — no ingredients wasted. If it was already made, mark it cooked to
                   book the material loss.
                 </p>
                 <button
                   onClick={() => setCooked(true)}
                   className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-500/15"
                 >
-                  <IconCheck size={14} /> Mark as Ready
+                  <IconCheck size={14} /> Mark as Cooked
                 </button>
               </div>
             )
