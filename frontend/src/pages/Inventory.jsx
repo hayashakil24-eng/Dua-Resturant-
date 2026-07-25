@@ -258,9 +258,8 @@ export default function Inventory() {
             i.category.toLowerCase().includes(q),
         )
       : inventory
-    // Surface the items that need attention first.
-    const order = { critical: 0, low: 1, ok: 2 }
-    return [...rows].sort((a, b) => order[stockLevel(a)] - order[stockLevel(b)])
+    // Newest items first, so a freshly added item appears at the top of the list.
+    return [...rows].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
   }, [inventory, query])
 
   const critical = inventory.filter((i) => stockLevel(i) === 'critical').length
