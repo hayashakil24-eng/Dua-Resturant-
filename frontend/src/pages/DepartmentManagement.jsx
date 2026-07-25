@@ -1,24 +1,21 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { useLang } from '../i18n/LanguageContext.jsx'
 import { canModify } from '../config/permissions.js'
 import { PageHeader, EmptyState } from '../components/ui.jsx'
 import ItemAssignmentModal from '../components/ItemAssignmentModal.jsx'
-import { IconDepartments, IconPlus, IconTrash, IconEdit, IconClose, IconUsers } from '../components/Icons.jsx'
+import { IconDepartments, IconPlus, IconTrash, IconEdit, IconClose } from '../components/Icons.jsx'
 
-const EMPTY_FORM = { name: '', nameUrdu: '', description: '', manager: '' }
+const EMPTY_FORM = { name: '', nameUrdu: '', description: '' }
 
 export default function DepartmentManagement() {
-  const { user, departments, addDepartment, deleteDepartment, menu, staff } = useApp()
+  const { user, departments, addDepartment, deleteDepartment, menu } = useApp()
   const { t, lang } = useLang()
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [error, setError] = useState('')
   const [assignFor, setAssignFor] = useState(null) // department being edited
   const [confirmDelete, setConfirmDelete] = useState(null) // department id
-
-  const isAdmin = user?.role === 'Admin'
-  const managers = useMemo(() => staff.filter((s) => s.role === 'Manager' && s.active), [staff])
 
   // Route is permission-gated, but guard defensively too.
   if (!user || !canModify(user.role, 'departments')) {
@@ -83,21 +80,6 @@ export default function DepartmentManagement() {
                 className="input h-16 resize-none"
               />
             </div>
-            {isAdmin && (
-              <div className="sm:col-span-2">
-                <label className="mb-1 block text-xs font-semibold text-cream-dim">{t('departments.manager')}</label>
-                <select
-                  value={form.manager}
-                  onChange={(e) => setForm({ ...form, manager: e.target.value })}
-                  className="input"
-                >
-                  <option value="">{t('departments.unassigned')}</option>
-                  {managers.map((m) => (
-                    <option key={m.id} value={m.name}>{m.name}</option>
-                  ))}
-                </select>
-              </div>
-            )}
           </div>
           {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
           <div className="mt-4 flex gap-3">
@@ -119,11 +101,6 @@ export default function DepartmentManagement() {
                   {lang === 'ur' && dept.nameUrdu ? dept.nameUrdu : dept.name}
                 </h3>
                 {dept.description && <p className="mt-1 text-sm text-cream-dim">{dept.description}</p>}
-                {dept.manager && (
-                  <p className="mt-1 flex items-center gap-1 text-xs text-gold">
-                    <IconUsers size={12} className="shrink-0" /> {t('departments.managerLabel')}: {dept.manager}
-                  </p>
-                )}
               </div>
               {confirmDelete === dept.id ? (
                 <div className="flex shrink-0 items-center gap-1.5">
