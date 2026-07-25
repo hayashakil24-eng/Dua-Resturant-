@@ -11,7 +11,7 @@ import { safePrint } from '../utils/print.js'
 import { getRecipeStock, getStockShortfall } from '../utils/inventoryFlow.js'
 import { canModify } from '../config/permissions.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
-import { TABLE_CATEGORIES, tableLabel } from '../data/mockData.js'
+import { tableLabel } from '../data/mockData.js'
 import {
   IconPlus,
   IconMinus,
@@ -311,6 +311,13 @@ export default function POS() {
     () =>
       new Set(orders.filter((o) => o.payment === 'Unpaid' && !o.cancelled).map((o) => o.table)),
     [orders],
+  )
+
+  // Physical table categories derived LIVE from the tables (special order-type
+  // tables are listed separately), so renamed/deleted categories reflect here.
+  const physicalCats = useMemo(
+    () => [...new Set(tables.filter((tb) => !tb.orderType).map((tb) => tb.category).filter(Boolean))].sort(),
+    [tables],
   )
 
   // The selected table already has a running order → a second separate order
@@ -784,8 +791,11 @@ export default function POS() {
                           </option>
                         ))}
                     </optgroup>
-                    {TABLE_CATEGORIES.map((c) => (
-                      <optgroup key={c} label={c === 'HUT' ? '📍 HUT (Outdoor)' : `📍 Category ${c}`}>
+                    {physicalCats.map((c) => (
+                      <optgroup
+                        key={c}
+                        label={c === 'HUT' ? '📍 HUT (Outdoor)' : /^[A-Z]$/.test(c) ? `📍 Category ${c}` : `📍 ${c}`}
+                      >
                         {tables
                           .filter((tb) => tb.category === c)
                           .map((tb) => (
