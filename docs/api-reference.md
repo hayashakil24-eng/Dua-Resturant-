@@ -52,9 +52,18 @@ All routes except `/api/auth/login` and `/api/auth/signup` require a JWT (`Autho
 | Method | Path | Permission |
 |---|---|---|
 | GET | `/api/inventory` | any authenticated |
+| GET | `/api/inventory/purchases` | `accounting` (spend data) |
 | POST | `/api/inventory/:id/adjust` | `inventoryDirectEdit` or `inventoryAdd` |
 | POST | `/api/inventory/:id/restock` | `inventoryAdd` or `inventoryDirectEdit` |
+| POST | `/api/inventory/:id/purchase` | `inventoryAdd` (Manager only) |
 | POST | `/api/inventory` | `inventoryCreate` |
+
+`/purchase` raises the quantity **and** books the cost as a dated `expense`
+Transaction (`category: "Inventory Purchase"`, `source: "purchase"`), recorded in
+`StockPurchase`. `/adjust` and `/restock` only move the number — they also serve
+Admin corrections to a miscount, where no money was spent, so they must never
+book an expense. Body: `{ quantity, unitCost, totalCost?, supplier?, date? }`;
+an explicit `totalCost` wins over `quantity × unitCost` (real bills round).
 
 ## Menu, categories & most-ordered (`menu.routes.ts`)
 
@@ -98,6 +107,12 @@ All routes except `/api/auth/login` and `/api/auth/signup` require a JWT (`Autho
 | DELETE | `/api/advances/:id` | `payroll` |
 | POST | `/api/advances/recover` | `payroll` |
 
+`POST /api/advances` also books the amount as a dated `expense` Transaction
+(`category: "Staff Advance"`, `source: "advance"`), and `DELETE` retracts it.
+An advance is salary paid **early**, not extra pay, so `monthFigures()` subtracts
+the month's advances from that month's calculated payroll — without that, a
+Rs 10,000 advance against a Rs 30,000 salary would book Rs 40,000.
+
 ## Shifts & handovers (`shifts.routes.ts`)
 
 | Method | Path | Permission |
@@ -119,8 +134,9 @@ All routes except `/api/auth/login` and `/api/auth/signup` require a JWT (`Autho
 | Method | Path | Permission |
 |---|---|---|
 | GET | `/api/receivables` | any authenticated |
-| POST | `/api/receivables` | `receivables` |
 | POST | `/api/receivables/:id/payment` | `receivables` |
+
+There is no create-account route by design — a `Receivable` is only ever created by `POST /api/orders/:id/udhaar`, so every balance traces back to a real unpaid order.
 
 ## Departments (`departments.routes.ts`)
 

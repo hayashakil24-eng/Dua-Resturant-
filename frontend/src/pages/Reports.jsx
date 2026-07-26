@@ -4,10 +4,9 @@ import { useT, useLang } from '../i18n/LanguageContext.jsx'
 import { itemNameLabel, unitLabel } from '../i18n/dataDict.js'
 import { PageHeader } from '../components/ui.jsx'
 import { money, monthYear, dateLong, time } from '../utils/format.js'
-import DailyClosingView from '../components/DailyClosingView.jsx'
 import KOTView from '../components/KOTView.jsx'
 import DailyReportSlip from '../components/DailyReportSlip.jsx'
-import { monthFigures } from '../utils/accounting.js'
+import { monthFigures, isMaintenance } from '../utils/accounting.js'
 import { safePrint } from '../utils/print.js'
 import { calculateDeductions } from '../utils/inventoryFlow.js'
 import { IconPrint, IconWhatsApp } from '../components/Icons.jsx'
@@ -161,13 +160,14 @@ export default function Reports() {
 
     if (type === 'monthly') {
       const [y, m] = monthKey.split('-').map(Number)
-      const fig = monthFigures(transactions, y, m - 1, today, staff)
+      const fig = monthFigures(transactions, orders, orderTotal, y, m - 1, today, staff)
       return {
         titleKey: 'reports.monthlyReport',
         rangeLabel: monthOptions.find((o) => o.key === monthKey)?.label,
         revenueLabelKey: 'reports.salesIncomeLedger',
         revenue: fig.income,
         expenses: fig.expense,
+        maintenance: fig.maintenance,
         payroll: fig.payroll,
         netProfit: fig.profit,
         totalOrders,
@@ -181,10 +181,12 @@ export default function Reports() {
       }
     }
 
-    // Daily — expenses = transactions logged that day
-    const dailyExpenses = transactions
-      .filter((tx) => tx.type === 'expense' && toDayStr(new Date(tx.date)) === dailyDate)
-      .reduce((s, tx) => s + tx.amount, 0)
+    // Daily — expenses = transactions logged that day (maintenance split out)
+    const dayExpenses = transactions.filter(
+      (tx) => tx.type === 'expense' && toDayStr(new Date(tx.date)) === dailyDate,
+    )
+    const dailyMaintenance = dayExpenses.filter((tx) => isMaintenance(tx.category)).reduce((s, tx) => s + tx.amount, 0)
+    const dailyExpenses = dayExpenses.filter((tx) => !isMaintenance(tx.category)).reduce((s, tx) => s + tx.amount, 0)
     return {
       titleKey: 'reports.dailyReport',
       rangeLabel: dateLong(`${dailyDate}T00:00:00`),
@@ -193,8 +195,9 @@ export default function Reports() {
       revenueLabelKey: 'reports.totalSaleCollected',
       revenue: collected,
       expenses: dailyExpenses,
+      maintenance: dailyMaintenance,
       payroll: 0,
-      netProfit: collected - dailyExpenses,
+      netProfit: collected - dailyExpenses - dailyMaintenance,
       totalOrders,
       collected,
       cash,
@@ -216,6 +219,7 @@ export default function Reports() {
       `${t('reports.totalOrders')}: ${report.totalOrders}`,
       `${t(report.revenueLabelKey)}: ${money(report.revenue)}`,
       `${t('reports.expenses')}: ${money(report.expenses)}`,
+      `${t('reports.maintenance')}: ${money(report.maintenance || 0)}`,
       `${t('reports.netProfit')}: ${money(report.netProfit)}`,
     ]
     if (report.discounts.total > 0) {
@@ -230,9 +234,9 @@ export default function Reports() {
     window.open(`https://wa.me/?text=${encodeURIComponent(lines.join('\n'))}`, '_blank')
   }
 
-  // Daily Closing & KOT are inherently daily reports — they use `dailyDate` and
-  // don't apply the daily/monthly period toggle.
-  const isDailyView = view === 'dailyclosing' || view === 'kot'
+  // KOT is inherently a daily report — it uses `dailyDate` and doesn't apply
+  // the daily/monthly period toggle.
+  const isDailyView = view === 'kot'
 
   return (
     <div>
@@ -284,7 +288,6 @@ export default function Reports() {
           ['overview', 'reports.dailyReport'],
           ['summary', 'reports.summary'],
           ['itemwise', 'reports.itemWise'],
-          ['dailyclosing', 'nav.dailyClosing'],
           ['kot', 'nav.kot'],
         ].map(([key, labelKey]) => (
           <button
@@ -301,7 +304,6 @@ export default function Reports() {
         ))}
       </div>
 
-      {view === 'dailyclosing' && <DailyClosingView dayStr={dailyDate} />}
       {view === 'kot' && <KOTView dayStr={dailyDate} />}
 
       {!isDailyView && (
@@ -343,6 +345,19 @@ export default function Reports() {
               <div className="card border border-indigo-500/25 bg-indigo-500/[0.06] p-6">
                 <p className="text-xs uppercase tracking-widest text-indigo-300/80">🌐 {t('reports.onlinePayment')}</p>
                 <p className="mt-2 font-serif text-3xl font-semibold text-indigo-300">{money(report.online)}</p>
+              </div>
+              {/* Expenses used to appear only on the printed slip, so a day with
+                  no logged expense looked like a print bug rather than an empty
+                  ledger. Shown on screen (with maintenance split out, as in the
+                  Summary tab) so the figure can be checked before printing. */}
+              <div className="card border border-rose-500/25 bg-rose-500/[0.06] p-6">
+                <p className="text-xs uppercase tracking-widest text-rose-300/80">🔴 {t('reports.expenses')}</p>
+                <p className="mt-2 font-serif text-3xl font-semibold text-rose-300">{money(report.expenses)}</p>
+                {report.maintenance > 0 && (
+                  <p className="mt-1 text-xs text-amber-300/80">
+                    + {t('reports.maintenance')}: {money(report.maintenance)}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -424,6 +439,7 @@ export default function Reports() {
               <Row label={t('reports.inclPayroll')} value={money(report.payroll)} tone="text-[#3498DB]" />
             )}
             <Row label={t('reports.expenses')} value={money(report.expenses)} tone="text-[#E74C3C]" />
+            <Row label={t('reports.maintenance')} value={money(report.maintenance || 0)} tone="text-[#E67E22]" />
             <Row
               label={t('reports.netProfit')}
               value={money(report.netProfit)}

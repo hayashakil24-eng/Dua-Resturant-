@@ -5,9 +5,9 @@ import { categoryLabel } from '../i18n/dataDict.js'
 import { PageHeader } from '../components/ui.jsx'
 import { money, dateShort, time, monthYear, dateLong } from '../utils/format.js'
 import { safePrint } from '../utils/print.js'
-import { monthFigures } from '../utils/accounting.js'
+import { monthFigures, periodSales, isMaintenance, MAINTENANCE_CATEGORY } from '../utils/accounting.js'
 import { complimentaryCost, formatCostTotal } from '../utils/cost.js'
-import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from '../data/mockData.js'
+import { EXPENSE_CATEGORIES } from '../data/mockData.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import {
   IconChart,
@@ -31,6 +31,7 @@ function StatTile({ icon: Icon, label, value, sub, tone }) {
     red: 'text-rose-300',
     gold: 'text-gold',
     blue: 'text-sky-300',
+    amber: 'text-amber-300',
   }
   return (
     <div className="card p-5">
@@ -89,12 +90,13 @@ function PLChart({ data }) {
 }
 
 // ---------------------------------------------------------------------------
+// Expense breakdown EXCLUDES "Cafe Ali Maintenance" — that has its own box.
 function ExpenseBreakdown({ inMonth, payroll }) {
   const t = useT()
   const rows = useMemo(() => {
     const map = {}
     inMonth
-      .filter((tx) => tx.type === 'expense')
+      .filter((tx) => tx.type === 'expense' && !isMaintenance(tx.category))
       .forEach((tx) => {
         map[tx.category] = (map[tx.category] || 0) + tx.amount
       })
@@ -132,9 +134,51 @@ function ExpenseBreakdown({ inMonth, payroll }) {
 }
 
 // ---------------------------------------------------------------------------
+// Cafe Ali Maintenance — its own window, listing each maintenance expense entry.
+function MaintenanceBox({ inMonth }) {
+  const t = useT()
+  const items = useMemo(
+    () =>
+      inMonth
+        .filter((tx) => tx.type === 'expense' && isMaintenance(tx.category))
+        .sort((a, b) => new Date(b.date) - new Date(a.date)),
+    [inMonth],
+  )
+  const total = items.reduce((s, tx) => s + tx.amount, 0)
+
+  return (
+    <div className="card p-6">
+      <h3 className="font-serif text-xl text-cream">{MAINTENANCE_CATEGORY}</h3>
+      {items.length === 0 ? (
+        <p className="mt-6 text-sm text-cream-dim">{t('accounting.noMaintenance')}</p>
+      ) : (
+        <>
+          <div className="mt-5 space-y-2">
+            {items.map((tx) => (
+              <div key={tx.id} className="flex items-center justify-between gap-3 text-sm">
+                <div className="min-w-0">
+                  <p className="truncate text-cream">{tx.description}</p>
+                  <p className="text-[11px] text-cream-dim">{dateShort(tx.date)}</p>
+                </div>
+                <span className="shrink-0 font-semibold text-amber-300">{money(tx.amount)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 flex items-center justify-between border-t border-ink-line pt-3">
+            <span className="text-sm font-semibold text-cream">{t('accounting.total')}</span>
+            <span className="font-serif text-xl font-semibold text-amber-300">{money(total)}</span>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 function AddTransactionModal({ onClose, onSave }) {
   const t = useT()
-  const [type, setType] = useState('expense')
+  // Expense-only: income is now the POS sales total (auto), not a manual entry.
+  const type = 'expense'
   const [category, setCategory] = useState(EXPENSE_CATEGORIES[0])
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
@@ -145,13 +189,8 @@ function AddTransactionModal({ onClose, onSave }) {
   const [date, setDate] = useState(() => toDayStr(new Date()))
   useEscapeKey(onClose)
 
-  const cats = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES
+  const cats = EXPENSE_CATEGORIES
   const valid = Number(amount) > 0 && description.trim()
-
-  const changeType = (t) => {
-    setType(t)
-    setCategory((t === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES)[0])
-  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -159,32 +198,13 @@ function AddTransactionModal({ onClose, onSave }) {
       <div className="relative z-10 w-full max-w-md animate-fade-up">
         <div className="card p-6">
           <div className="flex items-start justify-between">
-            <h3 className="font-serif text-2xl text-cream">{t('accounting.addTransaction')}</h3>
+            <h3 className="font-serif text-2xl text-cream">{t('accounting.addExpense')}</h3>
             <button onClick={onClose} className="text-cream-dim hover:text-cream">
               <IconClose size={20} />
             </button>
           </div>
 
-          {/* Type toggle */}
-          <div className="mt-5 grid grid-cols-2 gap-2">
-            {['income', 'expense'].map((ty) => (
-              <button
-                key={ty}
-                onClick={() => changeType(ty)}
-                className={`rounded-xl border py-2.5 text-sm font-semibold transition ${
-                  type === ty
-                    ? ty === 'income'
-                      ? 'border-emerald-500/50 bg-emerald-500/12 text-emerald-300'
-                      : 'border-rose-500/50 bg-rose-500/12 text-rose-300'
-                    : 'border-ink-line bg-ink-soft text-cream-dim hover:text-cream'
-                }`}
-              >
-                {ty === 'income' ? t('accounting.typeIncome') : t('accounting.typeExpense')}
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-4 space-y-3">
+          <div className="mt-5 space-y-3">
             <div>
               <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
                 {t('accounting.category')}
@@ -282,7 +302,7 @@ export default function Accounting() {
     return opts
   }, [today])
 
-  const [accView, setAccView] = useState('monthly') // 'daily' | 'monthly'
+  const [accView, setAccView] = useState('daily') // 'daily' | 'monthly'
   const [monthKey, setMonthKey] = useState(monthOptions[0].key)
   const [dayDate, setDayDate] = useState(() => toDayStr(today))
   const [showAdd, setShowAdd] = useState(false)
@@ -298,20 +318,27 @@ export default function Accounting() {
   const monthLabel = monthOptions.find((m) => m.key === monthKey)?.label
 
   const fig = useMemo(
-    () => monthFigures(transactions, year, monthIndex, today, staff),
-    [transactions, year, monthIndex, today],
+    () => monthFigures(transactions, orders, orderTotal, year, monthIndex, today, staff),
+    [transactions, orders, orderTotal, year, monthIndex, today],
   )
 
-  // Daily figures — a single day's ledger. Payroll is a monthly cost, so it
-  // isn't apportioned to any one day; daily P&L is manual income vs expense.
+  // Daily figures — a single day's ledger. Income is the day's POS sales;
+  // payroll is a monthly cost so it isn't apportioned to a single day.
   const dayFig = useMemo(() => {
     const inDay = transactions.filter((tx) => toDayStr(new Date(tx.date)) === dayDate)
-    const income = inDay.filter((tx) => tx.type === 'income').reduce((s, tx) => s + tx.amount, 0)
-    const expense = inDay.filter((tx) => tx.type === 'expense').reduce((s, tx) => s + tx.amount, 0)
-    const profit = income - expense
+    const inPeriod = (d) => toDayStr(d) === dayDate
+    const income = periodSales(orders, orderTotal, inPeriod)
+    const udhaar = periodSales(orders, orderTotal, inPeriod, 'Udhaar')
+    const maintenance = inDay
+      .filter((tx) => tx.type === 'expense' && isMaintenance(tx.category))
+      .reduce((s, tx) => s + tx.amount, 0)
+    const expense = inDay
+      .filter((tx) => tx.type === 'expense' && !isMaintenance(tx.category))
+      .reduce((s, tx) => s + tx.amount, 0)
+    const profit = income - expense - maintenance
     const margin = income > 0 ? (profit / income) * 100 : 0
-    return { inDay, income, expense, profit, margin }
-  }, [transactions, dayDate])
+    return { inDay, income, udhaar, maintenance, expense, profit, margin }
+  }, [transactions, orders, orderTotal, dayDate])
 
   const dayLabel = useMemo(() => dateLong(`${dayDate}T00:00:00`), [dayDate])
 
@@ -322,15 +349,28 @@ export default function Accounting() {
         .reverse()
         .map((opt) => {
           const [y, m] = opt.key.split('-').map(Number)
-          const f = monthFigures(transactions, y, m - 1, today, staff)
+          const f = monthFigures(transactions, orders, orderTotal, y, m - 1, today, staff)
           return { label: opt.label.slice(0, 3), income: f.income, expense: f.expense }
         }),
-    [transactions, monthOptions, today, staff],
+    [transactions, orders, orderTotal, monthOptions, today, staff],
   )
 
-  // Ledger rows = manual transactions + a read-only auto payroll expense line.
+  // Ledger rows = manual EXPENSE entries + read-only auto lines for POS sales
+  // (income) and payroll (expense). Income is no longer entered manually.
   const rows = useMemo(() => {
-    const list = [...fig.inMonth]
+    const list = fig.inMonth.filter((tx) => tx.type === 'expense')
+    const endOfMonth = new Date(year, monthIndex + 1, 0).toISOString()
+    if (fig.sales > 0) {
+      list.push({
+        id: 'AUTO-SALES',
+        type: 'income',
+        category: 'Sales',
+        description: t('accounting.salesAuto'),
+        amount: fig.sales,
+        date: endOfMonth,
+        auto: true,
+      })
+    }
     if (fig.payroll > 0) {
       list.push({
         id: 'AUTO-PAYROLL',
@@ -338,17 +378,28 @@ export default function Accounting() {
         category: 'Salaries',
         description: t('accounting.staffPayrollAuto'),
         amount: fig.payroll,
-        date: new Date(year, monthIndex + 1, 0).toISOString(),
+        date: endOfMonth,
         auto: true,
       })
     }
     return list.sort((a, b) => new Date(b.date) - new Date(a.date))
   }, [fig, year, monthIndex, t])
 
-  const dayRows = useMemo(
-    () => [...dayFig.inDay].sort((a, b) => new Date(b.date) - new Date(a.date)),
-    [dayFig],
-  )
+  const dayRows = useMemo(() => {
+    const list = dayFig.inDay.filter((tx) => tx.type === 'expense')
+    if (dayFig.income > 0) {
+      list.push({
+        id: 'AUTO-SALES-DAY',
+        type: 'income',
+        category: 'Sales',
+        description: t('accounting.salesAuto'),
+        amount: dayFig.income,
+        date: `${dayDate}T12:00:00`,
+        auto: true,
+      })
+    }
+    return list.sort((a, b) => new Date(b.date) - new Date(a.date))
+  }, [dayFig, dayDate, t])
 
   const daily = accView === 'daily'
   const figures = daily ? dayFig : fig
@@ -435,8 +486,15 @@ export default function Accounting() {
       </PageHeader>
 
       {/* Quick stats */}
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatTile icon={IconTrend} label={t('accounting.income')} value={money(figures.income)} sub={scopeLabel} tone="green" />
+        <StatTile
+          icon={IconWallet}
+          label={t('accounting.udhaar')}
+          value={money(figures.udhaar)}
+          sub={t('accounting.udhaarSub')}
+          tone="amber"
+        />
         <StatTile
           icon={IconTrendDown}
           label={t('accounting.expenses')}
@@ -520,19 +578,22 @@ export default function Accounting() {
       )}
 
       {!daily ? (
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2">
+        <>
+          <div className="mb-6">
             <PLChart data={chartData} />
           </div>
-          <ExpenseBreakdown inMonth={fig.inMonth} payroll={fig.payroll} />
-        </div>
+          {/* Expense Breakdown + Cafe Ali Maintenance side by side in one row. */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <ExpenseBreakdown inMonth={fig.inMonth} payroll={fig.payroll} />
+            <MaintenanceBox inMonth={fig.inMonth} />
+          </div>
+        </>
       ) : (
-        // No PLChart in Daily (it's a monthly trend view) — just the expense
-        // breakdown, scoped to today's transactions instead of the month's.
-        // Payroll is deliberately omitted here too: it's a monthly cost not
-        // apportioned to any one day (see dayFig's own comment above).
-        <div className="max-w-md">
+        // No PLChart in Daily (it's a monthly trend view). Payroll is omitted
+        // here too — a monthly cost not apportioned to any one day.
+        <div className="grid gap-6 lg:grid-cols-2">
           <ExpenseBreakdown inMonth={dayFig.inDay} payroll={0} />
+          <MaintenanceBox inMonth={dayFig.inDay} />
         </div>
       )}
 
@@ -545,7 +606,7 @@ export default function Accounting() {
               <IconPrint size={16} /> {t('accounting.printReport')}
             </button>
             <button onClick={() => setShowAdd(true)} className="btn-gold px-4 py-2 text-sm">
-              <IconPlus size={16} /> {t('accounting.addTransaction')}
+              <IconPlus size={16} /> {t('accounting.addExpense')}
             </button>
           </div>
         </div>
@@ -569,12 +630,17 @@ export default function Accounting() {
               <tbody className="divide-y divide-ink-line">
                 {ledgerRows.map((tx) => {
                   const income = tx.type === 'income'
+                  // Rows minted by another flow (stock purchase, salary advance)
+                  // are owned by that record — deleting them here would leave the
+                  // stock/advance behind with no matching expense, so they are
+                  // retracted from their own page instead.
+                  const locked = tx.auto || Boolean(tx.source)
                   return (
                     <tr key={tx.id} className="transition hover:bg-white/[0.02]">
                       <td className="px-5 py-3 text-cream-dim">{dateShort(tx.date)}</td>
                       <td className="px-5 py-3">
                         <span className="text-cream">{tx.description}</span>
-                        {tx.auto && (
+                        {locked && (
                           <span className="ms-2 rounded bg-white/5 px-1.5 py-0.5 text-[10px] font-semibold text-cream-dim">
                             {t('accounting.auto')}
                           </span>
@@ -589,7 +655,7 @@ export default function Accounting() {
                         {income ? '+' : '−'} {money(tx.amount)}
                       </td>
                       <td className="px-5 py-3 text-right no-print">
-                        {tx.auto ? (
+                        {locked ? (
                           <span className="text-xs text-cream-dim">—</span>
                         ) : (
                           <button

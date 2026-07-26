@@ -107,6 +107,17 @@ export default function DailyReportSlip({ report }) {
           divider
           valueColor="#E74C3C"
         />
+        {/* Maintenance is a separate bucket from other expenses (see
+            accounting.js) — it must still be printed, or the paper shows
+            Revenue − Expenses ≠ Net Profit, which reads as a broken report. */}
+        {report.maintenance > 0 && (
+          <Row
+            label={t('reports.maintenance', 'Maintenance')}
+            value={money(report.maintenance)}
+            strong
+            valueColor="#E67E22"
+          />
+        )}
         <Row
           label={t('reports.netProfit', 'Net Profit')}
           value={money(report.netProfit)}

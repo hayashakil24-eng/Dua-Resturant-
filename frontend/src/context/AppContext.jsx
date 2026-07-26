@@ -54,7 +54,9 @@ const ACTION_REFETCH_MAP = {
   INGREDIENT_REQUEST_REJECTED: ['ingredientRequests'],
   TRANSACTION_ADDED: ['transactions'],
   TRANSACTION_DELETED: ['transactions'],
-  RECEIVABLE_ADDED: ['receivables'],
+  STOCK_PURCHASED: ['inventory', 'purchases', 'transactions'],
+  ADVANCE_GIVEN: ['advances', 'transactions'],
+  ADVANCE_DELETED: ['advances', 'transactions'],
   RECEIVABLE_SETTLED: ['receivables'],
   RECEIVABLE_PAYMENT: ['receivables'],
   SHIFT_STARTED: ['shifts', 'activeShift'],
@@ -99,6 +101,7 @@ export function AppProvider({ children }) {
 
   const [orders, setOrders] = useState([])
   const [inventory, setInventory] = useState([])
+  const [purchases, setPurchases] = useState([])
   const [menu, setMenu] = useState([])
   const [customCategories, setCustomCategories] = useState([])
   const [tables, setTables] = useState([])
@@ -131,6 +134,7 @@ export function AppProvider({ children }) {
   const FETCHERS = {
     orders: () => apiGet('/api/orders').then((d) => setOrders((d.orders || []).map(normalizeOrder))),
     inventory: () => apiGet('/api/inventory').then((d) => setInventory(d.inventory || [])),
+    purchases: () => apiGet('/api/inventory/purchases').then((d) => setPurchases(d.purchases || [])),
     menu: () => apiGet('/api/menu').then((d) => setMenu(d.menu || [])),
     categories: () => apiGet('/api/categories').then((d) => setCustomCategories(d.categories || [])),
     tables: () =>
@@ -575,6 +579,18 @@ export function AppProvider({ children }) {
       return toError(e)
     }
   }
+  // Buying stock — raises quantity and books the spend as a dated expense in
+  // one call, so the purchase reaches the reports. Distinct from adjustStock,
+  // which also serves miscount corrections (no money moved).
+  const recordPurchase = async (id, { quantity, unitCost, totalCost, supplier, date } = {}) => {
+    try {
+      await apiPost(`/api/inventory/${id}/purchase`, { quantity, unitCost, totalCost, supplier, date })
+      await refresh(['inventory', 'purchases', 'transactions'])
+      return { success: true }
+    } catch (e) {
+      return toError(e)
+    }
+  }
   const restock = async (id, amount = 10) => {
     try {
       await apiPost(`/api/inventory/${id}/restock`, { amount })
@@ -966,15 +982,9 @@ export function AppProvider({ children }) {
   // ---- Receivables -------------------------------------------------------
   const canSettleReceivables = () => Boolean(user && ['Admin', 'Manager'].includes(user.role))
 
-  const addReceivable = async ({ name, amount, type = 'customer', notes = '' } = {}) => {
-    try {
-      const { receivable } = await apiPost('/api/receivables', { name, amount, type, notes })
-      await refresh(['receivables'])
-      return { success: true, id: receivable?.id }
-    } catch (e) {
-      return toError(e)
-    }
-  }
+  // No manual "add account" mutator on purpose — a credit account only ever
+  // comes into existence from an unpaid order being put on account
+  // (markOrderUdhaar, which creates the Receivable if the name is new).
   const recordReceivablePayment = async (id, amount, { method = 'Cash', notes = '' } = {}) => {
     try {
       const res = await apiPost(`/api/receivables/${id}/payment`, { amount: amount ?? null, method, notes })
@@ -1067,6 +1077,8 @@ export function AppProvider({ children }) {
     lowStock,
     adjustStock,
     restock,
+    recordPurchase,
+    purchases,
     addInventoryItem,
     transactions,
     addTransaction,
@@ -1125,7 +1137,6 @@ export function AppProvider({ children }) {
     acceptHandover,
     rejectHandover,
     receivables,
-    addReceivable,
     recordReceivablePayment,
     markOrderUdhaar,
     markOrderComplimentary,

@@ -11,6 +11,7 @@ import { writeAudit } from '../lib/audit.js'
 import { ServiceError } from '../lib/errors.js'
 import type { Actor } from '../lib/actor.js'
 import { enqueueOutbox } from '../sync/outbox.js'
+import { createLedgerEntry, PURCHASE_CATEGORY } from './accounting.service.js'
 
 interface Ctx {
   actor: Actor
@@ -18,6 +19,10 @@ interface Ctx {
 
 export async function listInventory() {
   return prisma.inventoryItem.findMany({ orderBy: { id: 'asc' } })
+}
+
+export async function listPurchases() {
+  return prisma.stockPurchase.findMany({ orderBy: { date: 'desc' } })
 }
 
 // Next "INV##" id (max existing suffix + 1, zero-padded to 2), matching the
@@ -50,6 +55,85 @@ export async function adjustStock(ctx: Ctx, id: string, delta: number) {
 
 export async function restock(ctx: Ctx, id: string, amount = 10) {
   return adjustStock(ctx, id, Math.abs(Number(amount) || 0))
+}
+
+export interface PurchaseInput {
+  quantity?: number
+  unitCost?: number
+  totalCost?: number
+  supplier?: string
+  date?: string
+}
+
+// Buying stock: raises the quantity AND books the money as a dated expense, so
+// the purchase reaches every report through the normal ledger. Kept separate
+// from adjustStock because that path also serves Admin *corrections* to a
+// miscount, where no money moved — booking those as expenses would invent spend.
+export async function recordPurchase(ctx: Ctx, id: string, input: PurchaseInput) {
+  const quantity = Number(input.quantity)
+  if (!Number.isFinite(quantity) || quantity <= 0) throw new ServiceError('Purchase quantity must be greater than zero.')
+
+  const unitCost = Math.max(0, Number(input.unitCost) || 0)
+  // Total wins when supplied — a real bill is rarely exactly qty × unit price
+  // (rounding, delivery). Otherwise derive it.
+  const totalCost = Math.round(
+    Number.isFinite(Number(input.totalCost)) && Number(input.totalCost) > 0
+      ? Number(input.totalCost)
+      : quantity * unitCost,
+  )
+  if (totalCost <= 0) throw new ServiceError('Purchase cost must be greater than zero.')
+
+  const date = input.date ? new Date(input.date) : new Date()
+  if (Number.isNaN(date.getTime())) throw new ServiceError('A valid purchase date is required.')
+
+  return prisma.$transaction(async (tx) => {
+    const item = await tx.inventoryItem.findUnique({ where: { id } })
+    if (!item) throw new ServiceError('Inventory item not found.', 404)
+
+    const nextStock = Math.round((item.stock + quantity) * 1000) / 1000
+    // The latest purchase price becomes the item's cost — this is what recipe
+    // costing reads, so leaving it stale would price recipes off an old bill.
+    const effectiveUnitCost = unitCost > 0 ? unitCost : Math.round(totalCost / quantity)
+    const updated = await tx.inventoryItem.update({
+      where: { id },
+      data: { stock: nextStock, costPerUnit: effectiveUnitCost },
+    })
+
+    const purchase = await tx.stockPurchase.create({
+      data: {
+        inventoryItemId: id,
+        itemName: item.name,
+        quantity,
+        unit: item.unit,
+        unitCost: effectiveUnitCost,
+        totalCost,
+        supplier: (input.supplier ?? '').trim() || null,
+        date,
+        createdBy: ctx.actor.name,
+        createdByRole: ctx.actor.role,
+      },
+    })
+
+    const txn = await createLedgerEntry(tx, {
+      type: 'expense',
+      category: PURCHASE_CATEGORY,
+      description: `${item.name} — ${quantity} ${item.unit}`,
+      amount: totalCost,
+      date,
+      source: 'purchase',
+      sourceId: purchase.id,
+    })
+    const linked = await tx.stockPurchase.update({ where: { id: purchase.id }, data: { transactionId: txn.id } })
+
+    await writeAudit(tx, {
+      action: 'STOCK_PURCHASED',
+      actor: ctx.actor,
+      details: { inventoryItemId: id, name: item.name, quantity, unit: item.unit, totalCost, from: item.stock, to: nextStock },
+    })
+    await enqueueOutbox(tx, 'InventoryItem', updated.id, updated)
+    await enqueueOutbox(tx, 'StockPurchase', linked.id, linked)
+    return { item: updated, purchase: linked }
+  })
 }
 
 export interface AddInventoryInput {

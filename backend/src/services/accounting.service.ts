@@ -17,6 +17,47 @@ export async function listTransactions() {
   return prisma.transaction.findMany({ orderBy: { date: 'desc' } })
 }
 
+// Ledger categories minted by other flows. They are ordinary expenses to every
+// report — the point of routing stock purchases and salary advances through the
+// same Transaction table is that no reporting code has to learn about them.
+export const PURCHASE_CATEGORY = 'Inventory Purchase'
+export const ADVANCE_CATEGORY = 'Staff Advance'
+
+type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
+
+// Mint a ledger row from inside a caller's transaction (stock purchase, salary
+// advance). Deliberately not addTransaction(): that one opens its own
+// prisma.$transaction and writes its own audit entry, so the purchase/advance
+// would be committed separately from the expense it is supposed to be atomic
+// with. The caller audits the business event instead.
+export async function createLedgerEntry(
+  tx: Tx,
+  input: { type: 'income' | 'expense'; category: string; description?: string | null; amount: number; date: Date; source: string; sourceId: string },
+) {
+  const txnNumber = await nextSequence(tx, 'transaction')
+  const txn = await tx.transaction.create({
+    data: {
+      txnNumber,
+      type: input.type,
+      category: input.category,
+      description: input.description ?? null,
+      amount: Math.round(input.amount),
+      date: input.date,
+      source: input.source,
+      sourceId: input.sourceId,
+    },
+  })
+  await enqueueOutbox(tx, 'Transaction', txn.id, txn)
+  return txn
+}
+
+// Retract a ledger row minted by createLedgerEntry, when its originating record
+// is removed. Silent no-op if it was already deleted by hand from Accounting.
+export async function deleteLedgerEntry(tx: Tx, transactionId: string | null | undefined) {
+  if (!transactionId) return
+  await tx.transaction.deleteMany({ where: { id: transactionId } })
+}
+
 export async function addTransaction(ctx: Ctx, input: { type?: string; category?: string; description?: string; amount?: number; date?: string }) {
   if (input.type !== 'income' && input.type !== 'expense') throw new ServiceError('Transaction type must be income or expense.')
   const amount = Number(input.amount)

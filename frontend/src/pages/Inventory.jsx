@@ -37,6 +37,153 @@ const LEVEL_STYLES = {
 
 const LEVEL_LABEL_KEY = { critical: 'inventory.levelCritical', low: 'inventory.levelLow', ok: 'inventory.levelOk' }
 
+// Local day string — never toISOString(), which converts to UTC first and would
+// date a purchase entered after midnight (Pakistan, UTC+5) as "yesterday",
+// putting it on the wrong day's report. Same reasoning as Accounting.jsx.
+const toDayStr = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+// Recording a stock purchase: quantity bought, what it cost, and when. This is
+// the only inventory path that books money — the +/- buttons are corrections to
+// a miscount, where nothing was actually bought.
+function PurchaseModal({ item, unitName, onClose, onSave }) {
+  const t = useT()
+  const [quantity, setQuantity] = useState('')
+  const [unitCost, setUnitCost] = useState(String(item.costPerUnit || ''))
+  const [totalCost, setTotalCost] = useState('')
+  const [supplier, setSupplier] = useState('')
+  const [date, setDate] = useState(() => toDayStr(new Date()))
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+  useEscapeKey(onClose)
+
+  const qtyNum = Number(quantity) || 0
+  const derivedTotal = Math.round(qtyNum * (Number(unitCost) || 0))
+  // A real bill rarely equals qty × rate exactly (rounding, delivery), so an
+  // explicit total overrides the derived one.
+  const effectiveTotal = Number(totalCost) > 0 ? Math.round(Number(totalCost)) : derivedTotal
+  const valid = qtyNum > 0 && effectiveTotal > 0
+
+  const submit = async () => {
+    setSaving(true)
+    const res = await onSave({
+      quantity: qtyNum,
+      unitCost: Number(unitCost) || 0,
+      totalCost: Number(totalCost) > 0 ? Number(totalCost) : undefined,
+      supplier: supplier.trim(),
+      date: `${date}T00:00:00`,
+    })
+    setSaving(false)
+    if (res?.error) return setError(res.error)
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-md animate-fade-up">
+        <div className="card p-6">
+          <div className="flex items-start justify-between">
+            <div>
+              <h3 className="font-serif text-2xl text-cream">{t('inventory.buyStock')}</h3>
+              <p className="mt-0.5 text-xs text-cream-dim">{item.name}</p>
+            </div>
+            <button onClick={onClose} className="text-cream-dim hover:text-cream">
+              <IconClose size={20} />
+            </button>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+                  {t('inventory.purchaseQty')} ({unitName})
+                </label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  className="input"
+                  placeholder="0"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+                  {t('inventory.purchaseUnitCost')}
+                </label>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  className="input"
+                  placeholder="0"
+                  value={unitCost}
+                  onChange={(e) => setUnitCost(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+                  {t('inventory.purchaseTotal')}
+                </label>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  className="input"
+                  placeholder={derivedTotal ? String(derivedTotal) : '0'}
+                  value={totalCost}
+                  onChange={(e) => setTotalCost(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+                  {t('inventory.purchaseDate')}
+                </label>
+                <input type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} />
+              </div>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+                {t('inventory.purchaseSupplier')}
+              </label>
+              <input
+                className="input"
+                placeholder={t('inventory.purchaseSupplierPh')}
+                value={supplier}
+                onChange={(e) => setSupplier(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {effectiveTotal > 0 && (
+            <p className="mt-4 rounded-xl border border-rose-500/25 bg-rose-500/[0.06] px-4 py-2.5 text-sm text-rose-300">
+              {t('inventory.purchaseWillBook')} <strong>{money(effectiveTotal)}</strong>
+            </p>
+          )}
+          {error && <p className="mt-3 text-sm text-rose-300">{error}</p>}
+
+          <div className="mt-6 flex gap-3">
+            <button onClick={onClose} className="btn-ghost flex-1 py-3">
+              {t('common.cancel')}
+            </button>
+            <button
+              onClick={submit}
+              disabled={!valid || saving}
+              className="btn-gold flex-1 py-3 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <IconCheck size={18} /> {t('common.save')}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // Admin-only form to create a brand-new inventory item directly (separate from
 // the Chef's ingredient-request flow). `categories` seeds the dropdown from the
 // existing inventory; `onSave` runs the context action and returns {error?}.
@@ -230,10 +377,11 @@ function AddItemModal({ categories, onClose, onSave }) {
 }
 
 export default function Inventory() {
-  const { inventory, lowStock, adjustStock, restock, addInventoryItem, user } = useApp()
+  const { inventory, lowStock, adjustStock, recordPurchase, addInventoryItem, user } = useApp()
   const { t, lang } = useLang()
   const [query, setQuery] = useState('')
   const [showAdd, setShowAdd] = useState(false)
+  const [buying, setBuying] = useState(null) // inventory item being purchased
   // Page access (also gates whether the Adjust column shows at all).
   const canEdit = user && canModify(user.role, 'inventory')
   // Separation of duties: only Manager adds new stock; Admin & Manager may
@@ -383,11 +531,11 @@ export default function Inventory() {
                           )}
                           {canAddStock && (
                             <button
-                              onClick={() => restock(item.id, 10)}
+                              onClick={() => setBuying(item)}
                               className="btn-gold px-3 py-1.5 text-xs font-bold"
                               title={t('inventory.addNewStock')}
                             >
-                              {t('inventory.restock10')}
+                              {t('inventory.buyStock')}
                             </button>
                           )}
                         </div>
@@ -411,6 +559,15 @@ export default function Inventory() {
           categories={categories}
           onClose={() => setShowAdd(false)}
           onSave={addInventoryItem}
+        />
+      )}
+
+      {buying && (
+        <PurchaseModal
+          item={buying}
+          unitName={unitLabel(buying.unit, lang)}
+          onClose={() => setBuying(null)}
+          onSave={(payload) => recordPurchase(buying.id, payload)}
         />
       )}
     </div>
