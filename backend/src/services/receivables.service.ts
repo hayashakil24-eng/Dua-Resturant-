@@ -1,7 +1,8 @@
 // Account receivables (credit accounts) — port of AppContext.jsx's
-// addReceivable / recordReceivablePayment. The udhaar-charge path lives in
-// orders.service (markOrderUdhaar), writing to the same unified ledger
-// (ReceivableLedgerEntry with a type discriminator — schema.prisma).
+// recordReceivablePayment. Accounts themselves are created only by the
+// udhaar-charge path in orders.service (markOrderUdhaar), writing to the same
+// unified ledger (ReceivableLedgerEntry with a type discriminator —
+// schema.prisma).
 
 import { prisma } from '../db/client.js'
 import { writeAudit } from '../lib/audit.js'
@@ -16,18 +17,10 @@ export async function listReceivables() {
   return prisma.receivable.findMany({ include: { ledger: { orderBy: { at: 'desc' } } }, orderBy: { createdAt: 'desc' } })
 }
 
-export async function addReceivable(ctx: Ctx, input: { name?: string; amount?: number; type?: string; notes?: string }) {
-  const name = (input.name ?? '').trim()
-  if (!name) throw new ServiceError('Account name is required.')
-  const amt = Math.max(0, Number(input.amount) || 0)
-  return prisma.$transaction(async (tx) => {
-    const rcv = await tx.receivable.create({
-      data: { name, type: input.type || 'customer', balance: amt, status: amt > 0 ? 'open' : 'settled', notes: input.notes ?? '' },
-    })
-    await writeAudit(tx, { action: 'RECEIVABLE_ADDED', actor: ctx.actor, details: { account: name, amount: amt } })
-    return rcv
-  })
-}
+// There is deliberately no addReceivable here: an account is only ever born
+// from an unpaid order going on account (orders.service's markOrderUdhaar,
+// which creates the Receivable when the customer name is new). That keeps every
+// balance traceable to a real order instead of a hand-typed opening figure.
 
 // `amount` omitted ⇒ settle the whole outstanding balance.
 export async function recordReceivablePayment(

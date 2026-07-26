@@ -14,6 +14,7 @@ import { hashPassword } from '../auth/password.js'
 import { VALID_ROLES } from './auth.service.js'
 import type { Role } from '../core/permissions.js'
 import { enqueueOutbox } from '../sync/outbox.js'
+import { createLedgerEntry, deleteLedgerEntry, ADVANCE_CATEGORY } from './accounting.service.js'
 
 interface Ctx {
   actor: Actor
@@ -193,22 +194,71 @@ export async function listAdvances() {
   return prisma.advance.findMany({ orderBy: { date: 'desc' } })
 }
 
-export async function addAdvance(_ctx: Ctx, input: { staffId?: string; amount?: number; reason?: string; date?: string }) {
+// An advance is cash out of the drawer on the day it is handed over, so it is
+// booked to the ledger immediately. It is NOT extra money on top of payroll —
+// it is salary paid early, so monthFigures() nets the month's advances back out
+// of that month's payroll (see frontend utils/accounting.js) to avoid counting
+// the same rupee twice.
+export async function addAdvance(ctx: Ctx, input: { staffId?: string; amount?: number; reason?: string; date?: string }) {
   if (!input.staffId) throw new ServiceError('A staff member is required.')
-  return prisma.advance.create({
-    data: {
-      staffId: input.staffId,
-      amount: Number(input.amount) || 0,
-      reason: input.reason ?? '',
-      date: input.date ? new Date(input.date) : new Date(),
-      status: 'pending',
-    },
+  const amount = Number(input.amount) || 0
+  const date = input.date ? new Date(input.date) : new Date()
+  if (Number.isNaN(date.getTime())) throw new ServiceError('A valid advance date is required.')
+
+  return prisma.$transaction(async (tx) => {
+    const member = await tx.staff.findUnique({ where: { id: input.staffId as string } })
+    if (!member) throw new ServiceError('Staff member not found.', 404)
+
+    const advance = await tx.advance.create({
+      data: {
+        staffId: input.staffId as string,
+        amount,
+        reason: input.reason ?? '',
+        date,
+        status: 'pending',
+      },
+    })
+
+    // Zero-rupee advances are meaningless as a ledger row; skip the expense but
+    // keep the record so the payroll modal still shows it.
+    if (amount > 0) {
+      const txn = await createLedgerEntry(tx, {
+        type: 'expense',
+        category: ADVANCE_CATEGORY,
+        description: `${member.name}${input.reason ? ` — ${input.reason}` : ''}`,
+        amount,
+        date,
+        source: 'advance',
+        sourceId: advance.id,
+      })
+      const linked = await tx.advance.update({ where: { id: advance.id }, data: { transactionId: txn.id } })
+      // The frontend never audited advances, and that parity was kept until
+      // now — an advance moves money since it books a ledger expense, so
+      // ../../CLAUDE.md's audit convention applies.
+      await writeAudit(tx, {
+        action: 'ADVANCE_GIVEN',
+        actor: ctx.actor,
+        details: { advanceId: linked.id, staffId: member.id, staffName: member.name, amount },
+      })
+      return linked
+    }
+    return advance
   })
 }
 
-export async function deleteAdvance(_ctx: Ctx, id: string) {
-  await prisma.advance.delete({ where: { id } })
-  return { success: true }
+export async function deleteAdvance(ctx: Ctx, id: string) {
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.advance.findUnique({ where: { id } })
+    if (!existing) throw new ServiceError('Advance not found.', 404)
+    await deleteLedgerEntry(tx, existing.transactionId)
+    await tx.advance.delete({ where: { id } })
+    await writeAudit(tx, {
+      action: 'ADVANCE_DELETED',
+      actor: ctx.actor,
+      details: { advanceId: id, staffId: existing.staffId, amount: existing.amount },
+    })
+    return { success: true }
+  })
 }
 
 // Mark a month's pending advances recovered. Whole-month (payroll confirm) when

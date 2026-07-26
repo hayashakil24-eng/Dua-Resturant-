@@ -47,11 +47,84 @@ describe('inventory + separation of duties', () => {
     expect(denied.statusCode).toBe(403)
   })
 
+  // A purchase must move stock AND money in one step — the whole point of the
+  // /purchase route existing separately from /adjust, which serves corrections
+  // where nothing was bought and so must never book an expense.
+  it('books a stock purchase as a dated expense and raises the quantity', async () => {
+    const manager = await tokenFor('manager')
+    const before = await prisma.inventoryItem.findUniqueOrThrow({ where: { id: 'INV03' } })
+
+    const res = await post('/api/inventory/INV03/purchase', manager, {
+      quantity: 4,
+      unitCost: 250,
+      supplier: 'Karachi Wholesale',
+      date: '2026-03-14T00:00:00',
+    })
+    expect(res.statusCode).toBe(200)
+    const { item, purchase } = JSON.parse(res.body)
+
+    expect(item.stock).toBe(before.stock + 4)
+    expect(purchase.totalCost).toBe(1000)
+    expect(purchase.transactionId).toBeTruthy()
+
+    const txn = await prisma.transaction.findUniqueOrThrow({ where: { id: purchase.transactionId } })
+    expect(txn.type).toBe('expense')
+    expect(txn.amount).toBe(1000)
+    expect(txn.source).toBe('purchase')
+    // Booked on the purchase date, not today — reports scope by exact day.
+    expect(txn.date.getFullYear()).toBe(2026)
+    expect(txn.date.getMonth()).toBe(2)
+  })
+
+  it('uses the stated bill total over qty x rate, and rejects a zero-cost purchase', async () => {
+    const manager = await tokenFor('manager')
+    const ok = await post('/api/inventory/INV03/purchase', manager, { quantity: 3, unitCost: 100, totalCost: 340 })
+    expect(ok.statusCode).toBe(200)
+    expect(JSON.parse(ok.body).purchase.totalCost).toBe(340)
+
+    const bad = await post('/api/inventory/INV03/purchase', manager, { quantity: 2, unitCost: 0 })
+    expect(bad.statusCode).toBe(400)
+  })
+
+  it('forbids Admin from purchasing stock (inventoryAdd is Manager-only)', async () => {
+    const admin = await tokenFor('admin')
+    const res = await post('/api/inventory/INV03/purchase', admin, { quantity: 1, unitCost: 100 })
+    expect(res.statusCode).toBe(403)
+  })
+
   it('lets Admin create a new inventory item', async () => {
     const admin = await tokenFor('admin')
     const res = await post('/api/inventory', admin, { name: 'Green Chilli', category: 'Vegetables', unit: 'kg', stock: 3, threshold: 1, costPerUnit: 200 })
     expect(res.statusCode).toBe(200)
     expect(JSON.parse(res.body).item.id).toMatch(/^INV\d+$/)
+  })
+})
+
+describe('salary advances hit the ledger', () => {
+  it('books an advance as a dated expense and retracts it on delete', async () => {
+    const admin = await tokenFor('admin')
+    const member = await prisma.staff.findFirstOrThrow({ where: { active: true } })
+
+    const res = await post('/api/advances', admin, {
+      staffId: member.id,
+      amount: 5000,
+      reason: 'Medical',
+      date: '2026-03-14T00:00:00',
+    })
+    expect(res.statusCode).toBe(200)
+    const { advance } = JSON.parse(res.body)
+    expect(advance.transactionId).toBeTruthy()
+
+    const txn = await prisma.transaction.findUniqueOrThrow({ where: { id: advance.transactionId } })
+    expect(txn.type).toBe('expense')
+    expect(txn.amount).toBe(5000)
+    expect(txn.source).toBe('advance')
+
+    // Deleting the advance must take its expense with it, or the ledger keeps
+    // charging for money that was never handed over.
+    const del = await app.inject({ method: 'DELETE', url: `/api/advances/${advance.id}`, headers: auth(admin) })
+    expect(del.statusCode).toBe(200)
+    expect(await prisma.transaction.findUnique({ where: { id: advance.transactionId } })).toBeNull()
   })
 })
 
@@ -108,6 +181,35 @@ describe('receivables + udhaar', () => {
     const pay = await post(`/api/receivables/${body.accountId}/payment`, manager, { amount: 700 })
     expect(pay.statusCode).toBe(200)
     expect(JSON.parse(pay.body).settled).toBe(false) // 1400 - 700 = 700 remaining
+  })
+})
+
+describe('table shift', () => {
+  it('moves a running order to a free table but refuses one that is already in use', async () => {
+    const cashier = await tokenFor('cashier')
+    const a = await post('/api/orders', cashier, { table: 41, payment: 'Unpaid', items: [{ menuItemId: 'pk5', name: 'Biryani', price: 700, qty: 1 }] })
+    const b = await post('/api/orders', cashier, { table: 42, payment: 'Unpaid', items: [{ menuItemId: 'pk5', name: 'Biryani', price: 700, qty: 1 }] })
+    const orderA = JSON.parse(a.body).order.id
+    const orderB = JSON.parse(b.body).order.id
+
+    // 42 already holds orderB — moving orderA onto it must be rejected.
+    const blocked = await post(`/api/orders/${orderA}/table`, cashier, { table: 42 })
+    expect(blocked.statusCode).toBe(400)
+    expect(JSON.parse(blocked.body).error).toMatch(/running order/i)
+
+    // 43 is free, so the same move succeeds.
+    const ok = await post(`/api/orders/${orderA}/table`, cashier, { table: 43 })
+    expect(ok.statusCode).toBe(200)
+    expect(JSON.parse(ok.body).order.table).toBe(43)
+
+    // Once orderB is paid, table 42 frees up and becomes a valid destination.
+    await post(`/api/orders/${orderB}/pay`, cashier, { method: 'Cash' })
+    const afterPaid = await post(`/api/orders/${orderA}/table`, cashier, { table: 42 })
+    expect(afterPaid.statusCode).toBe(200)
+
+    // Settle orderA too — the daily-closing test below refuses to close while
+    // any same-day bill is still unpaid.
+    await post(`/api/orders/${orderA}/pay`, cashier, { method: 'Cash' })
   })
 })
 

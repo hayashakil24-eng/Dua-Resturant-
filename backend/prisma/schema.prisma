@@ -115,6 +115,10 @@ model Advance {
   reason  String?
   date    DateTime
   status  String   @default("pending") // "pending" | "recovered"
+  // The ledger expense row minted alongside this advance (cash left the drawer
+  // the day it was handed over). Kept so deleting the advance can retract the
+  // matching expense instead of orphaning it. See accounting.service.ts.
+  transactionId String?
   createdAt DateTime @default(now())
 
   @@index([staffId, status])
@@ -225,6 +229,30 @@ model InventoryItem {
   recipeIngredients RecipeIngredient[]
 
   @@index([category])
+}
+
+// A dated stock purchase — the missing link between "stock went up" and "money
+// went out". adjustStock/restock only ever moved a number, so a purchase left
+// no financial trace and could never reach a report. Recorded separately from
+// stock *corrections* (Admin fixing a miscount), which must NOT hit expenses.
+model StockPurchase {
+  id              String   @id @default(cuid())
+  inventoryItemId String
+  itemName        String // snapshot, so a renamed/deleted item keeps its history
+  quantity        Float
+  unit            String
+  unitCost        Int
+  totalCost       Int
+  supplier        String?
+  date            DateTime
+  // The ledger expense row this purchase minted — see Advance.transactionId.
+  transactionId   String?
+  createdBy       String?
+  createdByRole   String?
+  createdAt       DateTime @default(now())
+
+  @@index([date])
+  @@index([inventoryItemId])
 }
 
 model Recipe {
@@ -513,15 +541,23 @@ model Transaction {
   description String?
   amount      Int
   date        DateTime
+  // Set when this row was minted by another flow rather than typed into the
+  // Accounting form ("purchase" = stock bought, "advance" = salary advance).
+  // Reporting treats it like any other expense; the tag exists so the UI can
+  // label it and so the originating record can retract its own row.
+  source      String?
+  sourceId    String?
   createdAt   DateTime @default(now())
 
   @@index([type, date])
+  @@index([source, sourceId])
 }
 
 // ---------------------------------------------------------------------------
 // Receivables (credit accounts)
-// mirrors: mockData.js INITIAL_RECEIVABLES; AppContext.jsx addReceivable/
-// recordReceivablePayment/markOrderUdhaar
+// mirrors: mockData.js INITIAL_RECEIVABLES; AppContext.jsx
+// recordReceivablePayment/markOrderUdhaar (rows are only ever created by the
+// latter — there is no manual add-account path)
 // ---------------------------------------------------------------------------
 
 model Receivable {

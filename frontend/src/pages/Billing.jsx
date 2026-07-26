@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { PageHeader, PaymentBadge, EmptyState } from '../components/ui.jsx'
 import { money, time, dateLong } from '../utils/format.js'
@@ -9,7 +9,11 @@ import DiscountModal from '../components/DiscountModal.jsx'
 import ComplimentaryOrderDetail from '../components/ComplimentaryOrderDetail.jsx'
 import { complimentaryCost, formatCostTotal } from '../utils/cost.js'
 import Logo from '../components/Logo.jsx'
-import { IconReceipt, IconPrint, IconCheck, IconClose, IconWallet } from '../components/Icons.jsx'
+import { IconReceipt, IconPrint, IconCheck, IconClose, IconWallet, IconSearch } from '../components/Icons.jsx'
+
+// Same set (and order) as Orders.jsx's FILTERS — the two pages list the same
+// orders, so a cashier who learns one toolbar knows the other.
+const FILTERS = ['All', 'Paid', 'Unpaid', 'Udhaar', 'Complimentary', 'Cancelled']
 
 export function Receipt({
   order,
@@ -258,10 +262,32 @@ export default function Billing() {
   // Track by id so the open receipt reflects live discount / paid changes.
   const [activeId, setActiveId] = useState(null)
   const [showDiscount, setShowDiscount] = useState(false)
+  const [filter, setFilter] = useState('All')
+  const [query, setQuery] = useState('')
   const active = activeId ? orders.find((o) => o.id === activeId) : null
 
   const canDiscount = Boolean(user && canModify(user.role, 'discount'))
 
+  // Search is order-number only here (Orders.jsx also matches waiter/table) —
+  // on the billing counter you're holding a printed slip and typing its number.
+  const rows = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return orders.filter((o) => {
+      const matchFilter =
+        filter === 'All' ? true : filter === 'Cancelled' ? o.cancelled : o.payment === filter && !o.cancelled
+      return matchFilter && (!q || o.id.toLowerCase().includes(q))
+    })
+  }, [orders, filter, query])
+
+  const filterCount = (f) => {
+    if (f === 'All') return orders.length
+    if (f === 'Cancelled') return orders.filter((o) => o.cancelled).length
+    return orders.filter((o) => o.payment === f && !o.cancelled).length
+  }
+
+  // The four stat cards below stay deliberately unfiltered — they are the day's
+  // running totals (what the drawer should hold), so narrowing to one status
+  // must not change them.
   const paidTotal = orders
     .filter((o) => o.payment === 'Paid' && !o.cancelled)
     .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount, o.gstRate).total, 0)
@@ -291,7 +317,19 @@ export default function Billing() {
 
   return (
     <div>
-      <PageHeader title="Billing & Receipts" subtitle="Generate and print receipts for any order." />
+      <PageHeader title="Billing & Receipts" subtitle="Generate and print receipts for any order.">
+        <div className="relative">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-cream-dim">
+            <IconSearch size={16} />
+          </span>
+          <input
+            className="input py-2 pl-9 sm:w-64"
+            placeholder="Search order no."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+      </PageHeader>
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="card p-5">
@@ -329,11 +367,29 @@ export default function Billing() {
         </div>
       </div>
 
+      <div className="mb-4 flex flex-wrap gap-2">
+        {FILTERS.map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`rounded-full border px-4 py-1.5 text-sm font-medium transition ${
+              filter === f
+                ? 'border-gold/60 bg-gold/12 text-gold'
+                : 'border-ink-line bg-ink-soft text-cream-dim hover:text-cream'
+            }`}
+          >
+            {f} <span className="text-xs opacity-70">({filterCount(f)})</span>
+          </button>
+        ))}
+      </div>
+
       {orders.length === 0 ? (
         <EmptyState icon={IconReceipt} title="No receipts yet" hint="Placed orders will appear here for billing." />
+      ) : rows.length === 0 ? (
+        <EmptyState icon={IconReceipt} title="No receipts found" hint="Try a different filter or order number." />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {orders.map((o) => (
+          {rows.map((o) => (
             <button
               key={o.id}
               onClick={() => setActiveId(o.id)}

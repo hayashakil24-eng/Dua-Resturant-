@@ -23,9 +23,10 @@ function pageWindow(current, count) {
 }
 
 // Move a running order to another table (the party physically changed seats).
-// A destination is picked from the configured tables; occupied tables are shown
-// but flagged, since moving onto one leaves two running orders on it (no merge —
-// the Tables page already handles more than one order per table). onConfirm(id).
+// A destination is picked from the configured tables; a table that already has
+// a running order is shown but NOT selectable — moving onto one would leave two
+// unpaid orders sharing a seat, which is a billing mix-up, not a merge. The
+// backend re-checks this too (orders.service shiftOrderTable). onConfirm(id).
 export default function ShiftTableModal({ order, onClose, onConfirm }) {
   const { tables, orders } = useApp()
   const [dest, setDest] = useState(null)
@@ -34,8 +35,8 @@ export default function ShiftTableModal({ order, onClose, onConfirm }) {
   const [page, setPage] = useState(1)
   useEscapeKey(onClose)
 
-  // Tables currently holding a running (unpaid, non-cancelled) order — used only
-  // to flag the picker, not to disable, so a genuine merge-onto-seat is allowed.
+  // Tables currently holding a running (unpaid, non-cancelled) order — these are
+  // rendered greyed-out and unclickable, never a valid destination.
   const occupied = useMemo(
     () =>
       new Set(
@@ -56,6 +57,10 @@ export default function ShiftTableModal({ order, onClose, onConfirm }) {
     if (!q) return options
     return options.filter((tbl) => (tbl.number || `T${tbl.id}`).toLowerCase().includes(q))
   }, [options, query])
+
+  // Across the whole filtered set, not just the current page — otherwise page 2
+  // of an all-busy list would look like an ordinary empty grid.
+  const freeCount = useMemo(() => filtered.filter((tbl) => !occupied.has(tbl.id)).length, [filtered, occupied])
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   // Clamp during render (filtering can shrink the list below the current page)
@@ -122,6 +127,10 @@ export default function ShiftTableModal({ order, onClose, onConfirm }) {
             <p className="mt-2 rounded-xl border border-ink-line bg-ink-soft/50 p-4 text-sm text-cream-dim">No other tables configured.</p>
           ) : filtered.length === 0 ? (
             <p className="mt-2 rounded-xl border border-ink-line bg-ink-soft/50 p-4 text-sm text-cream-dim">No tables match “{query}”.</p>
+          ) : freeCount === 0 ? (
+            <p className="mt-2 rounded-xl border border-ink-line bg-ink-soft/50 p-4 text-sm text-cream-dim">
+              Every other table is in use — free one up before moving this order.
+            </p>
           ) : (
             <>
               <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
@@ -131,16 +140,17 @@ export default function ShiftTableModal({ order, onClose, onConfirm }) {
                   return (
                     <button
                       key={tbl.id}
+                      disabled={busy}
                       onClick={() => {
                         setDest(tbl.id)
                         setError('')
                       }}
                       title={busy ? 'This table already has a running order' : undefined}
                       className={`flex flex-col items-center gap-1 rounded-xl border-2 px-2 py-3 text-sm font-semibold transition ${
-                        selected
-                          ? 'border-gold/70 bg-gold/12 text-gold'
-                          : busy
-                            ? 'border-rose-500/40 bg-rose-500/[0.06] text-cream-dim hover:border-rose-500/60'
+                        busy
+                          ? 'cursor-not-allowed border-dashed border-rose-500/30 bg-rose-500/[0.04] text-cream-dim opacity-70'
+                          : selected
+                            ? 'border-gold/70 bg-gold/12 text-gold'
                             : 'border-ink-line bg-ink-soft text-cream hover:border-emerald-500/50'
                       }`}
                     >

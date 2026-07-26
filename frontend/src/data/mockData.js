@@ -732,7 +732,7 @@ export const EXPENSE_CATEGORIES = [
   'Utilities',
   'Supplies',
   'Gas',
-  'Maintenance',
+  'Cafe Ali Maintenance',
   'Marketing',
   'Other',
 ]

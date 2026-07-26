@@ -23,6 +23,44 @@ describe('monthFigures', () => {
     expect(fig.margin).toBeCloseTo((fig.profit / fig.income) * 100, 6)
   })
 
+  // An advance is salary paid early. It is booked as an expense on the day the
+  // cash left the drawer, so the month's payroll must drop by the same amount
+  // or the same rupee is charged twice.
+  it('nets salary advances out of the month payroll instead of double-counting', () => {
+    const today = new Date(2026, 6, 18)
+    const staff: StaffLike[] = [{ id: 'S01', active: true, baseSalary: 60000 }]
+    const base = monthFigures([], 2026, 6, today, staff)
+
+    const withAdvance = monthFigures(
+      [{ type: 'expense', amount: 10000, date: new Date(2026, 6, 9), category: 'Staff Advance' }],
+      2026,
+      6,
+      today,
+      staff,
+    )
+
+    expect(withAdvance.advances).toBe(10000)
+    expect(withAdvance.payrollGross).toBe(base.payrollGross)
+    expect(withAdvance.payroll).toBe(base.payrollGross - 10000)
+    // The month's total is unchanged — the advance only moves money onto the
+    // day it was actually paid, which is what makes it visible in daily reports.
+    expect(withAdvance.expense).toBe(base.expense)
+  })
+
+  it('clamps payroll at 0 when advances exceed the calculated salary', () => {
+    const today = new Date(2026, 6, 18)
+    const staff: StaffLike[] = [{ id: 'S01', active: true, baseSalary: 60000 }]
+    const fig = monthFigures(
+      [{ type: 'expense', amount: 5_000_000, date: new Date(2026, 6, 9), category: 'Staff Advance' }],
+      2026,
+      6,
+      today,
+      staff,
+    )
+    expect(fig.payroll).toBe(0)
+    expect(fig.expense).toBe(5_000_000)
+  })
+
   it('reports margin 0 (not NaN/Infinity) when income is 0', () => {
     const today = new Date(2026, 6, 18)
     const fig = monthFigures([], 2026, 6, today, [])

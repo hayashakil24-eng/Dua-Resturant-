@@ -7,6 +7,19 @@ export async function inventoryRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/api/inventory', { preHandler: authenticate }, async () => ({ inventory: await inventory.listInventory() }))
 
+  // Purchase history is spend data, so it follows the accounting gate rather
+  // than plain inventory read access.
+  app.get('/api/inventory/purchases', { preHandler: requirePermission('accounting', 'access') }, async () => ({
+    purchases: await inventory.listPurchases(),
+  }))
+
+  // Buying stock (Manager, per inventoryAdd) — raises quantity and books the
+  // spend. Distinct from /adjust, which also serves Admin miscount corrections.
+  app.post('/api/inventory/:id/purchase', { preHandler: requirePermission('inventoryAdd') }, async (req) => {
+    const { id } = req.params as { id: string }
+    return inventory.recordPurchase(ctx(req), id, (req.body ?? {}) as inventory.PurchaseInput)
+  })
+
   // Correct existing quantity (Admin/Manager) or add stock (Manager) — both UI
   // paths land here; accept either permission, same as the frontend's adjustStock.
   app.post('/api/inventory/:id/adjust', { preHandler: requireAnyPermission(['inventoryDirectEdit', 'inventoryAdd']) }, async (req) => {
