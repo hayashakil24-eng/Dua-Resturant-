@@ -281,9 +281,9 @@ export async function seed() {
   console.log('Seeding OnlineAccount...')
   await prisma.onlineAccount.createMany({
     data: [
-      { id: 'OPA-1', name: 'JazzCash - Main', type: 'JazzCash', number: '0300-1234567', active: true },
-      { id: 'OPA-2', name: 'Easypaisa - Shop', type: 'Easypaisa', number: '0345-7654321', active: true },
-      { id: 'OPA-3', name: 'Meezan Bank', type: 'Bank Account', number: 'PK00MEZN0000001234567', active: false },
+      { id: 'OPA-1', name: 'JazzCash - Main', type: 'JazzCash', number: '03001234567', active: true },
+      { id: 'OPA-2', name: 'Easypaisa - Shop', type: 'Easypaisa', number: '03457654321', active: true },
+      { id: 'OPA-3', name: 'Meezan Bank', type: 'Bank Account', bankName: 'Meezan Bank', number: 'PK36MEZN0000001123456702', active: false },
     ],
   })
 

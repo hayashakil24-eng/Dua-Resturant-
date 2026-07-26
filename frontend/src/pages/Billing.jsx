@@ -159,8 +159,9 @@ export function Receipt({
                 <div className="flex justify-between text-[11px]">
                   <span>Account</span>
                   <span>
-                    {order.onlineAccountName}
-                    {order.onlineAccountType ? ` · ${order.onlineAccountType}` : ''}
+                    {[order.onlineAccountName, order.onlineAccountBank, order.onlineAccountType]
+                      .filter(Boolean)
+                      .join(' · ')}
                   </span>
                 </div>
               )}

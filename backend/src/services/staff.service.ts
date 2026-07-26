@@ -25,7 +25,10 @@ interface Ctx {
 const SHIFT_START_TIMES: Record<string, string> = { Morning: '09:00', Evening: '16:00' }
 
 export async function listStaff() {
-  return prisma.staff.findMany({ orderBy: { createdAt: 'asc' } })
+  // Omit the hash: /api/staff is readable by every signed-in device (the POS
+  // reads it for waiter selection), so shipping password hashes to all of them
+  // hands out offline-crackable material for nothing — no caller uses it.
+  return prisma.staff.findMany({ omit: { passwordHash: true }, orderBy: { createdAt: 'asc' } })
 }
 
 export interface StaffInput {

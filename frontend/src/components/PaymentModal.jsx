@@ -149,9 +149,18 @@ export default function PaymentModal({ total, onClose, onConfirm, onlineAccounts
                       </option>
                     ))}
                   </select>
-                  {selectedAccount?.number && (
+                  {/* Bank/IBAN too, not just the number — the cashier reads
+                      these out to the customer to receive the transfer. */}
+                  {selectedAccount && (selectedAccount.number || selectedAccount.bankName) && (
                     <p className="mt-1.5 text-xs text-cream-dim">
-                      {selectedAccount.type} · {selectedAccount.number}
+                      {[
+                        selectedAccount.type,
+                        selectedAccount.bankName,
+                        selectedAccount.number,
+                        selectedAccount.iban,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
                     </p>
                   )}
                 </>

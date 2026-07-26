@@ -35,3 +35,19 @@ export function isSessionValid(jti: string | undefined): boolean {
 export function revokeSession(jti: string): void {
   sessions.delete(jti)
 }
+
+// Every device logged in as one staff member. Used when a password changes:
+// the old password's sessions must stop working, or a reset (or an admin
+// locking out a departed employee) would only take effect at the next
+// voluntary logout. `exceptJti` keeps the caller's own session alive so
+// changing your own password doesn't sign you out of the screen you're on.
+export function revokeSessionsForStaff(staffId: string, exceptJti?: string): number {
+  let revoked = 0
+  for (const [jti, info] of sessions) {
+    if (info.staffId === staffId && jti !== exceptJti) {
+      sessions.delete(jti)
+      revoked++
+    }
+  }
+  return revoked
+}

@@ -9,6 +9,14 @@ import { prisma } from '../db/client.js'
 import { writeAudit } from '../lib/audit.js'
 import { ServiceError } from '../lib/errors.js'
 import type { Actor } from '../lib/actor.js'
+import {
+  ERR_BANK,
+  ERR_WALLET,
+  accountFieldsFor,
+  sanitizeAccountNumber,
+  sanitizeIban,
+  validateAccount,
+} from '../core/onlineAccount.js'
 
 interface Ctx {
   actor: Actor
@@ -86,17 +94,47 @@ export async function listOnlineAccounts() {
   return prisma.onlineAccount.findMany({ orderBy: { name: 'asc' } })
 }
 
-export async function addOnlineAccount(ctx: Ctx, input: { name?: string; type?: string; number?: string; nameUrdu?: string }) {
+// validateAccount returns a key so the frontend can translate it; the API
+// answers in English, the way every other ServiceError here does.
+const ACCOUNT_ERRORS: Record<string, string> = {
+  errNameRequired: 'Account name is required.',
+  errBankRequired: 'Bank name is required for a bank account.',
+  errNumberRequired: 'Account number is required.',
+  errNumberWallet: ERR_WALLET,
+  errNumberBank: ERR_BANK,
+  errIbanFormat: 'IBAN must be 24 characters starting with PK.',
+}
+
+function accountError(key: string): ServiceError {
+  return new ServiceError(ACCOUNT_ERRORS[key] ?? 'Account details are invalid.')
+}
+
+type AccountFieldsInput = { name?: string; type?: string; number?: string; bankName?: string; iban?: string; nameUrdu?: string }
+
+// Fields a type doesn't use are stored as null rather than kept — otherwise a
+// bank account switched to JazzCash would silently keep its old bank name.
+function accountColumns(input: { type: string; number?: string; bankName?: string; iban?: string }) {
+  const fields = accountFieldsFor(input.type)
+  return {
+    type: input.type,
+    number: sanitizeAccountNumber(input.type, input.number ?? '') || null,
+    bankName: fields.needsBank ? String(input.bankName ?? '').trim() || null : null,
+    iban: fields.showsIban ? sanitizeIban(input.iban ?? '') || null : null,
+  }
+}
+
+export async function addOnlineAccount(ctx: Ctx, input: AccountFieldsInput) {
   const name = (input.name ?? '').trim()
-  if (!name) throw new ServiceError('Account name is required.')
+  const type = (input.type ?? '').trim() || 'Other'
+  const invalid = validateAccount({ ...input, name, type })
+  if (invalid) throw accountError(invalid)
   return prisma.$transaction(async (tx) => {
     const all = await tx.onlineAccount.findMany({ select: { name: true } })
     if (all.some((a) => a.name.toLowerCase() === name.toLowerCase())) throw new ServiceError('An account with this name already exists.')
     const account = await tx.onlineAccount.create({
       data: {
         name,
-        type: (input.type ?? '').trim() || 'Other',
-        number: (input.number ?? '').trim() || null,
+        ...accountColumns({ ...input, type }),
         nameUrdu: (input.nameUrdu ?? '').trim() || null,
         active: true,
       },
@@ -106,18 +144,27 @@ export async function addOnlineAccount(ctx: Ctx, input: { name?: string; type?: 
   })
 }
 
-export async function updateOnlineAccount(ctx: Ctx, id: string, patch: { name?: string; type?: string; number?: string; nameUrdu?: string }) {
+export async function updateOnlineAccount(ctx: Ctx, id: string, patch: AccountFieldsInput) {
   const cleanName = patch.name != null ? String(patch.name).trim() : null
-  if (cleanName === '') throw new ServiceError('Account name is required.')
   return prisma.$transaction(async (tx) => {
+    const existing = await tx.onlineAccount.findUnique({ where: { id } })
+    if (!existing) throw new ServiceError('Account not found.', 404)
     if (cleanName) {
       const all = await tx.onlineAccount.findMany({ where: { NOT: { id } }, select: { name: true } })
       if (all.some((a) => a.name.toLowerCase() === cleanName.toLowerCase())) throw new ServiceError('An account with this name already exists.')
     }
-    const data: Record<string, unknown> = {}
-    if (cleanName != null) data.name = cleanName
-    if (patch.type != null) data.type = patch.type
-    if (patch.number != null) data.number = patch.number
+    // A patch may carry only some fields, so validate the row as it will end up
+    // rather than the fragment that was sent.
+    const merged = {
+      name: cleanName ?? existing.name,
+      type: patch.type != null ? patch.type : existing.type,
+      number: patch.number != null ? patch.number : existing.number ?? '',
+      bankName: patch.bankName != null ? patch.bankName : existing.bankName ?? '',
+      iban: patch.iban != null ? patch.iban : existing.iban ?? '',
+    }
+    const invalid = validateAccount(merged)
+    if (invalid) throw accountError(invalid)
+    const data: Record<string, unknown> = { name: merged.name, ...accountColumns(merged) }
     if (patch.nameUrdu != null) data.nameUrdu = String(patch.nameUrdu).trim() || null
     const updated = await tx.onlineAccount.update({ where: { id }, data })
     await writeAudit(tx, { action: 'ONLINE_ACCOUNT_UPDATED', actor: ctx.actor, details: { accountId: id } })

@@ -4,8 +4,9 @@ import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader } from '../components/ui.jsx'
 import { canModify } from '../config/permissions.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
-import { IconSettings, IconReceipt, IconWallet, IconPlus, IconClose, IconCheck, IconClock, IconRefresh, IconWhatsApp } from '../components/Icons.jsx'
+import { IconSettings, IconReceipt, IconWallet, IconPlus, IconClose, IconCheck, IconClock, IconRefresh, IconWhatsApp, IconLock } from '../components/Icons.jsx'
 import { apiGet } from '../api/client.js'
+import { WALLET_TYPES, PK_BANKS, BANK_OTHER, ERR_WALLET, ERR_BANK, accountFieldsFor, sanitizeAccountNumber, sanitizeIban, validateAccount } from '../utils/accountNumber.js'
 
 // Phase 3 "basic operational visibility" (docs/04-phase-3-deployment-
 // hardening.md) — is the server up, when did it last back up. Admin-only,
@@ -139,18 +140,90 @@ function Toggle({ checked, onChange, disabled, labelOn, labelOff }) {
 
 const ACCOUNT_TYPES = ['JazzCash', 'Easypaisa', 'SadaPay', 'NayaPay', 'Bank Account', 'Other']
 
-// Add / edit dialog for a single online payment account. `onSave` returns
-// `{ error }` from the context (duplicate/empty name) which is shown inline.
+// Labels + messages the shared rules module refers to by key, so the form,
+// the validator and the server never spell a rule out twice.
+const NUMBER_LABELS = {
+  mobileNumber: ['settings.mobileNumber', 'Mobile Number'],
+  accountNumberIban: ['settings.accountNumberIban', 'Account Number / IBAN'],
+  accountNumber: ['settings.accountNumber', 'Account Number / ID'],
+}
+const ACCOUNT_ERRORS = {
+  errNameRequired: ['settings.errNameRequired', 'Account name is required.'],
+  errBankRequired: ['settings.errBankRequired', 'Bank name is required for a bank account.'],
+  errNumberRequired: ['settings.errNumberRequired', 'Account number is required.'],
+  errNumberWallet: ['settings.accountNumberErrWallet', ERR_WALLET],
+  errNumberBank: ['settings.accountNumberErrBank', ERR_BANK],
+  errIbanFormat: ['settings.errIbanFormat', 'IBAN must be 24 characters starting with PK.'],
+}
+
+// Add / edit dialog for a single online payment account. Which fields show up
+// follows the selected type (accountFieldsFor) — a bank needs a bank name, a
+// wallet is a mobile number, and SadaPay/NayaPay also carry their own IBAN.
+// `onSave` returns `{ error }` from the context (duplicate name) shown inline.
 function AccountFormModal({ account, onSave, onClose }) {
   const t = useT()
   const [name, setName] = useState(account?.name || '')
   const [type, setType] = useState(account?.type || ACCOUNT_TYPES[0])
   const [number, setNumber] = useState(account?.number || '')
+  // A bank saved before it joined PK_BANKS (or typed by hand) reopens under
+  // "Other" rather than silently vanishing from the dropdown.
+  const [bank, setBank] = useState(() =>
+    !account?.bankName ? '' : PK_BANKS.includes(account.bankName) ? account.bankName : BANK_OTHER,
+  )
+  const [bankOther, setBankOther] = useState(() =>
+    account?.bankName && !PK_BANKS.includes(account.bankName) ? account.bankName : '',
+  )
+  const [iban, setIban] = useState(account?.iban || '')
   const [error, setError] = useState('')
   useEscapeKey(onClose)
 
+  const isWallet = WALLET_TYPES.includes(type)
+  const fields = accountFieldsFor(type)
+  const bankName = bank === BANK_OTHER ? bankOther.trim() : bank
+  const [numberLabelKey, numberLabelText] = NUMBER_LABELS[fields.numberLabelKey]
+  const numberHint = isWallet
+    ? t('settings.accountNumberHintWallet', '11 digits — the mobile number (e.g. 03001234567).')
+    : fields.needsBank
+      ? t(
+          'settings.accountNumberHintBank',
+          '10, 14 or 16 digits, or a 24-character IBAN (e.g. PK36SCBL0000001123456702).',
+        )
+      : ''
+  const numberPlaceholder = isWallet
+    ? '03001234567'
+    : fields.needsBank
+      ? '12345678901234 or PK36SCBL0000001123456702'
+      : ''
+
+  // Switching type changes what each field may contain — re-sanitize the number
+  // and drop a bank/IBAN the new type has no field for, instead of carrying a
+  // stale value along invisibly.
+  const changeType = (next) => {
+    const nextFields = accountFieldsFor(next)
+    setType(next)
+    setNumber((n) => sanitizeAccountNumber(next, n))
+    if (!nextFields.needsBank) {
+      setBank('')
+      setBankOther('')
+    }
+    if (!nextFields.showsIban) setIban('')
+    setError('')
+  }
+
   const save = async () => {
-    const res = await onSave({ name: name.trim(), type, number: number.trim() })
+    const payload = {
+      name: name.trim(),
+      type,
+      number: sanitizeAccountNumber(type, number).trim(),
+      bankName: fields.needsBank ? bankName : '',
+      iban: fields.showsIban ? sanitizeIban(iban) : '',
+    }
+    const invalid = validateAccount(payload)
+    if (invalid) {
+      const [key, fallback] = ACCOUNT_ERRORS[invalid] || ACCOUNT_ERRORS.errNameRequired
+      return setError(t(key, fallback))
+    }
+    const res = await onSave(payload)
     if (res?.error) return setError(res.error)
     onClose()
   }
@@ -177,7 +250,7 @@ function AccountFormModal({ account, onSave, onClose }) {
               <input
                 className="input"
                 autoFocus
-                placeholder="e.g. JazzCash - Main"
+                placeholder="e.g. Zaman Khan"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
@@ -186,7 +259,7 @@ function AccountFormModal({ account, onSave, onClose }) {
               <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
                 {t('settings.accountType', 'Account Type')}
               </label>
-              <select className="input" value={type} onChange={(e) => setType(e.target.value)}>
+              <select className="input" value={type} onChange={(e) => changeType(e.target.value)}>
                 {ACCOUNT_TYPES.map((ty) => (
                   <option key={ty} value={ty}>
                     {ty}
@@ -194,17 +267,62 @@ function AccountFormModal({ account, onSave, onClose }) {
                 ))}
               </select>
             </div>
+            {fields.needsBank && (
+              <div>
+                <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+                  {t('settings.bankName', 'Bank Name')} <span className="text-rose-300">*</span>
+                </label>
+                <select className="input" value={bank} onChange={(e) => setBank(e.target.value)}>
+                  <option value="">{t('settings.selectBank', 'Select a bank…')}</option>
+                  {PK_BANKS.map((b) => (
+                    <option key={b} value={b}>
+                      {b}
+                    </option>
+                  ))}
+                </select>
+                {bank === BANK_OTHER && (
+                  <input
+                    className="input mt-2"
+                    placeholder={t('settings.bankNameOther', 'Type the bank name')}
+                    value={bankOther}
+                    onChange={(e) => setBankOther(e.target.value)}
+                  />
+                )}
+              </div>
+            )}
             <div>
               <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
-                {t('settings.accountNumber', 'Account Number / ID')}
+                {t(numberLabelKey, numberLabelText)}
+                {fields.numberRequired && <span className="text-rose-300"> *</span>}
               </label>
               <input
                 className="input"
-                placeholder="e.g. 0300-1234567"
+                inputMode={isWallet ? 'numeric' : 'text'}
+                placeholder={numberPlaceholder}
                 value={number}
-                onChange={(e) => setNumber(e.target.value)}
+                onChange={(e) => setNumber(sanitizeAccountNumber(type, e.target.value))}
               />
+              {numberHint && <p className="mt-1.5 text-[11px] text-cream-dim">{numberHint}</p>}
             </div>
+            {fields.showsIban && (
+              <div>
+                <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+                  {t('settings.iban', 'IBAN')}{' '}
+                  <span className="normal-case tracking-normal text-cream-dim/70">
+                    ({t('common.optional', 'optional')})
+                  </span>
+                </label>
+                <input
+                  className="input"
+                  placeholder="PK24SADA0000001234567890"
+                  value={iban}
+                  onChange={(e) => setIban(sanitizeIban(e.target.value))}
+                />
+                <p className="mt-1.5 text-[11px] text-cream-dim">
+                  {t('settings.ibanHint', '24 characters starting with PK — the wallet also works as a bank account.')}
+                </p>
+              </div>
+            )}
             {error && (
               <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{error}</p>
             )}
@@ -219,6 +337,155 @@ function AccountFormModal({ account, onSave, onClose }) {
             </button>
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// Password management. Two jobs in one card: the signed-in Admin changing
+// their own password (current password required), and resetting any other
+// login account's password — which signs that person's devices out, since the
+// old password's sessions must stop working.
+function PasswordCard() {
+  const t = useT()
+  const { user, changeMyPassword, setStaffPassword } = useApp()
+  const [accounts, setAccounts] = useState([])
+  const [target, setTarget] = useState('me')
+  const [current, setCurrent] = useState('')
+  const [next, setNext] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [error, setError] = useState('')
+  const [done, setDone] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  // Admin-only route, and only accounts that actually have a login — most
+  // staff rows are created without credentials.
+  useEffect(() => {
+    let alive = true
+    apiGet('/api/staff/login-accounts')
+      .then((d) => alive && setAccounts((d.accounts || []).filter((a) => a.id !== user?.id)))
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [user?.id])
+
+  const isSelf = target === 'me'
+  const reset = () => {
+    setCurrent('')
+    setNext('')
+    setConfirm('')
+  }
+  const changeTarget = (value) => {
+    setTarget(value)
+    setError('')
+    setDone('')
+    reset()
+  }
+
+  const submit = async () => {
+    setError('')
+    setDone('')
+    if (next.length < 6) return setError(t('settings.pwTooShort', 'Password must be at least 6 characters.'))
+    if (next !== confirm) return setError(t('settings.pwMismatch', 'The two passwords do not match.'))
+    setBusy(true)
+    const res = isSelf
+      ? await changeMyPassword({ currentPassword: current, newPassword: next })
+      : await setStaffPassword(target, next)
+    setBusy(false)
+    if (res?.error) return setError(res.error)
+    const who = accounts.find((a) => a.id === target)
+    setDone(
+      isSelf
+        ? t('settings.pwChangedSelf', 'Your password has been changed.')
+        : t('settings.pwChangedOther', 'Password changed. That user must log in again.').replace('{name}', who?.name || ''),
+    )
+    reset()
+  }
+
+  return (
+    <div className="card max-w-2xl p-6">
+      <div className="flex items-center gap-3 border-b border-ink-line pb-4">
+        <span className="grid h-10 w-10 place-items-center rounded-xl bg-gold/10 text-gold ring-1 ring-gold/25">
+          <IconLock size={20} />
+        </span>
+        <div>
+          <h3 className="font-serif text-xl text-cream">{t('settings.passwords', 'Login Passwords')}</h3>
+          <p className="text-xs text-cream-dim">
+            {t('settings.passwordsDesc', 'Change your own password, or set a new one for any staff login.')}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-5 space-y-4">
+        <div>
+          <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+            {t('settings.pwWhose', 'Whose password')}
+          </label>
+          <select className="input" value={target} onChange={(e) => changeTarget(e.target.value)}>
+            <option value="me">
+              {t('settings.pwMine', 'My password')} — {user?.name} ({user?.role})
+            </option>
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name} ({a.systemRole || '—'}) · {a.username}
+                {a.active ? '' : ` · ${t('settings.inactive', 'Inactive')}`}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {isSelf && (
+          <div>
+            <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+              {t('settings.pwCurrent', 'Current Password')} <span className="text-rose-300">*</span>
+            </label>
+            <input
+              className="input"
+              type="password"
+              autoComplete="current-password"
+              value={current}
+              onChange={(e) => setCurrent(e.target.value)}
+            />
+          </div>
+        )}
+
+        <div>
+          <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+            {t('settings.pwNew', 'New Password')} <span className="text-rose-300">*</span>
+          </label>
+          <input
+            className="input"
+            type="password"
+            autoComplete="new-password"
+            value={next}
+            onChange={(e) => setNext(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+            {t('settings.pwConfirm', 'Confirm New Password')} <span className="text-rose-300">*</span>
+          </label>
+          <input
+            className="input"
+            type="password"
+            autoComplete="new-password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+          />
+        </div>
+
+        {!isSelf && (
+          <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-200/90">
+            {t('settings.pwResetWarning', 'This user will be signed out of every device and must log in with the new password.')}
+          </p>
+        )}
+        {error && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{error}</p>}
+        {done && <p className="rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">{done}</p>}
+
+        <button onClick={submit} disabled={busy} className="btn-gold px-5 py-2.5 text-sm disabled:opacity-60">
+          <IconCheck size={16} /> {t('settings.pwSave', 'Change Password')}
+        </button>
       </div>
     </div>
   )
@@ -507,8 +774,7 @@ export default function Settings() {
                     </span>
                   </p>
                   <p className="mt-0.5 text-xs text-cream-dim">
-                    {a.type}
-                    {a.number ? ` · ${a.number}` : ''}
+                    {[a.type, a.bankName, a.number, a.iban].filter(Boolean).join(' · ')}
                   </p>
                 </div>
                 {canEdit && (
@@ -534,6 +800,9 @@ export default function Settings() {
       </div>
 
       {canEdit && <ServerHealthPanel />}
+
+      {/* Password management — Admin-only, same gate as the rest of this page */}
+      {canEdit && <PasswordCard />}
 
       {formFor && (
         <AccountFormModal

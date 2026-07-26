@@ -111,6 +111,7 @@ export function serializeOrder(o: OrderWithItems) {
     onlineAccountId: o.onlineAccountId,
     onlineAccountName: o.onlineAccountName,
     onlineAccountType: o.onlineAccountType,
+    onlineAccountBank: o.onlineAccountBank,
     gstRate: o.gstRate,
     kitchen: o.kitchen,
     shiftId: o.shiftId,
@@ -316,6 +317,7 @@ export async function addOrder(ctx: Ctx, input: AddOrderInput) {
         onlineAccountId: paidOnline ? account?.id ?? null : null,
         onlineAccountName: paidOnline ? account?.name ?? null : null,
         onlineAccountType: paidOnline ? account?.type ?? null : null,
+        onlineAccountBank: paidOnline ? account?.bankName ?? null : null,
         gstRate, // locked at creation
         kitchen: 'Pending',
         shiftId,
@@ -413,6 +415,7 @@ export async function markPaid(ctx: Ctx, orderId: string, method = 'Cash', onlin
         onlineAccountId: paidOnline ? account?.id ?? null : null,
         onlineAccountName: paidOnline ? account?.name ?? null : null,
         onlineAccountType: paidOnline ? account?.type ?? null : null,
+        onlineAccountBank: paidOnline ? account?.bankName ?? null : null,
         shiftId,
       },
       include: { items: true },

@@ -262,6 +262,25 @@ export function AppProvider({ children }) {
       return toError(e)
     }
   }
+  // Password changes. Anyone signed in may change their own (the server
+  // verifies the current one); only an Admin may reset somebody else's, which
+  // signs that person's devices out — both checks are re-run server-side.
+  const changeMyPassword = async ({ currentPassword, newPassword } = {}) => {
+    try {
+      return await apiPost('/api/auth/change-password', { currentPassword, newPassword })
+    } catch (e) {
+      return toError(e)
+    }
+  }
+  const setStaffPassword = async (staffId, newPassword) => {
+    if (!user || user.role !== 'Admin') return { error: 'Only an Admin can change another user’s password.' }
+    try {
+      return await apiPost(`/api/staff/${staffId}/password`, { newPassword })
+    } catch (e) {
+      return toError(e)
+    }
+  }
+
   const logout = () => {
     // Best-effort, not awaited: revokes this session server-side (keeps the
     // Control Panel's connected-devices list accurate) but must never block
@@ -314,9 +333,9 @@ export function AppProvider({ children }) {
       return toError(e)
     }
   }
-  const addOnlineAccount = async ({ name, type, number = '' } = {}) => {
+  const addOnlineAccount = async ({ name, type, number = '', bankName = '', iban = '' } = {}) => {
     try {
-      const { account } = await apiPost('/api/online-accounts', { name, type, number })
+      const { account } = await apiPost('/api/online-accounts', { name, type, number, bankName, iban })
       await refresh(['onlineAccounts'])
       return { account }
     } catch (e) {
@@ -1043,6 +1062,8 @@ export function AppProvider({ children }) {
     login,
     logout,
     signup,
+    changeMyPassword,
+    setStaffPassword,
     orders,
     addOrder,
     appendOrderItems,

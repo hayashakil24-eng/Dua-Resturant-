@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
-import { authenticateCredentials } from '../services/auth.service.js'
+import { authenticateCredentials, changeOwnPassword } from '../services/auth.service.js'
 import { signup } from '../services/staff.service.js'
-import { authenticateAllowPending, type JwtPayload } from '../auth/guard.js'
+import { authenticate, authenticateAllowPending, type JwtPayload } from '../auth/guard.js'
 import { registerSession, revokeSession } from '../auth/sessions.js'
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
@@ -48,6 +48,13 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   // allowPending: a waiting-room session needs to restore itself too.
   app.get('/api/auth/me', { preHandler: authenticateAllowPending }, async (req) => {
     return { user: req.actor }
+  })
+
+  // Change your own password. Any signed-in role may do this for itself; the
+  // current password is verified inside the service.
+  app.post('/api/auth/change-password', { preHandler: authenticate }, async (req) => {
+    const { currentPassword, newPassword } = (req.body ?? {}) as { currentPassword?: unknown; newPassword?: unknown }
+    return await changeOwnPassword(req.actor, (req.user as JwtPayload).jti, currentPassword, newPassword)
   })
 
   // Best-effort session cleanup on an intentional client-side logout — keeps
