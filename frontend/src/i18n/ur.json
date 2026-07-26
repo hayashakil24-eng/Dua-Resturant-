@@ -281,6 +281,8 @@
     "profitAndLoss": "نفع و نقصان",
     "expenseBreakdown": "اخراجات کی تفصیل",
     "noExpenses": "اس مہینے کوئی اخراجات نہیں۔",
+    "noExpensesDay": "اس دن کوئی اخراجات نہیں۔",
+    "maintenance": "مینٹیننس",
     "noMaintenance": "کوئی مینٹیننس درج نہیں۔",
     "total": "کل",
     "transactions": "لین دین",

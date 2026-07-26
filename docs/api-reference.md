@@ -113,6 +113,13 @@ An advance is salary paid **early**, not extra pay, so `monthFigures()` subtract
 the month's advances from that month's calculated payroll — without that, a
 Rs 10,000 advance against a Rs 30,000 salary would book Rs 40,000.
 
+An advance is netted against **the month it was paid in** — a Rs 10,000 advance
+handed over on 26 July reduces *July's* payroll, not August's. Client-confirmed
+on 2026-07-26, so `Advance` deliberately has no "recovered from which month"
+field; don't add one without a fresh instruction. The expense row itself always
+stays on the payment date, which is what makes an advance visible in the daily
+report.
+
 ## Shifts & handovers (`shifts.routes.ts`)
 
 | Method | Path | Permission |

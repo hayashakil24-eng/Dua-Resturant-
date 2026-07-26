@@ -25,7 +25,7 @@ const toDayStr = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 // ---------------------------------------------------------------------------
-function StatTile({ icon: Icon, label, value, sub, tone }) {
+function StatTile({ icon: Icon, label, value, note, sub, tone }) {
   const tones = {
     green: 'text-emerald-300',
     red: 'text-rose-300',
@@ -39,6 +39,10 @@ function StatTile({ icon: Icon, label, value, sub, tone }) {
         <div>
           <p className="text-xs uppercase tracking-widest text-cream-dim">{label}</p>
           <p className={`mt-2 font-serif text-3xl font-semibold ${tones[tone]}`}>{value}</p>
+          {/* Money the headline figure deliberately leaves out (maintenance is
+              its own bucket). Without this the tile reads "Rs 0" on a day money
+              was actually spent, which looks like a bug rather than a split. */}
+          {note && <p className="mt-1 text-xs font-semibold text-amber-300/90">{note}</p>}
           {sub && <p className="mt-1 text-xs text-cream-dim">{sub}</p>}
         </div>
         <div className="grid h-11 w-11 place-items-center rounded-xl bg-white/5 text-cream-dim ring-1 ring-ink-line">
@@ -91,7 +95,7 @@ function PLChart({ data }) {
 
 // ---------------------------------------------------------------------------
 // Expense breakdown EXCLUDES "Cafe Ali Maintenance" — that has its own box.
-function ExpenseBreakdown({ inMonth, payroll }) {
+function ExpenseBreakdown({ inMonth, payroll, daily }) {
   const t = useT()
   const rows = useMemo(() => {
     const map = {}
@@ -110,7 +114,9 @@ function ExpenseBreakdown({ inMonth, payroll }) {
     <div className="card p-6">
       <h3 className="font-serif text-xl text-cream">{t('accounting.expenseBreakdown')}</h3>
       {rows.length === 0 ? (
-        <p className="mt-6 text-sm text-cream-dim">{t('accounting.noExpenses')}</p>
+        <p className="mt-6 text-sm text-cream-dim">
+          {daily ? t('accounting.noExpensesDay') : t('accounting.noExpenses')}
+        </p>
       ) : (
         <div className="mt-5 space-y-3">
           {rows.map(([cat, amt]) => (
@@ -499,6 +505,11 @@ export default function Accounting() {
           icon={IconTrendDown}
           label={t('accounting.expenses')}
           value={money(figures.expense)}
+          note={
+            figures.maintenance > 0
+              ? `+ ${t('accounting.maintenance', 'Maintenance')}: ${money(figures.maintenance)}`
+              : null
+          }
           sub={daily ? scopeLabel : t('accounting.inclPayroll')}
           tone="red"
         />
@@ -592,7 +603,7 @@ export default function Accounting() {
         // No PLChart in Daily (it's a monthly trend view). Payroll is omitted
         // here too — a monthly cost not apportioned to any one day.
         <div className="grid gap-6 lg:grid-cols-2">
-          <ExpenseBreakdown inMonth={dayFig.inDay} payroll={0} />
+          <ExpenseBreakdown inMonth={dayFig.inDay} payroll={0} daily />
           <MaintenanceBox inMonth={dayFig.inDay} />
         </div>
       )}
