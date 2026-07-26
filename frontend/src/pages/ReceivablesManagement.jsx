@@ -3,99 +3,21 @@ import { useApp } from '../context/AppContext.jsx'
 import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader, StatCard } from '../components/ui.jsx'
 import { money, dateShort } from '../utils/format.js'
-import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import SettleReceivableModal from '../components/SettleReceivableModal.jsx'
-import { IconWallet, IconAlert, IconCheck, IconPlus, IconClose, IconChevronDown } from '../components/Icons.jsx'
-
-// Small inline modal to open a new credit account.
-function AddAccountModal({ onClose, onSave }) {
-  const t = useT()
-  const [name, setName] = useState('')
-  const [amount, setAmount] = useState('')
-  const [type, setType] = useState('customer')
-  const [error, setError] = useState('')
-  useEscapeKey(onClose)
-
-  const submit = async () => {
-    const res = await onSave({ name: name.trim(), amount: Number(amount) || 0, type })
-    if (res?.error) return setError(res.error)
-    onClose()
-  }
-
-  return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-md animate-fade-up">
-        <div className="card p-6">
-          <div className="flex items-start justify-between">
-            <h3 className="font-serif text-2xl text-cream">{t('receivables.addTitle')}</h3>
-            <button onClick={onClose} className="text-cream-dim hover:text-cream">
-              <IconClose size={20} />
-            </button>
-          </div>
-          <div className="mt-5 space-y-3">
-            <div>
-              <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
-                {t('receivables.accountName')}
-              </label>
-              <input
-                className="input"
-                autoFocus
-                placeholder={t('receivables.accountNamePh')}
-                value={name}
-                onChange={(e) => {
-                  setName(e.target.value)
-                  if (error) setError('')
-                }}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
-                  {t('receivables.openingBalance')}
-                </label>
-                <input type="number" inputMode="numeric" min={0} className="input" value={amount} onChange={(e) => setAmount(e.target.value)} />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
-                  {t('receivables.colType')}
-                </label>
-                <select className="input py-2" value={type} onChange={(e) => setType(e.target.value)}>
-                  <option value="customer">{t('receivables.typeCustomer')}</option>
-                  <option value="hotel">{t('receivables.typeHotel')}</option>
-                  <option value="business">{t('receivables.typeBusiness')}</option>
-                </select>
-              </div>
-            </div>
-          </div>
-          {error && <p className="mt-4 rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{error}</p>}
-          <div className="mt-6 flex gap-3">
-            <button onClick={onClose} className="btn-ghost flex-1 py-3">
-              {t('common.cancel')}
-            </button>
-            <button onClick={submit} className="btn-gold flex-1 py-3">
-              <IconPlus size={18} /> {t('receivables.add')}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
+import { Receipt } from './Billing.jsx'
+import { IconWallet, IconAlert, IconCheck, IconChevronDown, IconReceipt } from '../components/Icons.jsx'
 
 export default function ReceivablesManagement() {
-  const { receivables, recordReceivablePayment, addReceivable, orders } = useApp()
+  const { receivables, recordReceivablePayment, orders, orderTotal } = useApp()
   const t = useT()
   // ReceivableLedgerEntry.orderId is the server cuid (see schema.prisma) — map
   // back to the human-readable ORD-xxxx id the rest of the app shows, same as
   // Orders.jsx does via order.serverId.
-  const orderLabel = useMemo(() => {
-    const map = new Map(orders.map((o) => [o.serverId, o.id]))
-    return (orderId) => map.get(orderId) || orderId
-  }, [orders])
+  const orderByServerId = useMemo(() => new Map(orders.map((o) => [o.serverId, o])), [orders])
+  const orderLabel = (orderId) => orderByServerId.get(orderId)?.id || orderId
   const [showAll, setShowAll] = useState(false)
+  const [viewOrder, setViewOrder] = useState(null) // order whose bill is being viewed
   const [settleTarget, setSettleTarget] = useState(null)
-  const [showAdd, setShowAdd] = useState(false)
   // Which account rows are expanded to show their bill-by-bill breakdown
   // (charges — the udhaar orders that built up the balance, distinct from
   // payments/settlements shown further down).
@@ -146,9 +68,6 @@ export default function ReceivablesManagement() {
             />
             {t('receivables.showAll')}
           </label>
-          <button onClick={() => setShowAdd(true)} className="btn-gold px-4 py-2 text-sm">
-            <IconPlus size={16} /> {t('receivables.newAccount')}
-          </button>
         </div>
       </PageHeader>
 
@@ -233,18 +152,32 @@ export default function ReceivablesManagement() {
                                   <th className="py-1.5 pe-4 font-semibold">{t('receivables.colDate')}</th>
                                   <th className="py-1.5 pe-4 font-semibold">{t('receivables.colOrder')}</th>
                                   <th className="py-1.5 pe-4 font-semibold">{t('receivables.colBy')}</th>
-                                  <th className="py-1.5 text-right font-semibold">{t('receivables.colAmount')}</th>
+                                  <th className="py-1.5 pe-4 text-right font-semibold">{t('receivables.colAmount')}</th>
+                                  <th className="py-1.5 text-right font-semibold" />
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-ink-line/60">
-                                {charges.map((c) => (
+                                {charges.map((c) => {
+                                  const chargeOrder = c.orderId ? orderByServerId.get(c.orderId) : null
+                                  return (
                                   <tr key={c.id}>
                                     <td className="py-1.5 pe-4 text-cream-dim">{dateShort(c.at)}</td>
                                     <td className="py-1.5 pe-4 text-cream-dim">{c.orderId ? orderLabel(c.orderId) : '—'}</td>
                                     <td className="py-1.5 pe-4 text-cream-dim">{c.by || '—'}</td>
-                                    <td className="py-1.5 text-right font-semibold text-rose-300">{money(c.amount)}</td>
+                                    <td className="py-1.5 pe-4 text-right font-semibold text-rose-300">{money(c.amount)}</td>
+                                    <td className="py-1.5 text-right">
+                                      {chargeOrder && (
+                                        <button
+                                          onClick={() => setViewOrder(chargeOrder)}
+                                          className="inline-flex items-center gap-1 rounded-lg border border-ink-line bg-ink-soft px-2.5 py-1 text-[11px] font-semibold text-cream-dim transition hover:border-gold/40 hover:text-gold"
+                                        >
+                                          <IconReceipt size={12} /> {t('receivables.viewBill')}
+                                        </button>
+                                      )}
+                                    </td>
                                   </tr>
-                                ))}
+                                  )
+                                })}
                               </tbody>
                             </table>
                           )}
@@ -303,7 +236,15 @@ export default function ReceivablesManagement() {
         />
       )}
 
-      {showAdd && <AddAccountModal onClose={() => setShowAdd(false)} onSave={addReceivable} />}
+      {viewOrder && (
+        <Receipt
+          order={viewOrder}
+          orderTotal={orderTotal}
+          canMarkPaid={false}
+          onMarkPaid={() => {}}
+          onClose={() => setViewOrder(null)}
+        />
+      )}
     </div>
   )
 }

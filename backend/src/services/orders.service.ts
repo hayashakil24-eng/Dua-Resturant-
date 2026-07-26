@@ -518,6 +518,11 @@ export async function shiftOrderTable(ctx: Ctx, orderId: string, newTable: numbe
     if (o.table === table) throw new ServiceError('The order is already on this table.')
     const dest = await tx.table.findUnique({ where: { id: table } })
     if (!dest) throw new NotFoundError('Destination table not found.')
+    // An occupied table is never a valid destination: two unpaid orders sharing
+    // one seat is a billing mix-up, not a merge. Checked here and not only in
+    // the picker, since two cashiers can pick the same free table at once.
+    const busy = await tx.order.findFirst({ where: { table, cancelled: false, payment: 'Unpaid', id: { not: orderId } } })
+    if (busy) throw new ServiceError('That table already has a running order — pick a free table.')
 
     const from = o.table
     const at = new Date()

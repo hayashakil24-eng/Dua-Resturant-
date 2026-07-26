@@ -61,7 +61,7 @@ There's no per-day status flag or "day" row that gets reset. The business-day bo
 Moves an in-progress (unpaid, uncancelled) order to a different table.
 
 - `POST /api/orders/:id/table`, body `{ table: number|string }`, gated behind the same permission as other running-order edits (`pos`/`orders`/`billing`).
-- Service: `shiftOrderTable(ctx, orderId, newTable)` (`backend/src/services/orders.service.ts`). Rejects a cancelled or already-paid order ("Only a running (unpaid) order can be moved to another table"), a no-op move to the same table, and a nonexistent destination table.
+- Service: `shiftOrderTable(ctx, orderId, newTable)` (`backend/src/services/orders.service.ts`). Rejects a cancelled or already-paid order ("Only a running (unpaid) order can be moved to another table"), a no-op move to the same table, a nonexistent destination table, and **a destination that already holds a running order** — two unpaid bills on one seat is a billing mix-up, not a merge. `ShiftTableModal.jsx` renders those tables greyed-out/unclickable with an "in use" tag, but the server check is the real gate (two cashiers can pick the same free table at the same moment). Covered by `backend/test/domains.api.test.ts`'s "table shift" case.
 - Only the `table` column changes — order items, kitchen status (`OrderItem.kitchen`), and payment state are untouched, so KOT routing/kitchen tickets are unaffected by a table shift.
 - Audit action `ORDER_TABLE_SHIFTED` (`details: { orderId, from, to }`), broadcast over the same outbox/realtime path as other order mutations (Phase 2/4).
 

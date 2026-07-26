@@ -7,10 +7,9 @@ export async function receivableRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/api/receivables', { preHandler: authenticate }, async () => ({ receivables: await receivables.listReceivables() }))
 
-  app.post('/api/receivables', { preHandler: requirePermission('receivables') }, async (req) => {
-    const { name, amount, type, notes } = (req.body ?? {}) as { name?: string; amount?: number; type?: string; notes?: string }
-    return { receivable: await receivables.addReceivable(ctx(req), { name, amount, type, notes }) }
-  })
+  // No POST /api/receivables — an account is never created directly. It only
+  // comes into existence via POST /api/orders/:id/udhaar (orders.service's
+  // markOrderUdhaar), so every account is backed by a real unpaid order.
 
   app.post('/api/receivables/:id/payment', { preHandler: requirePermission('receivables') }, async (req) => {
     const { id } = req.params as { id: string }
