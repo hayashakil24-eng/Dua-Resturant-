@@ -281,6 +281,8 @@
     "profitAndLoss": "Profit & Loss",
     "expenseBreakdown": "Expense Breakdown",
     "noExpenses": "No expenses this month.",
+    "noExpensesDay": "No expenses on this day.",
+    "maintenance": "Maintenance",
     "noMaintenance": "No maintenance recorded.",
     "total": "Total",
     "transactions": "Transactions",
