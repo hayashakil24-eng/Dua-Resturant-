@@ -90,9 +90,19 @@ export function calculateOrderMaterialCost(orderItems = [], inventory = [], reci
   }, 0)
 }
 
+// A recipe is authored for ONE whole portion of the base menu item, so a
+// half-portion variant must deduct half of every ingredient. Guarded rather
+// than trusted: a null, zero or negative portion would silently zero out (or
+// invert) a deduction, so anything not a positive number falls back to 1 —
+// which is also what every line placed before variant portions existed means.
+export function portionFactor(oi) {
+  const p = Number(oi?.portion)
+  return Number.isFinite(p) && p > 0 ? p : 1
+}
+
 export function calculateDeductions(orderItems = [], inventory = [], recipes = []) {
   const deductions = {} // inventoryItemId -> { amount, itemName, unit }
-  
+
   const getActiveRecipe = (menuItemId) =>
     recipes.find((r) => r.menuItemId === menuItemId && r.status === 'approved')
 
@@ -100,12 +110,13 @@ export function calculateDeductions(orderItems = [], inventory = [], recipes = [
     const baseId = String(oi.id).split('::')[0]
     const recipe = getActiveRecipe(baseId)
     if (!recipe) return
+    const portion = portionFactor(oi)
     recipe.ingredients.forEach((ing) => {
       const invItem = inventory.find((x) => x.id === ing.inventoryItemId)
       if (!invItem) return
 
       const convertedQuantity = convertUnit(Number(ing.quantity) || 0, ing.unit, invItem.unit)
-      const amount = convertedQuantity * (Number(oi.qty) || 0)
+      const amount = convertedQuantity * (Number(oi.qty) || 0) * portion
       if (amount <= 0) return
       const cur = deductions[ing.inventoryItemId] || { amount: 0, itemName: ing.itemName, unit: invItem.unit }
       cur.amount += amount
@@ -122,11 +133,16 @@ export function calculateDeductions(orderItems = [], inventory = [], recipes = [
 //   out    — can't make even one (an ingredient is short)
 //   low    — can make ≥1, but making one takes an ingredient to/below threshold
 //   normal — comfortably in stock
-export function getRecipeStock(menuItemId, inventory = [], recipes = []) {
+// `portion` is the SMALLEST portion the item can be sold in (a Half/Full item
+// passes 0.5), so maxServings answers "can we still make the smallest option?".
+// Without it an item whose stock covers a Half but not a Full would be greyed
+// out on the POS and the Half sale lost.
+export function getRecipeStock(menuItemId, inventory = [], recipes = [], portion = 1) {
   const baseId = String(menuItemId).split('::')[0]
   const recipe = recipes.find((r) => r.menuItemId === baseId && r.status === 'approved')
   if (!recipe || !recipe.ingredients?.length) return { status: 'none', maxServings: Infinity }
 
+  const factor = portionFactor({ portion })
   let maxServings = Infinity
   let low = false
   for (const ing of recipe.ingredients) {
@@ -134,7 +150,7 @@ export function getRecipeStock(menuItemId, inventory = [], recipes = []) {
     if (!inv) continue // ingredient not tracked in inventory → don't constrain
     let need
     try {
-      need = convertUnit(Number(ing.quantity) || 0, ing.unit, inv.unit)
+      need = convertUnit(Number(ing.quantity) || 0, ing.unit, inv.unit) * factor
     } catch {
       continue // no known unit conversion → skip this constraint
     }
@@ -178,12 +194,13 @@ export function calculateRestocks(orderItems = [], inventory = [], recipes = [])
     const baseId = String(oi.id).split('::')[0]
     const recipe = getActiveRecipe(baseId)
     if (!recipe) return
+    const portion = portionFactor(oi)
     recipe.ingredients.forEach((ing) => {
       const invItem = inventory.find((x) => x.id === ing.inventoryItemId)
       if (!invItem) return
 
       const convertedQuantity = convertUnit(Number(ing.quantity) || 0, ing.unit, invItem.unit)
-      const amount = convertedQuantity * (Number(oi.qty) || 0)
+      const amount = convertedQuantity * (Number(oi.qty) || 0) * portion
       if (amount <= 0) return
       const cur = restocks[ing.inventoryItemId] || { amount: 0, itemName: ing.itemName, unit: invItem.unit }
       cur.amount += amount

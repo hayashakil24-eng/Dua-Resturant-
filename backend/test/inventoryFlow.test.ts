@@ -67,6 +67,69 @@ describe('calculateDeductions — ckh1 known-good fixture', () => {
   })
 })
 
+// The recipe above is authored for ONE whole portion. A Half variant sells for
+// ~60% of the Full price but eats exactly 50% of the ingredients, so deduction
+// scales by MenuItemVariant.portion — never by price.
+describe('calculateDeductions — variant portions', () => {
+  it('deducts half the recipe for a 0.5-portion (Half) line', () => {
+    const deductions = calculateDeductions([{ menuItemId: 'ckh1', qty: 1, portion: 0.5 }], inventory, recipes)
+    expect(deductions.INV03!.amount).toBeCloseTo(0.25, 6)
+    expect(deductions.INV02!.amount).toBeCloseTo(0.05, 6)
+  })
+
+  it('scales portion and qty together (2 x Half = 1 whole portion)', () => {
+    const half = calculateDeductions([{ menuItemId: 'ckh1', qty: 2, portion: 0.5 }], inventory, recipes)
+    const full = calculateDeductions([{ menuItemId: 'ckh1', qty: 1 }], inventory, recipes)
+    expect(half.INV03!.amount).toBeCloseTo(full.INV03!.amount, 6)
+    expect(half.INV02!.amount).toBeCloseTo(full.INV02!.amount, 6)
+  })
+
+  it('sums a mixed Half + Full cart onto the same ingredient', () => {
+    const deductions = calculateDeductions(
+      [
+        { menuItemId: 'ckh1', qty: 1, portion: 0.5 },
+        { menuItemId: 'ckh1', qty: 1, portion: 1 },
+      ],
+      inventory,
+      recipes,
+    )
+    expect(deductions.INV03!.amount).toBeCloseTo(0.75, 6)
+  })
+
+  it('handles portions above 1 (a 1.5x Large)', () => {
+    const deductions = calculateDeductions([{ menuItemId: 'ckh1', qty: 1, portion: 1.5 }], inventory, recipes)
+    expect(deductions.INV03!.amount).toBeCloseTo(0.75, 6)
+  })
+
+  it('treats a missing, zero, negative or non-numeric portion as one whole portion', () => {
+    const whole = calculateDeductions([{ menuItemId: 'ckh1', qty: 1 }], inventory, recipes).INV03!.amount
+    for (const portion of [undefined, null, 0, -1, Number.NaN] as (number | null | undefined)[]) {
+      const d = calculateDeductions([{ menuItemId: 'ckh1', qty: 1, portion }], inventory, recipes)
+      expect(d.INV03!.amount).toBeCloseTo(whole, 6)
+    }
+  })
+
+  it('restocks exactly what it deducted, so a cancelled Half nets to zero', () => {
+    const line = { menuItemId: 'ckh1', qty: 3, portion: 0.5 }
+    const out = calculateDeductions([line], inventory, recipes)
+    const back = calculateRestocks([line], inventory, recipes)
+    expect(back.INV03!.amount).toBeCloseTo(out.INV03!.amount, 6)
+    expect(back.INV02!.amount).toBeCloseTo(out.INV02!.amount, 6)
+  })
+})
+
+describe('getStockShortfall / getRecipeStock — variant portions', () => {
+  it('lets a Half through where the same count of Fulls would be short', () => {
+    // 3 kg Chicken in stock. 7 Fulls need 3.5 kg (short); 7 Halves need 1.75 kg.
+    expect(getStockShortfall([{ menuItemId: 'ckh1', qty: 7 }], inventory, recipes)).not.toBeNull()
+    expect(getStockShortfall([{ menuItemId: 'ckh1', qty: 7, portion: 0.5 }], inventory, recipes)).toBeNull()
+  })
+
+  it('doubles maxServings when the smallest sellable portion is a Half', () => {
+    expect(getRecipeStock('ckh1', inventory, recipes, 0.5).maxServings).toBe(12)
+  })
+})
+
 describe('getStockShortfall', () => {
   it('flags Chicken as short when the order needs more than is in stock', () => {
     // Stock has 3 kg Chicken; ordering 10x karahi needs 5 kg.

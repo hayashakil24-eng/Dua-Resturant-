@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "MenuItemVariant" ADD COLUMN     "portion" DOUBLE PRECISION NOT NULL DEFAULT 1;
+
+-- AlterTable
+ALTER TABLE "OrderItem" ADD COLUMN     "portion" DOUBLE PRECISION NOT NULL DEFAULT 1;

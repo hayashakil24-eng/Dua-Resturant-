@@ -175,6 +175,13 @@ model MenuItemVariant {
   price         Int
   cost          Int?
   costEstimated Boolean  @default(true)
+  // Share of the base recipe this variant actually consumes: Full = 1,
+  // Half = 0.5. Recipes are authored for ONE whole portion, so inventory
+  // deduction scales by this instead of by price — a Half karahi sells for
+  // ~60% of Full but eats exactly 50% of the ingredients, so price is the
+  // wrong proxy. Defaults to 1, which is what every pre-existing variant was
+  // implicitly being charged.
+  portion       Float    @default(1)
 
   @@index([menuItemId])
 }
@@ -467,6 +474,11 @@ model OrderItem {
   addedAt       DateTime? // set when appended to an already-placed order
   cost          Int? // snapshot
   costEstimated Boolean?
+  // Snapshot of MenuItemVariant.portion at the moment the line was punched.
+  // Snapshotted rather than looked up live so that editing a variant's portion
+  // later can't make a cancelled order restock a different amount than it
+  // deducted — same reason `price` and `cost` are snapshots here.
+  portion       Float @default(1)
   // Per-item kitchen progress (KDS). The order-level Order.kitchen flag flips to
   // 'Ready' only once every item here is ready — lets the chef tick a multi-item
   // order line-by-line instead of all-or-nothing.

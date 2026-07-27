@@ -19,6 +19,7 @@ import {
   type InventoryItemLike,
   type RecipeLike,
   type DeductionEntry,
+  type OrderItemLike,
 } from '../core/inventoryFlow.js'
 import { writeAudit } from '../lib/audit.js'
 import { NotFoundError, ServiceError } from '../lib/errors.js'
@@ -104,6 +105,10 @@ export function serializeOrder(o: OrderWithItems) {
       addedAt: it.addedAt ? it.addedAt.toISOString() : undefined,
       cost: it.cost,
       costEstimated: it.costEstimated,
+      // The frontend re-derives deductions locally (Reports' consumption
+      // projection, Closing, the POS shortfall check), so the portion snapshot
+      // has to travel with the line or those all read a whole portion.
+      portion: it.portion,
       ready: it.ready,
     })),
     payment: o.payment,
@@ -225,16 +230,35 @@ async function applyStockChanges(
   })
 }
 
-async function deductForItems(tx: Tx, items: { menuItemId: string; qty: number }[], actor: Actor): Promise<void> {
+async function deductForItems(tx: Tx, items: OrderItemLike[], actor: Actor): Promise<void> {
   const inventory = await loadInventory(tx)
   const recipes = await loadApprovedRecipes(tx)
   await applyStockChanges(tx, inventory, calculateDeductions(items, inventory, recipes), -1, actor)
 }
 
-async function restockForItems(tx: Tx, items: { menuItemId: string; qty: number }[], actor: Actor): Promise<void> {
+async function restockForItems(tx: Tx, items: OrderItemLike[], actor: Actor): Promise<void> {
   const inventory = await loadInventory(tx)
   const recipes = await loadApprovedRecipes(tx)
   await applyStockChanges(tx, inventory, calculateRestocks(items, inventory, recipes), 1, actor)
+}
+
+// Resolve each incoming line's portion from its variant row. Deliberately read
+// server-side instead of trusting a `portion` in the request body: this number
+// scales how much stock leaves inventory, so a stale or tampered client must
+// not be able to set it. Lines with no variant are whole portions.
+async function resolvePortions(tx: Tx, items: NormItem[]): Promise<(NormItem & { portion: number })[]> {
+  const labelled = items.filter((i) => i.variantLabel)
+  if (labelled.length === 0) return items.map((i) => ({ ...i, portion: 1 }))
+  const rows = await tx.menuItemVariant.findMany({
+    where: { OR: labelled.map((i) => ({ menuItemId: i.menuItemId, label: i.variantLabel as string })) },
+  })
+  const byKey = new Map(rows.map((r) => [`${r.menuItemId}::${r.label}`, r.portion]))
+  return items.map((i) => ({
+    ...i,
+    // A variant the menu no longer has (renamed/deleted mid-order) falls back
+    // to a whole portion rather than skipping the deduction entirely.
+    portion: (i.variantLabel ? byKey.get(`${i.menuItemId}::${i.variantLabel}`) : 1) ?? 1,
+  }))
 }
 
 // The gross bill total for an order, using its OWN locked gstRate — never the
@@ -308,6 +332,7 @@ export async function addOrder(ctx: Ctx, input: AddOrderInput) {
     const account = paidOnline && input.onlineAccountId ? await tx.onlineAccount.findUnique({ where: { id: input.onlineAccountId } }) : null
 
     const orderNumber = await nextSequence(tx, 'order')
+    const lines = await resolvePortions(tx, items)
     const created = await tx.order.create({
       data: {
         orderNumber,
@@ -323,7 +348,7 @@ export async function addOrder(ctx: Ctx, input: AddOrderInput) {
         kitchen: 'Pending',
         shiftId,
         items: {
-          create: items.map((it) => ({
+          create: lines.map((it) => ({
             menuItemId: it.menuItemId,
             variantLabel: it.variantLabel,
             name: it.name,
@@ -331,6 +356,7 @@ export async function addOrder(ctx: Ctx, input: AddOrderInput) {
             qty: it.qty,
             cost: it.cost,
             costEstimated: it.costEstimated,
+            portion: it.portion,
           })),
         },
       },
@@ -339,7 +365,7 @@ export async function addOrder(ctx: Ctx, input: AddOrderInput) {
 
     // Auto-deduct approved-recipe ingredients once, at placement (matches the
     // frontend: the single creation point for both paid & unpaid orders).
-    await deductForItems(tx, items.map((it) => ({ menuItemId: it.menuItemId, qty: it.qty })), ctx.actor)
+    await deductForItems(tx, lines.map((it) => ({ menuItemId: it.menuItemId, qty: it.qty, portion: it.portion })), ctx.actor)
 
     // Outbox stores the raw scalar row (`items` stripped), not the UI-shaped
     // serializeOrder() DTO — the VPS side does a plain prisma.order.upsert(),
@@ -366,9 +392,12 @@ export async function appendOrderItems(ctx: Ctx, orderId: string, newItemsInput:
     if (o.cancelled || o.payment === 'Paid') throw new ServiceError('Cannot add items to a paid or cancelled order.')
 
     const stamp = new Date()
-    for (const ni of newItems) {
+    const newLines = await resolvePortions(tx, newItems)
+    for (const ni of newLines) {
       const existing = o.items.find((it) => it.menuItemId === ni.menuItemId && (it.variantLabel ?? null) === ni.variantLabel)
       if (existing) {
+        // Merging into an existing line keeps that line's original portion
+        // snapshot — same variant, so it is the same number by construction.
         await tx.orderItem.update({ where: { id: existing.id }, data: { qty: existing.qty + ni.qty } })
       } else {
         await tx.orderItem.create({
@@ -381,6 +410,7 @@ export async function appendOrderItems(ctx: Ctx, orderId: string, newItemsInput:
             qty: ni.qty,
             cost: ni.cost,
             costEstimated: ni.costEstimated,
+            portion: ni.portion,
             addedAt: stamp,
           },
         })
@@ -388,7 +418,7 @@ export async function appendOrderItems(ctx: Ctx, orderId: string, newItemsInput:
     }
 
     // Only the appended items deduct — the originals already did at placement.
-    await deductForItems(tx, newItems.map((it) => ({ menuItemId: it.menuItemId, qty: it.qty })), ctx.actor)
+    await deductForItems(tx, newLines.map((it) => ({ menuItemId: it.menuItemId, qty: it.qty, portion: it.portion })), ctx.actor)
     await writeAudit(tx, {
       action: 'ORDER_ITEMS_ADDED',
       actor: ctx.actor,
@@ -451,7 +481,10 @@ export async function cancelOrder(ctx: Ctx, orderId: string, opts: { reason?: st
     const menuIds = [...new Set(o.items.map((i) => i.menuItemId))]
     const menuItems = await tx.menuItem.findMany({ where: { id: { in: menuIds } } })
     const reusable = new Set(menuItems.filter((m) => m.reusable).map((m) => m.id))
-    const asItems = o.items.map((i) => ({ menuItemId: i.menuItemId, qty: i.qty }))
+    // Restock/write-off using each line's OWN portion snapshot, so a cancel
+    // returns exactly what placement took — even if the variant's portion was
+    // edited in the menu after the order was punched.
+    const asItems = o.items.map((i) => ({ menuItemId: i.menuItemId, qty: i.qty, portion: i.portion }))
     const wastedItems = cooked ? asItems.filter((i) => !reusable.has(i.menuItemId)) : []
     const restockItems = cooked ? asItems.filter((i) => reusable.has(i.menuItemId)) : asItems
 
@@ -495,8 +528,8 @@ export async function updateOrderItemQty(ctx: Ctx, orderId: string, itemKey: str
     const diff = nq - item.qty
 
     await tx.orderItem.update({ where: { id: item.id }, data: { qty: nq } })
-    if (diff > 0) await deductForItems(tx, [{ menuItemId: item.menuItemId, qty: diff }], ctx.actor)
-    else await restockForItems(tx, [{ menuItemId: item.menuItemId, qty: Math.abs(diff) }], ctx.actor)
+    if (diff > 0) await deductForItems(tx, [{ menuItemId: item.menuItemId, qty: diff, portion: item.portion }], ctx.actor)
+    else await restockForItems(tx, [{ menuItemId: item.menuItemId, qty: Math.abs(diff), portion: item.portion }], ctx.actor)
 
     await writeAudit(tx, {
       action: 'ORDER_QTY_UPDATED',

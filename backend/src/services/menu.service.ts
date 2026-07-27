@@ -34,7 +34,22 @@ export interface MenuItemInput {
   costEstimated?: boolean
   reusable?: boolean
   active?: boolean
-  variants?: { label: string; price: number; cost?: number | null; costEstimated?: boolean }[]
+  variants?: { label: string; price: number; cost?: number | null; costEstimated?: boolean; portion?: number }[]
+}
+
+// Variant rows are written from three places (add / update / bulk replace), so
+// the field mapping — including the portion guard — lives in one place.
+function variantRow(v: NonNullable<MenuItemInput['variants']>[number]) {
+  const portion = Number(v.portion)
+  return {
+    label: v.label,
+    price: Math.round(Number(v.price) || 0),
+    cost: v.cost == null ? null : Math.round(Number(v.cost)),
+    costEstimated: v.costEstimated ?? true,
+    // A missing or non-positive portion means "a whole portion" — never 0, or
+    // the variant would stop deducting inventory entirely.
+    portion: Number.isFinite(portion) && portion > 0 ? portion : 1,
+  }
 }
 
 export async function addMenuItem(_ctx: Ctx, item: MenuItemInput) {
@@ -51,9 +66,7 @@ export async function addMenuItem(_ctx: Ctx, item: MenuItemInput) {
       costEstimated: item.costEstimated ?? true,
       reusable: item.reusable ?? false,
       active: item.active ?? true,
-      variants: item.variants?.length
-        ? { create: item.variants.map((v) => ({ label: v.label, price: Math.round(Number(v.price) || 0), cost: v.cost == null ? null : Math.round(Number(v.cost)), costEstimated: v.costEstimated ?? true })) }
-        : undefined,
+      variants: item.variants?.length ? { create: item.variants.map(variantRow) } : undefined,
     },
     include: { variants: true },
   })
@@ -79,7 +92,7 @@ export async function updateMenuItem(_ctx: Ctx, id: string, updates: MenuItemInp
       await tx.menuItemVariant.deleteMany({ where: { menuItemId: id } })
       if (variants.length) {
         await tx.menuItemVariant.createMany({
-          data: variants.map((v) => ({ menuItemId: id, label: v.label, price: Math.round(Number(v.price) || 0), cost: v.cost == null ? null : Math.round(Number(v.cost)), costEstimated: v.costEstimated ?? true })),
+          data: variants.map((v) => ({ menuItemId: id, ...variantRow(v) })),
         })
       }
     }
@@ -118,9 +131,7 @@ export async function replaceMenu(_ctx: Ctx, items: MenuItemInput[]) {
           // Was previously missing entirely — a bulk replace silently
           // dropped every item's variants (e.g. Steaks Beef/Chicken, Pizza
           // S/M/L), unlike addMenuItem above which already handles this.
-          variants: item.variants?.length
-            ? { create: item.variants.map((v) => ({ label: v.label, price: Math.round(Number(v.price) || 0), cost: v.cost == null ? null : Math.round(Number(v.cost)), costEstimated: v.costEstimated ?? true })) }
-            : undefined,
+          variants: item.variants?.length ? { create: item.variants.map(variantRow) } : undefined,
         },
       })
     }

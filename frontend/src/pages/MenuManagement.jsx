@@ -47,7 +47,9 @@ function ItemModal({ item, categories, onSave, onClose }) {
   const [price, setPrice] = useState(item?.price != null ? String(item.price) : '')
   const [hasVariants, setHasVariants] = useState(!!(item?.variants && item.variants.length))
   const [variants, setVariants] = useState(
-    item?.variants?.length ? item.variants.map((v) => ({ ...v })) : [{ label: '', price: '' }],
+    item?.variants?.length
+      ? item.variants.map((v) => ({ ...v, portion: v.portion ?? 1 }))
+      : [{ label: '', price: '', portion: 1 }],
   )
   const [active, setActive] = useState(item ? item.active !== false : true)
   // Reusable = can be re-served if an order is cancelled (not a material loss).
@@ -84,7 +86,13 @@ function ItemModal({ item, categories, onSave, onClose }) {
   const resolvedCategory = category === NEW_CAT ? newCat.trim() : category
 
   const cleanVariants = variants
-    .map((v) => ({ label: v.label.trim(), price: Number(v.price) }))
+    .map((v) => ({
+      label: v.label.trim(),
+      price: Number(v.price),
+      // Blank/0/garbage means a whole portion — never 0, which would stop the
+      // option deducting any inventory at all.
+      portion: Number(v.portion) > 0 ? Number(v.portion) : 1,
+    }))
     .filter((v) => v.label && v.price > 0)
 
   const valid =
@@ -94,7 +102,7 @@ function ItemModal({ item, categories, onSave, onClose }) {
 
   const setVariant = (i, field, val) =>
     setVariants((vs) => vs.map((v, idx) => (idx === i ? { ...v, [field]: val } : v)))
-  const addVariant = () => setVariants((vs) => [...vs, { label: '', price: '' }])
+  const addVariant = () => setVariants((vs) => [...vs, { label: '', price: '', portion: 1 }])
   const removeVariant = (i) => setVariants((vs) => vs.filter((_, idx) => idx !== i))
 
   const save = () => {
@@ -225,10 +233,16 @@ function ItemModal({ item, categories, onSave, onClose }) {
 
             {hasVariants ? (
               <div className="space-y-2 rounded-xl border border-ink-line bg-ink-soft/50 p-3">
+                <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-cream-dim">
+                  <span className="flex-1">{t('menu.colLabel')}</span>
+                  <span className="w-28 shrink-0">{t('menu.colPrice')}</span>
+                  <span className="w-24 shrink-0">{t('menu.colPortion')}</span>
+                  <span className="w-9 shrink-0" />
+                </div>
                 {variants.map((v, i) => (
                   <div key={i} className="flex items-center gap-2">
                     <input
-                      className="input py-2"
+                      className="input flex-1 py-2"
                       placeholder={t('menu.labelPh')}
                       value={v.label}
                       onChange={(e) => setVariant(i, 'label', e.target.value)}
@@ -236,10 +250,19 @@ function ItemModal({ item, categories, onSave, onClose }) {
                     <input
                       type="number"
                       min={0}
-                      className="input w-32 py-2"
+                      className="input w-28 shrink-0 py-2"
                       placeholder={t('menu.pricePh')}
                       value={v.price}
                       onChange={(e) => setVariant(i, 'price', e.target.value)}
+                    />
+                    <input
+                      type="number"
+                      min={0.01}
+                      step={0.05}
+                      className="input w-24 shrink-0 py-2"
+                      placeholder="1"
+                      value={v.portion ?? 1}
+                      onChange={(e) => setVariant(i, 'portion', e.target.value)}
                     />
                     <button
                       onClick={() => removeVariant(i)}
@@ -249,6 +272,7 @@ function ItemModal({ item, categories, onSave, onClose }) {
                     </button>
                   </div>
                 ))}
+                <p className="text-[11px] leading-relaxed text-cream-dim">{t('menu.portionHint')}</p>
                 <button onClick={addVariant} className="btn-ghost w-full py-2 text-sm">
                   <IconPlus size={16} /> {t('menu.addOption')}
                 </button>
