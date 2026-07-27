@@ -123,6 +123,14 @@ function describeItems(items: { name: string; qty: number }[]): string {
 
 export interface ClosingReport {
   date: string
+  // The recording window this report actually covers. `date` is only a label —
+  // a session routinely spans two calendar days (open 2pm, close 3pm the next
+  // day), so these are what any header/print surface should show. periodStart
+  // is the previous closing's time (null before the first-ever closing, where
+  // scoping falls back to the calendar day); periodEnd is null while the
+  // session is still open and gets stamped at save time.
+  periodStart: string | null
+  periodEnd: string | null
   totalOrders: number
   cancelledOrders: number
   grossSale: number
@@ -292,6 +300,8 @@ export function buildClosingReport(
 
   return {
     date: dateStr,
+    periodStart: sinceIso,
+    periodEnd: null, // stamped with closingTime when the session is saved
     totalOrders: active.length,
     cancelledOrders: cancelled.length,
     grossSale,

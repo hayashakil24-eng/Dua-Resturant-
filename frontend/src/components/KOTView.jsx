@@ -2,32 +2,31 @@ import { useMemo } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { useT } from '../i18n/LanguageContext.jsx'
 import { StatCard } from './ui.jsx'
-import { money, time, dateLong } from '../utils/format.js'
+import { money, time } from '../utils/format.js'
 import { tableLabel } from '../data/mockData.js'
 import { safePrint } from '../utils/print.js'
+import { sessionLabel } from '../utils/sessions.js'
 import { IconPrint, IconOrders, IconCash } from './Icons.jsx'
 
-// KOT (table-wise order list) body — rendered as a tab inside Reports.
-const toDayStr = (iso) => {
-  const d = new Date(iso)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-export default function KOTView({ dayStr }) {
+// KOT (table-wise order list) body — rendered as a tab inside Reports. Scoped
+// to a closing-to-closing session, not a calendar day, so it lists the same
+// orders as the report tabs beside it even when the session crosses midnight.
+export default function KOTView({ session }) {
   const { orders, orderTotal } = useApp()
   const t = useT()
+  const label = sessionLabel(session, t)
 
   const rows = useMemo(
     () =>
       orders
-        .filter((o) => !o.cancelled && toDayStr(o.createdAt) === dayStr)
+        .filter((o) => !o.cancelled && session.contains(o.createdAt))
         .map((o) => ({
           ...o,
           amount: orderTotal(o.items, o.discount?.amount, o.gstRate).total,
           qty: o.items.reduce((s, i) => s + i.qty, 0),
         }))
         .sort((a, b) => a.table - b.table),
-    [orders, orderTotal, dayStr],
+    [orders, orderTotal, session],
   )
 
   const summary = useMemo(() => {
@@ -60,7 +59,7 @@ export default function KOTView({ dayStr }) {
       </div>
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={IconOrders} label={t('kot.totalOrders')} value={summary.totalOrders} sub={dateLong(`${dayStr}T00:00:00`)} />
+        <StatCard icon={IconOrders} label={t('kot.totalOrders')} value={summary.totalOrders} sub={label} />
         <StatCard icon={IconCash} label={t('kot.totalAmount')} value={money(summary.totalAmount)} sub={t('kot.grandTotal')} />
         <StatCard icon={IconCash} label={t('kot.cash')} value={money(summary.cash)} />
         <StatCard icon={IconCash} label={`${t('kot.card')} / ${t('kot.online')}`} value={money(summary.card + summary.online)} />
@@ -69,7 +68,7 @@ export default function KOTView({ dayStr }) {
       <div id="printable-report" className="card overflow-hidden">
         <div className="border-b border-ink-line p-4 text-center">
           <p className="font-serif text-xl font-bold text-gold">Café Ali — {t('kot.title')}</p>
-          <p className="text-xs text-cream-dim">{dateLong(`${dayStr}T00:00:00`)}</p>
+          <p className="text-xs text-cream-dim" dir="ltr">{label}</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-left text-sm">

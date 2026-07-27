@@ -231,7 +231,23 @@ function discountBreakdownTable(rows: { table: number | null; amount: number; re
 // ledger photo, a cancelled-bill photo — reproduced as separate WhatsApp
 // images picked from a menu, instead of one long scrolled image). Shared
 // head/branding, different body per section.
-function pageShell(dayNameUr: string, date: string, title: string, bodyHtml: string): string {
+// "25 Jul 2026, 02:00 PM → 26 Jul 2026, 03:00 PM" — the window the report
+// actually covers. A session routinely spans two calendar days, so the bare
+// `report.date` subtitle under-states the period; this line sits beneath it.
+// Null for reports saved before periodStart existed (nothing to add).
+const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+function stampEn(iso: string): string {
+  const d = new Date(iso)
+  const h = d.getHours()
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return `${d.getDate()} ${MONTHS_EN[d.getMonth()]} ${d.getFullYear()}, ${String(h12).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`
+}
+function periodLabel(report: ClosingReport): string | null {
+  if (!report.periodStart) return null
+  return `${stampEn(report.periodStart)} → ${report.periodEnd ? stampEn(report.periodEnd) : 'now'}`
+}
+
+function pageShell(dayNameUr: string, date: string, title: string, bodyHtml: string, period?: string | null): string {
   const fontB64 = nastaliqFontBase64()
   return `<!doctype html>
 <html dir="rtl" lang="ur"><head><meta charset="utf-8" /><style>
@@ -250,6 +266,7 @@ function pageShell(dayNameUr: string, date: string, title: string, bodyHtml: str
   .brand h1 { font-size: 30px; margin: 0; font-family: -apple-system, Segoe UI, Arial, sans-serif; letter-spacing: 1px; color: #1c1c1c; }
   .brand .title { font-size: 18px; font-weight: 700; color: #b8860b; margin-top: 6px; }
   .brand .subtitle { font-size: 15px; color: #666; margin-top: 4px; font-family: -apple-system, Segoe UI, Arial, sans-serif; }
+  .brand .period { font-size: 13px; color: #888; font-variant-numeric: tabular-nums; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 18px; border-radius: 6px; overflow: hidden; }
   table.summary td { border: 1px solid #ddd; padding: 10px 14px; font-size: 17px; }
   table.summary td.label { text-align: right; }
@@ -269,6 +286,7 @@ function pageShell(dayNameUr: string, date: string, title: string, bodyHtml: str
     <h1>CAFÉ ALI</h1>
     <div class="title">${escapeHtml(title)}</div>
     <div class="subtitle">${escapeHtml(dayNameUr)} — ${escapeHtml(date)}</div>
+    ${period ? `<div class="subtitle period" dir="ltr">${escapeHtml(period)}</div>` : ''}
   </div>
   ${bodyHtml}
   <div class="footer">کیفے علی مینجمنٹ سسٹم کی جانب سے تیار کردہ</div>
@@ -321,7 +339,7 @@ export async function renderSummarySection(report: ClosingReport, dayNameUr: str
       آرڈرز: ${report.totalOrders} (منسوخ شدہ: ${report.cancelledOrders}) &nbsp;•&nbsp;
       جی ایس ٹی وصول شدہ: ${money(report.gstCollected)}
     </div>`
-  return renderHtmlToPng(pageShell(dayNameUr, report.date, 'خلاصہ', body))
+  return renderHtmlToPng(pageShell(dayNameUr, report.date, 'خلاصہ', body, periodLabel(report)))
 }
 
 // Ali Kakar / Hotel-style per-account ledgers (reports/3.png, reports/5.png).
@@ -329,17 +347,17 @@ export async function renderSummarySection(report: ClosingReport, dayNameUr: str
 export async function renderLedgersSection(report: ClosingReport, dayNameUr: string): Promise<Buffer | null> {
   if (report.accountLedgers.length === 0) return null
   const body = `<div class="breakdowns">${report.accountLedgers.map((l) => `<div>${accountLedgerTable(l)}</div>`).join('')}</div>`
-  return renderHtmlToPng(pageShell(dayNameUr, report.date, 'اکاؤنٹ لیجرز', body))
+  return renderHtmlToPng(pageShell(dayNameUr, report.date, 'اکاؤنٹ لیجرز', body, periodLabel(report)))
 }
 
 // "Kainsal Bill" (reports/4.png). Null when nothing was cancelled that day.
 export async function renderCancelledSection(report: ClosingReport, dayNameUr: string): Promise<Buffer | null> {
   if (report.cancelledItems.length === 0) return null
-  return renderHtmlToPng(pageShell(dayNameUr, report.date, 'کینسل بل', cancelledItemsTable(report.cancelledItems, report.cancelledTotal)))
+  return renderHtmlToPng(pageShell(dayNameUr, report.date, 'کینسل بل', cancelledItemsTable(report.cancelledItems, report.cancelledTotal), periodLabel(report)))
 }
 
 // "آفشل بل" (reports/7.png). Null when nothing was comped that day.
 export async function renderComplimentarySection(report: ClosingReport, dayNameUr: string): Promise<Buffer | null> {
   if (report.complimentaryItems.length === 0) return null
-  return renderHtmlToPng(pageShell(dayNameUr, report.date, 'آفشل بل', complimentaryItemsTable(report.complimentaryItems, report.complimentaryTotal)))
+  return renderHtmlToPng(pageShell(dayNameUr, report.date, 'آفشل بل', complimentaryItemsTable(report.complimentaryItems, report.complimentaryTotal), periodLabel(report)))
 }

@@ -136,6 +136,11 @@ export function buildClosingReport(orders, orderTotal, transactions, dateStr, in
 
   return {
     date: dateStr,
+    // The window the figures actually cover — `date` is only a label, since a
+    // session routinely spans two calendar days. periodEnd is null while the
+    // session is open ("→ now"); the backend stamps it at save time.
+    periodStart: sinceIso,
+    periodEnd: null,
     totalOrders: active.length,
     cancelledOrders: cancelled.length,
     grossSale,

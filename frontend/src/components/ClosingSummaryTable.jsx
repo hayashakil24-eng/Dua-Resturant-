@@ -17,9 +17,27 @@ function fmtDate(dateStr) {
   return { day, date: `${dd}/${mon}/${yy}` }
 }
 
+// The window the sheet's figures actually cover. `report.date` is only a label
+// — a session commonly opens one afternoon and closes the next, so a sheet
+// headed with a single date understates the period it reports on. Null for
+// records saved before periodStart existed; those keep the date-only header.
+// Latin/en-US throughout, matching the rest of this sheet.
+function periodLine(report) {
+  if (!report.periodStart) return null
+  const stamp = (iso) => {
+    const d = new Date(iso)
+    const dd = String(d.getDate()).padStart(2, '0')
+    const mon = d.toLocaleDateString('en-US', { month: 'short' })
+    const yy = String(d.getFullYear()).slice(2)
+    return `${dd}/${mon}/${yy} ${d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`
+  }
+  return `${stamp(report.periodStart)}  →  ${report.periodEnd ? stamp(report.periodEnd) : 'now'}`
+}
+
 export default function ClosingSummaryTable({ report, meta }) {
   if (!report) return null
   const { day, date } = fmtDate(report.date)
+  const period = periodLine(report)
   const b = '1px solid #000'
   const cell = { border: b, padding: '7px 12px', fontSize: 14, color: '#000' }
   const amt = { ...cell, textAlign: 'right', fontVariantNumeric: 'tabular-nums', width: 170 }
@@ -37,6 +55,13 @@ export default function ClosingSummaryTable({ report, meta }) {
             <td style={{ ...cell, textAlign: 'center', fontWeight: 700 }}>{day}</td>
             <td style={{ ...amt, textAlign: 'center', fontWeight: 700 }}>{date}</td>
           </tr>
+          {period && (
+            <tr>
+              <td colSpan={2} style={{ ...cell, textAlign: 'center', fontSize: 12 }}>
+                RECORDING PERIOD: {period}
+              </td>
+            </tr>
+          )}
           <tr>
             <td style={{ ...cell, fontWeight: 700 }}>DESCRIPTION</td>
             <td style={{ ...amt, fontWeight: 700 }}>AMOUNT</td>

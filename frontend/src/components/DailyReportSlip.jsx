@@ -59,9 +59,12 @@ export default function DailyReportSlip({ report }) {
       {/* Title + meta */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <h2 style={{ fontSize: 22, fontWeight: 700, color: '#C9A961', margin: 0 }}>
-          {t('reports.dailyReport', 'Daily Report')}
+          {t(report.titleKey || 'reports.sessionReport', 'Session Report')}
         </h2>
-        <span style={{ fontSize: 15, fontWeight: 600, color: '#5D4037' }}>{report.rangeLabel}</span>
+        {/* dir=ltr — the range's "from → to" ends would swap visually in Urdu. */}
+        <span style={{ fontSize: 15, fontWeight: 600, color: '#5D4037', direction: 'ltr' }}>
+          {report.rangeLabel}
+        </span>
       </div>
       <p style={{ fontSize: 12, color: '#8D6E63', marginTop: 4 }}>
         {t('reports.generated', 'Generated')}: {dateLong()} · {time(new Date().toISOString())}
