@@ -38,7 +38,7 @@ function OrderCard({ order, items, now, onReady, onItemReady, onClear, deptFor, 
           <p className="truncate font-serif text-2xl font-bold leading-none text-cream">
             {tableLabel(order.table)}
           </p>
-          <p className="mt-1 truncate text-base text-cream-dim">{order.waiter}</p>
+          <p className="mt-1 truncate text-base text-cream-dim">{order.waiter || '—'}</p>
         </div>
         <div className="flex flex-col items-end gap-1">
           <span
@@ -152,11 +152,15 @@ export default function KitchenDisplay() {
     return () => clearInterval(id)
   }, [])
 
+  // Newest ticket first: a freshly punched order lands at the top-left of the
+  // wall where the kitchen is already looking, instead of at the end of a long
+  // queue. The per-ticket elapsed timer (red past 15 min) is what flags an old
+  // order now, not its position.
   const active = useMemo(
     () =>
       orders
         .filter((o) => (o.kitchen === 'Pending' || o.kitchen === 'Ready') && !o.cancelled)
-        .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)),
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
     [orders],
   )
   const cooking = active.filter((o) => o.kitchen === 'Pending').length

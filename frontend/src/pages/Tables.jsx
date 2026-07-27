@@ -56,7 +56,7 @@ function TableCard({ info, now, onClick }) {
               {mins} {t('tables.min')}{urgent && ' ⚠️'}
             </span>
           </p>
-          <p className="truncate text-xs text-cream-dim">👤 {info.order.waiter}</p>
+          <p className="truncate text-xs text-cream-dim">👤 {info.order.waiter || '—'}</p>
           <div className="mt-1 space-y-0.5">
             {info.order.items.slice(0, 2).map((it) => (
               <p key={it.id} className="truncate text-[11px] text-cream-dim">
@@ -92,7 +92,7 @@ function OrderDetailsModal({ order, tableLabel, orderTotal, onClose, canAddItems
             <div>
               <h3 className="font-serif text-2xl text-cream">{tableLabel || `${t('tables.table')} ${order.table}`}</h3>
               <p className="mt-0.5 text-xs text-cream-dim">
-                {order.id} · {order.waiter} · {time(order.createdAt)}
+                {order.id} · {order.waiter || '—'} · {time(order.createdAt)}
               </p>
             </div>
             <button onClick={onClose} className="text-cream-dim hover:text-cream">

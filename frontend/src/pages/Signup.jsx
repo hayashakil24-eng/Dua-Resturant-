@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import Logo from '../components/Logo.jsx'
+import { PasswordInput } from '../components/ui.jsx'
 import { useApp } from '../context/AppContext.jsx'
 import { useLang } from '../i18n/LanguageContext.jsx'
 
@@ -88,9 +89,7 @@ export default function Signup() {
                 </div>
                 <div>
                   <label className="mb-2 block text-xs uppercase tracking-widest text-cream-dim">{t('signup.password')}</label>
-                  <input
-                    className="input"
-                    type="password"
+                  <PasswordInput
                     autoComplete="new-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -98,9 +97,7 @@ export default function Signup() {
                 </div>
                 <div>
                   <label className="mb-2 block text-xs uppercase tracking-widest text-cream-dim">{t('signup.confirmPassword')}</label>
-                  <input
-                    className="input"
-                    type="password"
+                  <PasswordInput
                     autoComplete="new-password"
                     value={confirm}
                     onChange={(e) => setConfirm(e.target.value)}

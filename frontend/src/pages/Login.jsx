@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import Logo from '../components/Logo.jsx'
+import { PasswordInput } from '../components/ui.jsx'
 import { useApp } from '../context/AppContext.jsx'
 
 export default function Login() {
@@ -85,9 +86,7 @@ export default function Login() {
 
             <div>
               <label className="mb-2 block text-xs uppercase tracking-widest text-cream-dim">Password</label>
-              <input
-                className="input"
-                type="password"
+              <PasswordInput
                 placeholder="••••••••"
                 autoComplete="current-password"
                 value={password}

@@ -244,7 +244,9 @@
     "confirmDelete": "Confirm Delete",
     "statusApproved": "✓ Approved",
     "statusPending": "⏳ Pending Approval",
-    "statusRejected": "✕ Rejected"
+    "statusRejected": "✕ Rejected",
+    "searchRecipes": "Search recipes…",
+    "noMatch": "No recipes match your search."
   },
   "payroll": {
     "title": "Payroll",
@@ -443,6 +445,7 @@
     "activeCounts": "Active (counts in payroll & attendance)",
     "namePh": "e.g. Ahmed Ali",
     "phonePh": "0300-1234567",
+    "phoneInvalid": "Phone number must be exactly 11 digits.",
     "emailPh": "name@cafeali.com",
     "deviceUserId": "Attendance Machine ID (optional)",
     "deviceUserIdPh": "ID enrolled on the fingerprint/face machine",
@@ -542,6 +545,10 @@
     "hasOptions": "This item has options (sizes / types)",
     "labelPh": "Label (e.g. Large)",
     "pricePh": "Price",
+    "colLabel": "Label",
+    "colPrice": "Price (Rs.)",
+    "colPortion": "Portion",
+    "portionHint": "Portion = how much of the recipe this option uses. Full = 1, Half = 0.5, Large = 1.5. Inventory is deducted by this share, so a Half order takes half the ingredients. Leave it at 1 if the option is a type (Beef / Chicken) rather than a size.",
     "addOption": "Add option",
     "priceRs": "Price (Rs.)",
     "availablePos": "Available (shown on POS)",
@@ -790,6 +797,8 @@
     "pwLoginCreated": "Login created. {name} can now sign in."
   },
   "common": {
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
     "save": "Save",
     "cancel": "Cancel",
     "submit": "Submit",

@@ -90,7 +90,7 @@ export function Receipt({
               <span>Table</span>
               <span className="text-right">{tableLabel(order.table)}</span>
               <span>Waiter</span>
-              <span className="text-right">{order.waiter}</span>
+              <span className="text-right">{order.waiter || '—'}</span>
             </div>
 
             <div className="my-4 border-t border-dashed border-[#E8DCC4]" />
@@ -425,7 +425,7 @@ export default function Billing() {
               </div>
               <p className="mt-4 font-semibold text-gold">{o.id}</p>
               <p className="text-xs text-cream-dim">
-                {tableLabel(o.table)} · {o.waiter} · {time(o.createdAt)}
+                {tableLabel(o.table)} · {o.waiter || '—'} · {time(o.createdAt)}
               </p>
               <div className="mt-4 flex items-center justify-between border-t border-ink-line pt-3">
                 <span className="font-serif text-xl font-semibold text-cream">

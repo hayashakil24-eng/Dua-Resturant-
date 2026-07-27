@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { money } from '../utils/format.js'
 import { useT } from '../i18n/LanguageContext.jsx'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
@@ -32,7 +33,13 @@ export default function ForwardCashModal({ held, onClose, onSubmit }) {
     if (res?.error) setError(res.error)
   }
 
-  return (
+  // Portaled to <body> for the same reason HandoverApprovalModal is: this opens
+  // from the Dashboard's Cash on Hand panel, so rendered in-tree it inherits
+  // whatever the surrounding page layout does to it — the panel's own card box
+  // clipped the "full screen" overlay and trapped its z-index in that stacking
+  // context, and the page's space-y stack pushed the overlay's top edge down.
+  // As a body-level sibling it is positioned against the viewport, full stop.
+  return createPortal(
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 flex max-h-[90vh] w-full max-w-md flex-col animate-fade-up">
@@ -111,6 +118,7 @@ export default function ForwardCashModal({ held, onClose, onSubmit }) {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

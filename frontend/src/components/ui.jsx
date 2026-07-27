@@ -1,5 +1,40 @@
 // Small shared presentational components
+import { useState } from 'react'
 import { useT } from '../i18n/LanguageContext.jsx'
+import { IconEye, IconEyeOff } from './Icons.jsx'
+
+// A password field with its own reveal toggle. Every password input in the app
+// goes through this rather than hand-rolling the toggle per field, so the icon
+// can never end up inverted on one screen and correct on another.
+//
+// The icon reflects the CURRENT state, not the pending action:
+//   masked (••••)  → slashed eye  ("this is hidden")
+//   revealed (abc) → open eye     ("this is visible")
+// The aria-label carries the action instead, which is what a screen reader
+// needs. Browsers add their own reveal control too (Edge's ::-ms-reveal); that
+// one is hidden in index.css so there is never a second, conflicting eye.
+export function PasswordInput({ className = 'input', ...props }) {
+  const t = useT()
+  const [revealed, setRevealed] = useState(false)
+  return (
+    <div className="relative">
+      <input {...props} type={revealed ? 'text' : 'password'} className={`${className} pe-11`} />
+      <button
+        type="button"
+        onClick={() => setRevealed((v) => !v)}
+        // Keeps focus in the field: the toggle is an aid while typing, so
+        // stealing focus on click would break the flow into the next field.
+        onMouseDown={(e) => e.preventDefault()}
+        tabIndex={-1}
+        aria-label={revealed ? t('common.hidePassword') : t('common.showPassword')}
+        title={revealed ? t('common.hidePassword') : t('common.showPassword')}
+        className="absolute end-3 top-1/2 -translate-y-1/2 text-cream-dim transition hover:text-cream"
+      >
+        {revealed ? <IconEye size={18} /> : <IconEyeOff size={18} />}
+      </button>
+    </div>
+  )
+}
 
 // Two-line bilingual label for cashier action buttons — a bold Roman-Urdu
 // primary line over a muted English subline, ALWAYS both (independent of the

@@ -192,7 +192,7 @@ export default function Orders() {
         const matchQuery =
           !q ||
           o.id.toLowerCase().includes(q) ||
-          o.waiter.toLowerCase().includes(q) ||
+          (o.waiter || '').toLowerCase().includes(q) ||
           String(o.table).includes(q) ||
           tableLabel(o.table).toLowerCase().includes(q)
         return matchFilter && matchQuery
@@ -323,7 +323,7 @@ export default function Orders() {
             <div>
               <h3 className="font-serif text-2xl text-cream">{order.id}</h3>
               <p className="mt-0.5 text-xs text-cream-dim">
-                {tableLabel(order.table)} · {order.waiter} · {time(order.createdAt)}
+                {tableLabel(order.table)} · {order.waiter || '—'} · {time(order.createdAt)}
               </p>
             </div>
             <button onClick={onClose} className="text-cream-dim hover:text-cream">
@@ -482,7 +482,7 @@ export default function Orders() {
                           {tableLabel(o.table)}
                         </span>
                       </td>
-                      <td className="px-5 py-4 text-cream">{o.waiter}</td>
+                      <td className="px-5 py-4 text-cream">{o.waiter || '—'}</td>
                       <td className="max-w-[240px] px-5 py-4 text-cream-dim">
                         <span className={`line-clamp-1 ${o.cancelled ? 'line-through' : ''}`}>
                           {o.items.map((i) => `${i.qty}× ${i.name}`).join(', ')}
@@ -537,7 +537,7 @@ export default function Orders() {
                   <span className="rounded bg-white/5 px-2 py-0.5 ring-1 ring-ink-line">
                     {tableLabel(o.table)}
                   </span>
-                  <span>{o.waiter}</span>
+                  <span>{o.waiter || '—'}</span>
                   <span>· {time(o.createdAt)}</span>
                 </div>
                 <p className={`mt-2 text-sm text-cream-dim ${o.cancelled ? 'line-through' : ''}`}>

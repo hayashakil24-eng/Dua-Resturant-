@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { useT } from '../i18n/LanguageContext.jsx'
-import { PageHeader } from '../components/ui.jsx'
+import { PageHeader, PasswordInput } from '../components/ui.jsx'
 import { canModify } from '../config/permissions.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import { IconSettings, IconReceipt, IconWallet, IconPlus, IconClose, IconCheck, IconClock, IconRefresh, IconWhatsApp, IconLock, IconAttendance } from '../components/Icons.jsx'
@@ -629,9 +629,7 @@ function PasswordCard() {
             <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
               {t('settings.pwCurrent', 'Current Password')} <span className="text-rose-300">*</span>
             </label>
-            <input
-              className="input"
-              type="password"
+            <PasswordInput
               autoComplete="current-password"
               value={current}
               onChange={(e) => setCurrent(e.target.value)}
@@ -643,9 +641,7 @@ function PasswordCard() {
           <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
             {t('settings.pwNew', 'New Password')} <span className="text-rose-300">*</span>
           </label>
-          <input
-            className="input"
-            type="password"
+          <PasswordInput
             autoComplete="new-password"
             value={next}
             onChange={(e) => setNext(e.target.value)}
@@ -655,9 +651,7 @@ function PasswordCard() {
           <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
             {t('settings.pwConfirm', 'Confirm New Password')} <span className="text-rose-300">*</span>
           </label>
-          <input
-            className="input"
-            type="password"
+          <PasswordInput
             autoComplete="new-password"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
@@ -665,7 +659,7 @@ function PasswordCard() {
         </div>
 
         {!isSelf && !needsLogin && (
-          <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-200/90">
+          <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
             {t('settings.pwResetWarning', 'This user will be signed out of every device and must log in with the new password.')}
           </p>
         )}

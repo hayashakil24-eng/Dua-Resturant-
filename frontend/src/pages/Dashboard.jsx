@@ -312,7 +312,7 @@ function RecentOrders({ orders, orderTotal }) {
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-cream">
-                {o.id} · <span className="text-cream-dim">{o.waiter}</span>
+                {o.id} · <span className="text-cream-dim">{o.waiter || '—'}</span>
               </p>
               <p className="truncate text-xs text-cream-dim">
                 {o.items.reduce((s, i) => s + i.qty, 0)} {t('common.items')} · {time(o.createdAt)}
@@ -1028,7 +1028,7 @@ function FloorMap({ orders, orderTotal }) {
               <div className="mt-4 space-y-1">
                 <div>
                   <p className="text-[9px] uppercase tracking-wider text-gold">{t('dashboard.waiter')}</p>
-                  <p className="truncate text-xs font-semibold text-cream">{order.waiter}</p>
+                  <p className="truncate text-xs font-semibold text-cream">{order.waiter || '—'}</p>
                 </div>
                 <div>
                   <p className="text-[9px] uppercase tracking-wider text-cream-dim">{t('dashboard.totalBill')}</p>
@@ -1092,7 +1092,7 @@ function CashierDashboard({ stats, orders, orderTotal, unpaidTotal, onProcessBil
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-cream">
-                        {o.id} · <span className="text-cream-dim">{o.waiter}</span>
+                        {o.id} · <span className="text-cream-dim">{o.waiter || '—'}</span>
                       </p>
                       <p className="truncate text-xs text-cream-dim">
                         {o.items.reduce((s, i) => s + i.qty, 0)} {t('common.items')} · {time(o.createdAt)}
@@ -1178,7 +1178,7 @@ function PendingBillsQueue({ orders, orderTotal, onProcessBill }) {
                   <span className="font-serif font-bold text-gold text-lg">{tableLabel(o.table)}</span>
                   <span className="text-cream-dim">·</span>
                   <span className="text-sm font-semibold text-cream">{o.id}</span>
-                  <span className="text-xs text-cream-dim">({o.waiter})</span>
+                  <span className="text-xs text-cream-dim">({o.waiter || '—'})</span>
                 </div>
                 <p className="mt-1 truncate text-xs text-cream-dim">
                   {o.items.map((it) => `${it.name} x${it.qty}`).join(', ')}

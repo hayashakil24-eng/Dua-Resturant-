@@ -22,6 +22,11 @@ export default function PaymentModal({ total, onClose, onConfirm, onlineAccounts
   const isCash = method === 'Cash'
   const isOnline = method === 'Online'
   const selectedAccount = activeAccounts.find((a) => a.id === accountId) || null
+  // Details the <select> option can't carry (see the dropdown below). Empty for
+  // a wallet account, whose number is already shown in the field itself.
+  const accountExtras = selectedAccount
+    ? [selectedAccount.bankName, selectedAccount.number ? selectedAccount.iban : null].filter(Boolean)
+    : []
   const tenderedNum = Number(tendered) || 0
   const change = tenderedNum - total
   // Online requires picking which account received the money (no amount checks).
@@ -42,7 +47,10 @@ export default function PaymentModal({ total, onClose, onConfirm, onlineAccounts
   return (
     <div dir="ltr" className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-md animate-fade-up">
+      {/* max-w-lg, not md: a bank account line ("Meezan Business · 0123456789012")
+          overflowed the narrower dialog and truncated the very digits the
+          cashier has to read out. */}
+      <div className="relative z-10 w-full max-w-lg animate-fade-up">
         <div className="card max-h-[90vh] overflow-y-auto p-6">
           <div className="flex items-start justify-between">
             <div>
@@ -137,31 +145,27 @@ export default function PaymentModal({ total, onClose, onConfirm, onlineAccounts
                 </p>
               ) : (
                 <>
+                  {/* The number the cashier reads out to the customer lives IN
+                      the option, not under the field — it's the whole point of
+                      this control, and a glance down was costing a beat on every
+                      online payment. Bigger type + tabular figures so a long
+                      wallet/account number is read out correctly first time. */}
                   <select
-                    className="input"
+                    className="input py-3 text-base font-semibold tabular-nums"
                     value={accountId}
                     onChange={(e) => setAccountId(e.target.value)}
                   >
                     {activeAccounts.map((a) => (
                       <option key={a.id} value={a.id}>
-                        {a.name}
-                        {a.type ? ` · ${a.type}` : ''}
+                        {[a.name, a.number || a.iban].filter(Boolean).join('  ·  ')}
                       </option>
                     ))}
                   </select>
-                  {/* Bank/IBAN too, not just the number — the cashier reads
-                      these out to the customer to receive the transfer. */}
-                  {selectedAccount && (selectedAccount.number || selectedAccount.bankName) && (
-                    <p className="mt-1.5 text-xs text-cream-dim">
-                      {[
-                        selectedAccount.type,
-                        selectedAccount.bankName,
-                        selectedAccount.number,
-                        selectedAccount.iban,
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </p>
+                  {/* Only what the option could NOT carry — never a repeat of
+                      the number above. A bank transfer still needs its bank name
+                      and IBAN spoken, and neither fits in a <select> row. */}
+                  {accountExtras.length > 0 && (
+                    <p className="mt-1.5 text-xs tabular-nums text-cream-dim">{accountExtras.join(' · ')}</p>
                   )}
                 </>
               )}

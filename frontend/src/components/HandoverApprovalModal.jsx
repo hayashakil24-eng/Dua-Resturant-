@@ -36,11 +36,12 @@ export default function HandoverApprovalModal({ handover, onAccept, onReject, on
 
   // Portaled straight to <body> — this modal is opened from the Dashboard's
   // Pending Handovers panel, which sits inside a `space-y-*` stack; a plain
-  // in-tree render made the space-y utility's sibling margin push the
-  // overlay's top edge down (and the panel's own `.card` backdrop-blur
-  // separately trapped `position: fixed` to the card's box, not the
-  // viewport) — both go away once this is a body-level sibling instead of a
-  // layout-flow child of whatever page happens to open it.
+  // in-tree render made the space-y utility's sibling margin push the overlay's
+  // top edge down. (`.card` used to compound this with a backdrop-blur that
+  // trapped `position: fixed` to the card's box; that blur has since been
+  // dropped from the class, but the space-y problem is layout, not CSS
+  // containment, so the portal is still what fixes it.) As a body-level sibling
+  // this is positioned against the viewport, whatever page opens it.
   return createPortal(
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />

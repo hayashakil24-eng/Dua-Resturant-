@@ -58,7 +58,19 @@ function EmployeeModal({ employee, onSave, onClose }) {
     },
   )
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
-  const valid = form.name.trim() && form.role
+  // Pakistani numbers are 11 digits (03XX-XXXXXXX). Only the digit count is
+  // capped — separators the user types are left alone, so both the dashed
+  // seed format and a plain 03045566778 stay valid.
+  const setPhone = (v) => {
+    if (v.replace(/\D/g, '').length > 11) return
+    set('phone', v)
+  }
+  // Phone stays optional (blank is fine), but a number that *is* entered has to
+  // be a complete 11-digit one — a half-typed number is worse than none, since
+  // payroll/attendance follow-ups dial it.
+  const phoneDigits = (form.phone || '').replace(/\D/g, '')
+  const phoneError = phoneDigits.length > 0 && phoneDigits.length !== 11
+  const valid = form.name.trim() && form.role && !phoneError
   useEscapeKey(onClose)
 
   return (
@@ -103,7 +115,18 @@ function EmployeeModal({ employee, onSave, onClose }) {
 
             <div className="grid grid-cols-2 gap-3">
               <Field label={t('employees.phone')}>
-                <input className="input" value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder={t('employees.phonePh')} />
+                <input
+                  className={`input ${phoneError ? 'border-red-500/70 focus:border-red-500' : ''}`}
+                  type="tel"
+                  inputMode="numeric"
+                  value={form.phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder={t('employees.phonePh')}
+                  aria-invalid={phoneError}
+                />
+                {phoneError && (
+                  <p className="mt-1.5 text-[11px] text-red-400">{t('employees.phoneInvalid')}</p>
+                )}
               </Field>
               <Field label={t('employees.baseSalary')}>
                 <input

@@ -349,3 +349,26 @@ export const IconSettings = (p) => (
     }
   />
 )
+export const IconEye = (p) => (
+  <Icon
+    {...p}
+    path={
+      <>
+        <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" />
+        <circle cx="12" cy="12" r="3" />
+      </>
+    }
+  />
+)
+export const IconEyeOff = (p) => (
+  <Icon
+    {...p}
+    path={
+      <>
+        <path d="M10.6 6.2A9.8 9.8 0 0 1 12 6c6.4 0 10 6 10 6a17.6 17.6 0 0 1-3.2 3.9M6.6 6.7A17.4 17.4 0 0 0 2 12s3.6 6 10 6a9.7 9.7 0 0 0 4-.8" />
+        <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+        <path d="M3 3l18 18" />
+      </>
+    }
+  />
+)

@@ -47,7 +47,7 @@ function Toast({ order, onClose }) {
         <div>
           <p className="text-sm font-semibold text-cream">Order {order.id} placed</p>
           <p className="text-xs text-cream-dim">
-            {tableLabel(order.table)} · {order.waiter} · {order.payment}
+            {tableLabel(order.table)} · {order.waiter || '—'} · {order.payment}
           </p>
         </div>
         <button onClick={onClose} className="ml-3 text-xs text-gold hover:underline">
@@ -213,7 +213,14 @@ export default function POS() {
   const stockByItem = useMemo(() => {
     const map = {}
     menu.forEach((m) => {
-      map[m.id] = getRecipeStock(m.id, inventory, recipes)
+      // Gate on the smallest option the item sells in, not a whole portion —
+      // otherwise a karahi with enough stock for a Half but not a Full would be
+      // disabled outright. Over-ordering is still caught by getStockShortfall
+      // at checkout (and server-side), which is portion-exact.
+      const smallest = m.variants?.length
+        ? Math.min(...m.variants.map((v) => (Number(v.portion) > 0 ? Number(v.portion) : 1)))
+        : 1
+      map[m.id] = getRecipeStock(m.id, inventory, recipes, smallest)
     })
     return map
   }, [menu, inventory, recipes])
@@ -296,6 +303,11 @@ export default function POS() {
       // sale, so later menu re-costing must not rewrite historical orders.
       cost: variant ? variant.cost : base.cost,
       costEstimated: base.costEstimated,
+      // Share of the recipe this line consumes (Half = 0.5). Carried on the
+      // line so the pre-checkout stock check below scales the same way the
+      // server's deduction will; the server re-reads it from the variant, so
+      // this copy only drives the local check.
+      portion: variant?.portion ?? 1,
       emoji: base.emoji,
       qty,
     }
@@ -320,6 +332,11 @@ export default function POS() {
     () => [...new Set(tables.filter((tb) => !tb.orderType).map((tb) => tb.category).filter(Boolean))].sort(),
     [tables],
   )
+
+  // Delivery/Takeaway are pseudo-tables (orderType set) with no floor to serve,
+  // so there is no waiter to assign — the field is disabled and the order goes
+  // out unassigned rather than pinning it on whoever happened to be picked.
+  const isOffPremise = Boolean(tables.find((t) => t.id === Number(table))?.orderType)
 
   // The selected table already has a running order → a second separate order
   // isn't allowed (add to it instead). One source of truth for the warning,
@@ -404,10 +421,12 @@ export default function POS() {
       const running = orders.find((o) => o.table === Number(table) && o.payment === 'Unpaid' && !o.cancelled)
       return `Table ${tableLabel(Number(table))} already has a running order${running ? ` (${running.id})` : ''} — add items to it from the Tables page, or settle it first.`
     }
-    if (!waiter) return 'Please assign a waiter.'
+    // Delivery/Takeaway have no waiter to assign (the field is disabled), so
+    // requiring one here would make those orders impossible to place.
+    if (!isOffPremise && !waiter) return 'Please assign a waiter.'
     // Prevent out-of-stock orders: the cart's recipes must not exceed stock.
     const short = getStockShortfall(
-      items.map(({ key, qty }) => ({ id: key, qty })),
+      items.map(({ key, qty, portion }) => ({ id: key, qty, portion })),
       inventory,
       recipes,
     )
@@ -427,7 +446,9 @@ export default function POS() {
   const placeOrder = async ({ payment, method, onlineAccount = null }) => {
     const order = await addOrder({
       table: Number(table),
-      waiter,
+      // Never send a stale waiter on a Delivery/Takeaway order, even if one was
+      // picked before the order type was switched.
+      waiter: isOffPremise ? '' : waiter,
       items: items.map(({ key, name, price, qty, cost, costEstimated }) => ({
         id: key,
         name,
@@ -783,7 +804,13 @@ export default function POS() {
                     className={`input py-2 ${tableLocked ? 'cursor-not-allowed opacity-50' : ''}`}
                     value={table}
                     disabled={tableLocked}
-                    onChange={(e) => setTable(e.target.value)}
+                    onChange={(e) => {
+                      const next = e.target.value
+                      setTable(next)
+                      // Switching to Delivery/Takeaway drops any waiter already
+                      // picked, so a disabled field can never still submit one.
+                      if (tables.find((t) => t.id === Number(next))?.orderType) setWaiter('')
+                    }}
                   >
                     <option value="">Select table or order type</option>
                     {/* Special order types first, then physical tables by category */}
@@ -824,11 +851,12 @@ export default function POS() {
                     Waiter
                   </label>
                   <select
-                    className="input py-2"
-                    value={waiter}
+                    className={`input py-2 ${isOffPremise ? 'cursor-not-allowed opacity-50' : ''}`}
+                    value={isOffPremise ? '' : waiter}
+                    disabled={isOffPremise}
                     onChange={(e) => setWaiter(e.target.value)}
                   >
-                    <option value="">Assign</option>
+                    <option value="">{isOffPremise ? 'Not needed' : 'Assign'}</option>
                     {waiters.map((w) => (
                       <option key={w.id} value={w.name}>
                         {w.name}

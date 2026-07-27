@@ -81,6 +81,15 @@
     background: rgba(201, 169, 97, 0.35);
     color: var(--cafe-coffee-brown);
   }
+  /* Edge ships its own reveal/clear buttons inside password inputs. We render
+     our own toggle (ui.jsx PasswordInput) whose icon state we control, so the
+     native one is suppressed — otherwise Edge shows a SECOND eye with its own
+     independent state, which is what read as an "inverted" toggle. It doesn't
+     exist in Chromium/Electron at all, so this only affects Edge. */
+  input[type='password']::-ms-reveal,
+  input[type='password']::-ms-clear {
+    display: none;
+  }
   /* Custom scrollbar */
   ::-webkit-scrollbar {
     width: 10px;
@@ -103,8 +112,15 @@
   .text-gold-gradient {
     @apply bg-gold-grad bg-clip-text text-transparent;
   }
+  /* No backdrop-blur here. An element with backdrop-filter becomes the
+     containing block for its position:fixed descendants, so any modal rendered
+     inside a panel (e.g. Dashboard's CashOnHandPanel → ForwardCashModal) had its
+     `fixed inset-0` clipped to the card instead of the viewport — no full-screen
+     overlay, off-centre, and its z-index trapped in the card's stacking context.
+     The blur was also doing nothing visually since the light theme made both
+     ink-card and the page background solid white; it is a dark-theme leftover. */
   .card {
-    @apply rounded-2xl border border-ink-line bg-ink-card/80 backdrop-blur;
+    @apply rounded-2xl border border-ink-line bg-ink-card/80;
   }
   .btn-gold {
     @apply inline-flex items-center justify-center gap-2 rounded-xl bg-gold-grad px-5 py-2.5

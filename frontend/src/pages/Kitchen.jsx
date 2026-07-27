@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader, StatCard, EmptyState } from '../components/ui.jsx'
@@ -6,7 +6,7 @@ import RecipeStatusBadge from '../components/RecipeStatusBadge.jsx'
 import RecipeFormModal from '../components/RecipeFormModal.jsx'
 import { dateLong, time } from '../utils/format.js'
 import { canModify } from '../config/permissions.js'
-import { IconKitchen, IconClock, IconCheck, IconMenuBook, IconPlus, IconEdit, IconTrash } from '../components/Icons.jsx'
+import { IconKitchen, IconClock, IconCheck, IconMenuBook, IconPlus, IconEdit, IconTrash, IconSearch } from '../components/Icons.jsx'
 
 // A single recipe card. When the viewer may approve (Admin) and the recipe is
 // still pending, it shows inline Approve/Reject actions — so approvals happen
@@ -166,6 +166,7 @@ export default function Kitchen() {
   const t = useT()
   const [showModal, setShowModal] = useState(false)
   const [editingRecipe, setEditingRecipe] = useState(null)
+  const [query, setQuery] = useState('')
 
   // Only Kitchen staff create recipes. Admin/Manager have 'view' access to this
   // dashboard (to watch recipe status) but must not see the create control —
@@ -186,17 +187,37 @@ export default function Kitchen() {
     { pending: 0, approved: 0, rejected: 0 },
   )
 
-  // Newest first.
-  const sorted = [...recipes].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+  // Newest first, then filtered by the search box. The stat cards above stay on
+  // the unfiltered totals — they report the kitchen's real backlog, not how many
+  // rows the current search happens to show.
+  const sorted = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const byNewest = [...recipes].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    if (!q) return byNewest
+    return byNewest.filter((r) => (r.menuItemName || '').toLowerCase().includes(q))
+  }, [recipes, query])
 
   return (
     <div>
       <PageHeader title={t('kitchen.title')} subtitle={dateLong()}>
-        {canCreate && (
-          <button onClick={() => setShowModal(true)} className="btn-gold">
-            <IconPlus size={18} /> {t('kitchen.createRecipe')}
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <span className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-cream-dim">
+              <IconSearch size={16} />
+            </span>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t('kitchen.searchRecipes')}
+              className="w-56 rounded-xl border border-ink-line bg-ink-soft py-2 ps-9 pe-3 text-sm text-cream placeholder:text-cream-dim focus:border-gold/40 focus:outline-none"
+            />
+          </div>
+          {canCreate && (
+            <button onClick={() => setShowModal(true)} className="btn-gold shrink-0">
+              <IconPlus size={18} /> {t('kitchen.createRecipe')}
+            </button>
+          )}
+        </div>
       </PageHeader>
 
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
@@ -208,13 +229,15 @@ export default function Kitchen() {
       {sorted.length === 0 ? (
         <EmptyState
           icon={IconKitchen}
-          title={t('kitchen.noRecipes')}
+          title={query.trim() ? t('kitchen.noMatch') : t('kitchen.noRecipes')}
           hint={
-            canCreate
-              ? t('kitchen.hintCreate')
-              : canApprove
-                ? t('kitchen.hintApprove')
-                : t('kitchen.hintView')
+            query.trim()
+              ? ''
+              : canCreate
+                ? t('kitchen.hintCreate')
+                : canApprove
+                  ? t('kitchen.hintApprove')
+                  : t('kitchen.hintView')
           }
         />
       ) : (
