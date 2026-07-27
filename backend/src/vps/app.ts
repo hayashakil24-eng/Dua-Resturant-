@@ -12,6 +12,7 @@
 // ENTITY_MODELS below if a new entity starts getting synced, not a new route.
 
 import Fastify, { type FastifyInstance } from 'fastify'
+import { Prisma } from '@prisma/client'
 import { prisma } from '../db/client.js'
 import { verifyServiceToken } from './serviceAuth.js'
 import { registerWhatsappWebhook } from '../whatsapp/webhook.js'
@@ -81,19 +82,44 @@ export function buildVpsApp(options: VpsAppOptions = {}): FastifyInstance {
         results.push({ id: entry.id, ok: false, error: `Unknown entity: ${entry.entity}` })
         continue
       }
+      // Dates arrive as ISO strings over JSON — Prisma needs real Date
+      // objects for DateTime columns, so re-hydrate anything that looks
+      // like one rather than maintaining a per-entity field list.
+      const payload = Object.fromEntries(
+        Object.entries(entry.payload).map(([k, v]) => [
+          k,
+          typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(v) ? new Date(v) : v,
+        ]),
+      )
       try {
-        // Dates arrive as ISO strings over JSON — Prisma needs real Date
-        // objects for DateTime columns, so re-hydrate anything that looks
-        // like one rather than maintaining a per-entity field list.
-        const payload = Object.fromEntries(
-          Object.entries(entry.payload).map(([k, v]) => [
-            k,
-            typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(v) ? new Date(v) : v,
-          ]),
-        )
         await getModel().upsert({ where: { id: entry.entityId }, create: payload, update: payload })
         results.push({ id: entry.id, ok: true })
       } catch (err) {
+        // Staff.username is the one synced field with its own unique
+        // constraint. A local dev/demo reset (prisma/seed.ts "wipes and
+        // reseeds every run") re-creates the "same" account — same
+        // username — under a brand-new local id, so the id-based upsert's
+        // CREATE branch collides with the row this VPS already has from
+        // before the reset. That's the same logical staff account, just
+        // re-issued locally, so update the existing row (matched by
+        // username, never touching its id — other already-synced rows may
+        // reference that id via foreign key) instead of failing forever.
+        const isUsernameConflict =
+          entry.entity === 'Staff' &&
+          err instanceof Prisma.PrismaClientKnownRequestError &&
+          err.code === 'P2002' &&
+          (err.meta?.target as string[] | undefined)?.includes('username') &&
+          typeof payload.username === 'string'
+        if (isUsernameConflict) {
+          try {
+            await prisma.staff.update({ where: { username: payload.username as string }, data: { ...payload, id: undefined } })
+            results.push({ id: entry.id, ok: true })
+            continue
+          } catch (fallbackErr) {
+            results.push({ id: entry.id, ok: false, error: (fallbackErr as Error).message })
+            continue
+          }
+        }
         results.push({ id: entry.id, ok: false, error: (err as Error).message })
       }
     }

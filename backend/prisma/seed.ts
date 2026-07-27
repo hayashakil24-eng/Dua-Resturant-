@@ -20,6 +20,7 @@ import { readFile } from 'node:fs/promises'
 import { prisma } from '../src/db/client.js'
 import { nextSequence } from '../src/core/ids.js'
 import { hashPassword } from '../src/auth/password.js'
+import { enqueueOutbox } from '../src/sync/outbox.js'
 
 // Exported so tests can reset the DB to a known state in-process (see
 // test/orders.api.test.ts) using the same shared prisma client — the direct-run
@@ -85,13 +86,20 @@ export async function seed() {
   const demoHash = await hashPassword('1234')
   for (const s of staffSeed) {
     const cred = credentials[s.id]
-    await prisma.staff.create({
+    const created = await prisma.staff.create({
       data: {
         ...s,
         active: true,
         ...(cred ? { username: cred.username, systemRole: cred.systemRole, passwordHash: demoHash } : {}),
       },
     })
+    // Same reason staff.service.ts enqueues on every real create — a demo
+    // shift/order attributed to this staff member needs this row to exist on
+    // the VPS first, or every sync of it fails on ShiftReconciliation/Order's
+    // staffId foreign key forever (this is exactly what happened before this
+    // fix: seeded staff had no outbox row, so anything referencing them was
+    // permanently stuck retrying against a parent that would never arrive).
+    await enqueueOutbox(prisma, 'Staff', created.id, created)
   }
 
   console.log('Seeding Tables (A-G x40, HUT x20, Delivery/Takeaway)...')

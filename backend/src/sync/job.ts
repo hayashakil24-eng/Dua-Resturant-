@@ -15,6 +15,14 @@ import { mintServiceToken } from '../vps/serviceAuth.js'
 const BASE_BACKOFF_MS = 5_000
 const MAX_BACKOFF_MS = 5 * 60_000
 const BATCH_SIZE = 100
+// A handful of rows stuck retrying a genuinely broken dependency (e.g. a
+// parent record that was never itself enqueued — see docs/05-phase-4-vps-sync.md
+// "Production hardening") would otherwise occupy the entire batch forever:
+// candidates are always the OLDEST rows by createdAt, so if the oldest ~100
+// can never succeed, no row created after them ever gets a turn. Reserving
+// part of every batch for never-yet-attempted rows means a stuck backlog can
+// slow new data down, but can never fully starve it.
+const NEW_ROW_RESERVE = 30
 
 type OutboxRow = Awaited<ReturnType<typeof prisma.outboxEntry.findMany>>[number]
 
@@ -48,11 +56,17 @@ export async function syncOnce(): Promise<SyncResult | null> {
   if (!env.vps.url || !env.vps.syncSecret) return null // sync not configured — see file header
   if (!(await isVpsReachable())) return null
 
-  const candidates = await prisma.outboxEntry.findMany({
-    where: { status: { in: ['pending', 'failed'] } },
+  const freshRows = await prisma.outboxEntry.findMany({
+    where: { status: 'pending', attempts: 0 },
     orderBy: { createdAt: 'asc' },
-    take: BATCH_SIZE,
+    take: NEW_ROW_RESERVE,
   })
+  const retryRows = await prisma.outboxEntry.findMany({
+    where: { status: { in: ['pending', 'failed'] }, attempts: { gt: 0 } },
+    orderBy: { createdAt: 'asc' },
+    take: BATCH_SIZE - freshRows.length,
+  })
+  const candidates = [...freshRows, ...retryRows]
   const due = candidates.filter(isDue)
   if (due.length === 0) return { pushed: 0, failed: 0 }
 
