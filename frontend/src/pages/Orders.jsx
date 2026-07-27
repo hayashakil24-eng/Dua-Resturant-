@@ -207,6 +207,14 @@ export default function Orders() {
 
   const cancelLog = useMemo(() => auditLog.filter((a) => a.action === 'CANCELLED'), [auditLog])
 
+  // Audit entries record the server cuid, but every other surface shows the
+  // human order number — translate back rather than printing a raw id. Null
+  // when the order isn't in the current list, so the row shows just the reason.
+  const orderNumberOf = useMemo(() => {
+    const byServerId = new Map(orders.map((o) => [o.serverId, o.id]))
+    return (serverId) => byServerId.get(serverId) ?? null
+  }, [orders])
+
   // Actions shared by desktop rows and mobile cards.
   const OrderActions = ({ o }) => {
     if (o.cancelled) return null
@@ -434,11 +442,14 @@ export default function Orders() {
             <p className="text-xs text-cream-dim">{cancelLog.length} cancellation(s) recorded this session.</p>
           </div>
           <div className="divide-y divide-ink-line">
-            {cancelLog.map((a) => (
+            {cancelLog.map((a) => {
+              const orderNo = orderNumberOf(a.orderId)
+              return (
               <div key={a.id} className="flex flex-col gap-1 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <p className="text-sm text-cream">
-                    <span className="font-semibold text-gold">{a.orderId}</span> · {a.reason}
+                    {orderNo && <span className="font-semibold text-gold">{orderNo} · </span>}
+                    {a.reason}
                   </p>
                   {a.notes && <p className="truncate text-xs text-cream-dim">{a.notes}</p>}
                 </div>
@@ -451,7 +462,8 @@ export default function Orders() {
                   by <span className="text-cream">{a.by}</span> ({a.role}) · {time(a.at)}
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}

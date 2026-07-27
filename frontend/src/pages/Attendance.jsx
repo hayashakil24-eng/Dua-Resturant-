@@ -100,7 +100,6 @@ export default function Attendance() {
                         </div>
                         <div>
                           <p className="font-medium text-cream">{s.name}</p>
-                          <p className="text-xs text-cream-dim">{s.id}</p>
                         </div>
                       </div>
                     </td>

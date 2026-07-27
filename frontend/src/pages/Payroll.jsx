@@ -11,7 +11,6 @@ import {
   IconCalendar,
   IconCheck,
   IconClose,
-  IconPlus,
   IconTrash,
 } from '../components/Icons.jsx'
 
@@ -113,22 +112,14 @@ function Row({ label, value }) {
   )
 }
 
-function EditModal({ staff, att, calculated, advances, onAddAdvance, onDeleteAdvance, onDone, onClose }) {
+// Advances are listed here but not created here — this modal only reviews what
+// was already recorded, and confirms it against the month's salary.
+function EditModal({ staff, att, calculated, advances, onDeleteAdvance, onDone, onClose }) {
   const t = useT()
-  const [amount, setAmount] = useState('')
-  const [reason, setReason] = useState('')
   useEscapeKey(onClose)
 
   const advTotal = advances.reduce((s, a) => s + a.amount, 0)
   const final = Math.max(0, calculated - advTotal)
-  const canAdd = Number(amount) > 0
-
-  const submit = () => {
-    if (!canAdd) return
-    onAddAdvance({ amount: Number(amount), reason: reason.trim() })
-    setAmount('')
-    setReason('')
-  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -194,32 +185,6 @@ function EditModal({ staff, att, calculated, advances, onAddAdvance, onDeleteAdv
                 ))}
               </div>
             )}
-
-            {/* Add advance */}
-            <div className="mt-3 flex gap-2">
-              <input
-                type="number"
-                inputMode="numeric"
-                min={0}
-                className="input py-2"
-                placeholder={t('payroll.amountPh')}
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-              <input
-                className="input py-2"
-                placeholder={t('payroll.reasonPh')}
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-              />
-              <button
-                onClick={submit}
-                disabled={!canAdd}
-                className="btn-gold shrink-0 px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <IconPlus size={16} /> {t('payroll.add')}
-              </button>
-            </div>
           </div>
 
           <div className="mt-4 space-y-1 rounded-xl border border-gold/25 bg-gold/[0.06] px-4 py-3">
@@ -326,7 +291,7 @@ export default function Payroll() {
     return opts
   }, [today])
 
-  const { advances, addAdvance, deleteAdvance, recoverAdvances, staff } = useApp()
+  const { advances, deleteAdvance, recoverAdvances, staff } = useApp()
   const [monthKey, setMonthKey] = useState(monthOptions[0].key)
   const [detailStaff, setDetailStaff] = useState(null)
   const [editStaff, setEditStaff] = useState(null)
@@ -355,12 +320,6 @@ export default function Payroll() {
         }),
     [staff, year, monthIndex, today, advances],
   )
-
-  // New advances land in the selected month (last day for past months).
-  const advanceDate = () => {
-    const isCurrent = year === today.getFullYear() && monthIndex === today.getMonth()
-    return (isCurrent ? today : new Date(year, monthIndex + 1, 0)).toISOString()
-  }
 
   const totalPayroll = rows.reduce((s, r) => s + r.final, 0)
   const avgAttendance = Math.round(
@@ -459,9 +418,6 @@ export default function Payroll() {
           att={editRow.att}
           calculated={editRow.calculated}
           advances={editRow.advances}
-          onAddAdvance={({ amount, reason }) =>
-            addAdvance({ staffId: editRow.staff.id, amount, reason, date: advanceDate() })
-          }
           onDeleteAdvance={deleteAdvance}
           onDone={() => {
             // "Done" confirms this staff's advances immediately (recovered),
