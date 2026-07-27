@@ -282,7 +282,8 @@
     "details": "تفصیلات",
     "edit": "ترمیم",
     "statusPending": "زیرِ التوا",
-    "statusRecovered": "وصول شدہ"
+    "statusRecovered": "وصول شدہ",
+    "addedOnDone": "Done دبانے پر یہ ایڈوانس شامل ہو جائے گا"
   },
   "accounting": {
     "title": "اکاؤنٹنگ",

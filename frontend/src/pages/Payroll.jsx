@@ -112,14 +112,42 @@ function Row({ label, value }) {
   )
 }
 
-// Advances are listed here but not created here — this modal only reviews what
-// was already recorded, and confirms it against the month's salary.
-function EditModal({ staff, att, calculated, advances, onDeleteAdvance, onDone, onClose }) {
+function EditModal({ staff, att, calculated, advances, onAddAdvance, onDeleteAdvance, onDone, onClose }) {
   const t = useT()
+  const [amount, setAmount] = useState('')
+  const [reason, setReason] = useState('')
+  const [error, setError] = useState('')
   useEscapeKey(onClose)
 
   const advTotal = advances.reduce((s, a) => s + a.amount, 0)
   const final = Math.max(0, calculated - advTotal)
+  const canAdd = Number(amount) > 0
+
+  // No separate Add button by request — Done records whatever is typed in the
+  // amount/reason fields and THEN closes, so one button does both. Returns
+  // false on a server rejection so the caller keeps the modal open.
+  const saveTyped = async () => {
+    if (!canAdd) return true
+    const res = await onAddAdvance({ amount: Number(amount), reason: reason.trim() })
+    if (res?.error) {
+      setError(res.error)
+      return false
+    }
+    setError('')
+    setAmount('')
+    setReason('')
+    return true
+  }
+
+  // Enter is a shortcut for the same thing, without closing the modal — lets
+  // several advances be entered in one sitting.
+  const onKeyDown = (e) => {
+    if (e.key === 'Enter') saveTyped()
+  }
+
+  const done = async () => {
+    if (await saveTyped()) onDone()
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -185,6 +213,34 @@ function EditModal({ staff, att, calculated, advances, onDeleteAdvance, onDone, 
                 ))}
               </div>
             )}
+
+            {/* Add advance — Enter records it (no Add button, by request) */}
+            <div className="mt-3 flex gap-2">
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                className="input py-2"
+                placeholder={t('payroll.amountPh')}
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                onKeyDown={onKeyDown}
+              />
+              <input
+                className="input py-2"
+                placeholder={t('payroll.reasonPh')}
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                onKeyDown={onKeyDown}
+              />
+            </div>
+            {/* Without an Add button there's no visible way to know how to
+                submit — say so, rather than leaving two boxes that look dead. */}
+            {/* Only shown once something is typed — otherwise it's noise. */}
+            {canAdd && <p className="mt-1.5 text-[11px] text-gold">{t('payroll.addedOnDone')}</p>}
+            {error && (
+              <p className="mt-1.5 rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{error}</p>
+            )}
           </div>
 
           <div className="mt-4 space-y-1 rounded-xl border border-gold/25 bg-gold/[0.06] px-4 py-3">
@@ -198,7 +254,7 @@ function EditModal({ staff, att, calculated, advances, onDeleteAdvance, onDone, 
             </div>
           </div>
 
-          <button onClick={onDone} className="btn-ghost mt-6 w-full py-3">
+          <button onClick={done} className="btn-ghost mt-6 w-full py-3">
             <IconCheck size={18} /> {t('payroll.done')}
           </button>
         </div>
@@ -291,7 +347,7 @@ export default function Payroll() {
     return opts
   }, [today])
 
-  const { advances, deleteAdvance, recoverAdvances, staff } = useApp()
+  const { advances, addAdvance, deleteAdvance, recoverAdvances, staff } = useApp()
   const [monthKey, setMonthKey] = useState(monthOptions[0].key)
   const [detailStaff, setDetailStaff] = useState(null)
   const [editStaff, setEditStaff] = useState(null)
@@ -320,6 +376,12 @@ export default function Payroll() {
         }),
     [staff, year, monthIndex, today, advances],
   )
+
+  // New advances land in the selected month (last day for past months).
+  const advanceDate = () => {
+    const isCurrent = year === today.getFullYear() && monthIndex === today.getMonth()
+    return (isCurrent ? today : new Date(year, monthIndex + 1, 0)).toISOString()
+  }
 
   const totalPayroll = rows.reduce((s, r) => s + r.final, 0)
   const avgAttendance = Math.round(
@@ -418,6 +480,9 @@ export default function Payroll() {
           att={editRow.att}
           calculated={editRow.calculated}
           advances={editRow.advances}
+          onAddAdvance={({ amount, reason }) =>
+            addAdvance({ staffId: editRow.staff.id, amount, reason, date: advanceDate() })
+          }
           onDeleteAdvance={deleteAdvance}
           onDone={() => {
             // "Done" confirms this staff's advances immediately (recovered),

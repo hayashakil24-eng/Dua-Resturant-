@@ -282,7 +282,8 @@
     "details": "Details",
     "edit": "Edit",
     "statusPending": "pending",
-    "statusRecovered": "recovered"
+    "statusRecovered": "recovered",
+    "addedOnDone": "This advance will be added when you press Done"
   },
   "accounting": {
     "title": "Accounting",
