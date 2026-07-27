@@ -462,7 +462,9 @@ export default function Billing() {
           orderTotal={orderTotal}
           onClose={() => setActiveId(null)}
           onMarkPaid={(id) => markPaid(id)}
-          canMarkPaid={user && canModify(user.role, 'billing') && !active.cancelled}
+          // Admin oversees billing but doesn't personally settle bills (same
+          // rule as Orders.jsx) — that's left to Cashier/Manager.
+          canMarkPaid={user && user.role !== 'Admin' && canModify(user.role, 'billing') && !active.cancelled}
           canDiscount={canDiscount}
           onApplyDiscount={() => setShowDiscount(true)}
           onRemoveDiscount={(id) => removeDiscount(id)}

@@ -28,7 +28,7 @@ const fromTimeInput = (hhmm) => {
   return d.toISOString()
 }
 
-// Admin-only emergency tool. Normal attendance comes from the biometric
+// Admin/Manager emergency tool. Normal attendance comes from the biometric
 // machine and is read-only; this exists for machine failures. A reason is
 // mandatory and every save is written to the audit trail + tagged "Manual".
 export default function ManualOverrideModal({ staff, record, onSave, onClose }) {

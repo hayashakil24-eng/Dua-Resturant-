@@ -1,4 +1,4 @@
-// Attendance — port of AppContext.jsx's overrideAttendance (the Admin-only
+// Attendance — port of AppContext.jsx's overrideAttendance (the Admin/Manager
 // emergency manual entry when the biometric machine failed). Normal attendance
 // is machine-fed and read-only; this is the one mutating path. Records are
 // keyed by (staffId, day) — schema.prisma's @@unique — so an override upserts

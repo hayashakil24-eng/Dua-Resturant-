@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { io } from 'socket.io-client'
-import { INITIAL_ATTENDANCE, MENU_CATEGORIES, TAX_RATE, registerTableLabels } from '../data/mockData.js'
+import { MENU_CATEGORIES, TAX_RATE, registerTableLabels } from '../data/mockData.js'
 import { calculateOrderMaterialCost } from '../utils/inventoryFlow.js'
 import { apiGet, apiPost, apiPatch, apiPut, apiDelete, setToken, getToken, ApiError, BASE } from '../api/client.js'
 
@@ -125,11 +125,12 @@ export function AppProvider({ children }) {
   const [dailyClosings, setDailyClosings] = useState([])
   const [receivables, setReceivables] = useState([])
   const [departments, setDepartments] = useState([])
-  // Attendance stays a local mock: the backend has no machine-attendance feed
-  // yet (payroll still uses a deterministic generator), so this mirrors the
-  // pre-backend behavior. overrideAttendance persists to the backend AND updates
-  // this local view for immediate display. See docs/02-phase-1.
-  const [attendance, setAttendance] = useState(INITIAL_ATTENDANCE)
+  // Fetched from the backend's AttendanceRecord table (today's rows only —
+  // see attendance.service.ts). There's still no real biometric machine feed,
+  // so a staff member with no row today (no override, no machine integration)
+  // correctly reads as absent via resolveAttendanceStatus's `!record` branch —
+  // that's real "no data" here, not a demo placeholder.
+  const [attendance, setAttendance] = useState({})
 
   // --- Data loading -------------------------------------------------------
   // One fetcher per collection; refresh(keys) pulls a subset after a mutation.
@@ -171,6 +172,28 @@ export function AppProvider({ children }) {
     receivables: () => apiGet('/api/receivables').then((d) => setReceivables((d.receivables || []).map(normalizeReceivable))),
     departments: () => apiGet('/api/departments').then((d) => setDepartments(d.departments || [])),
     audit: () => apiGet('/api/audit').then((d) => setAuditLog(d.audit || [])),
+    attendance: () =>
+      apiGet('/api/attendance').then((d) => {
+        const map = {}
+        ;(d.attendance || []).forEach((r) => {
+          map[r.staffId] = {
+            checkIn: r.checkIn,
+            checkOut: r.checkOut,
+            status: r.status,
+            source: r.source,
+            ...(r.source === 'manual' && {
+              manualEntry: {
+                enteredBy: r.manualBy,
+                role: r.manualByRole,
+                reason: r.manualReason,
+                notes: r.manualNotes,
+                enteredAt: r.manualAt,
+              },
+            }),
+          }
+        })
+        setAttendance(map)
+      }),
   }
 
   const refresh = async (keys) => {
@@ -1036,25 +1059,15 @@ export function AppProvider({ children }) {
     }
   }
 
-  // ---- Attendance (local view + backend override) ------------------------
+  // ---- Attendance -----------------------------------------------------
   const overrideAttendance = async (staffId, { checkIn, checkOut, reason, notes = '' } = {}) => {
     if (!reason) return
     try {
       await apiPost(`/api/attendance/${staffId}/override`, { checkIn, checkOut, reason, notes })
+      await refresh(['attendance'])
     } catch (e) {
       return toError(e)
     }
-    const status = checkOut ? 'Checked Out' : checkIn ? 'Present' : 'Absent'
-    setAttendance((prev) => ({
-      ...prev,
-      [staffId]: {
-        checkIn: checkIn ?? prev[staffId]?.checkIn ?? null,
-        checkOut: checkOut ?? prev[staffId]?.checkOut ?? null,
-        status,
-        source: 'manual',
-        manualEntry: { enteredBy: user?.name || 'Unknown', role: user?.role || '—', reason, notes, enteredAt: new Date().toISOString() },
-      },
-    }))
   }
 
   // ---- Receivables -------------------------------------------------------

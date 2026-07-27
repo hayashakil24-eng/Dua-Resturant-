@@ -153,9 +153,13 @@ function CancelModal({ order, orderTotal, materialLoss = 0, onConfirm, onClose }
 
 export default function Orders() {
   const { orders, orderTotal, markPaid, cancelOrder, orderMaterialLoss, markOrderUdhaar, markOrderComplimentary, shiftOrderTable, onlineAccounts, auditLog, user } = useApp()
-  const canMarkPaid = user && canModify(user.role, 'orders')
-  // Re-seating a running order is a running-order edit — same gate as settling.
-  const canShiftTable = canMarkPaid
+  // Admin oversees orders but doesn't personally settle bills — that's a
+  // Cashier action — so the button is hidden for Admin even though they keep
+  // full edit access otherwise (table shift, etc.).
+  const canMarkPaid = user && user.role !== 'Admin' && canModify(user.role, 'orders')
+  // Re-seating a running order is a running-order edit — same gate as settling
+  // used to share, but Admin keeps this one even without Mark as Paid.
+  const canShiftTable = user && canModify(user.role, 'orders')
   // Printing a bill doesn't mutate the order, so it's allowed for anyone who can
   // even VIEW orders (Cashier/Admin settle, but a Manager on 'view' can still
   // hand a customer their bill) — a wider gate than the settle actions above.

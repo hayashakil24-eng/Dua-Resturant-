@@ -8,7 +8,7 @@ import { time, dateLong } from '../utils/format.js'
 import { resolveAttendanceStatus, formatLateDuration } from '../utils/attendanceHelpers.js'
 import { IconUsers, IconClock, IconEdit, IconReport, IconAlert } from '../components/Icons.jsx'
 
-// Machine (biometric) verified vs. an Admin manual override.
+// Machine (biometric) verified vs. a manual override.
 function SourceBadge({ record }) {
   const t = useT()
   if (record.source === 'manual') {
@@ -33,7 +33,7 @@ export default function Attendance() {
   const t = useT()
   const roster = staff.filter((s) => s.active !== false)
 
-  // Emergency manual override is Admin-only (Manager/Cashier cannot).
+  // Emergency manual override — Admin and Manager only (Cashier/Kitchen cannot).
   const canOverride = user && canModify(user.role, 'attendanceOverride')
   const [editing, setEditing] = useState(null) // staff row being overridden
 

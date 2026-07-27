@@ -141,7 +141,7 @@ export const PERMISSIONS: Record<Role, Record<PageKey, AccessLevel>> = {
     kds: 'full',
     billing: 'create', // may settle a bill they punched
     settings: 'hidden', // Only Admin controls app settings
-    attendanceOverride: 'none',
+    attendanceOverride: 'full', // Manager may also use the emergency manual override (biometric machine failure)
     kitchen: 'view', // Manager can view the Kitchen dashboard / recipes
     tableAdd: 'full', // add/manage tables
     categoryAdd: 'full', // add free-text menu categories
