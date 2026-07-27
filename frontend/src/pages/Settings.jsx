@@ -5,7 +5,7 @@ import { PageHeader } from '../components/ui.jsx'
 import { canModify } from '../config/permissions.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import { IconSettings, IconReceipt, IconWallet, IconPlus, IconClose, IconCheck, IconClock, IconRefresh, IconWhatsApp, IconLock } from '../components/Icons.jsx'
-import { apiGet } from '../api/client.js'
+import { apiGet, apiPost } from '../api/client.js'
 import { WALLET_TYPES, PK_BANKS, BANK_OTHER, ERR_WALLET, ERR_BANK, accountFieldsFor, sanitizeAccountNumber, sanitizeIban, validateAccount } from '../utils/accountNumber.js'
 
 // Phase 3 "basic operational visibility" (docs/04-phase-3-deployment-
@@ -18,6 +18,12 @@ function ServerHealthPanel() {
   const [health, setHealth] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState('')
+  const [syncErr, setSyncErr] = useState('')
+  const [backingUp, setBackingUp] = useState(false)
+  const [backupMsg, setBackupMsg] = useState('')
+  const [backupErr, setBackupErr] = useState('')
 
   const load = () => {
     setLoading(true)
@@ -28,6 +34,51 @@ function ServerHealthPanel() {
       })
       .catch(() => setError(t('settings.serverUnreachable', 'Cannot reach the local server.')))
       .finally(() => setLoading(false))
+  }
+
+  // Manual push — the background job already retries on its own interval, so
+  // this is just "don't make me wait for the next tick" after e.g. fixing the
+  // internet connection or the VPS coming back up.
+  const syncNow = async () => {
+    setSyncing(true)
+    setSyncMsg('')
+    setSyncErr('')
+    try {
+      const res = await apiPost('/api/system/sync-now')
+      setSyncMsg(
+        t('settings.syncResult', '{pushed} sent, {failed} failed.')
+          .replace('{pushed}', res.pushed)
+          .replace('{failed}', res.failed),
+      )
+      load()
+    } catch (err) {
+      setSyncErr(err.message)
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  // Manual backup — the scheduled job already writes one once a day, so this
+  // is for grabbing a fresh copy on demand (e.g. right before a risky change)
+  // instead of waiting for env.backupHour to roll around.
+  const backupNow = async () => {
+    setBackingUp(true)
+    setBackupMsg('')
+    setBackupErr('')
+    try {
+      const res = await apiPost('/api/system/backup-now')
+      setBackupMsg(
+        t('settings.backupResult', 'Saved at {time}.').replace(
+          '{time}',
+          new Date(res.at).toLocaleTimeString(),
+        ),
+      )
+      load()
+    } catch (err) {
+      setBackupErr(err.message)
+    } finally {
+      setBackingUp(false)
+    }
   }
 
   useEffect(() => {
@@ -86,26 +137,71 @@ function ServerHealthPanel() {
                 {health?.lastBackupAt ? new Date(health.lastBackupAt).toLocaleString() : t('settings.noBackupYet', 'None yet')}
               </span>
             </div>
+            <div className="flex items-center gap-3 border-t border-ink-line pt-3">
+              <button
+                onClick={backupNow}
+                disabled={backingUp}
+                className="btn-ghost px-4 py-2 text-xs disabled:opacity-60"
+              >
+                <IconRefresh size={14} className={backingUp ? 'animate-spin' : ''} />
+                {backingUp ? t('settings.backingUp', 'Backing up…') : t('settings.backupNow', 'Backup Now')}
+              </button>
+              {backupMsg && <span className="text-xs text-emerald-300">{backupMsg}</span>}
+              {backupErr && <span className="text-xs text-rose-300">{backupErr}</span>}
+            </div>
             {/* Phase 4 (docs/05-phase-4-vps-sync.md): only shown once VPS sync
                 is actually configured — a plain local-only deployment has no
                 VPS to report on, so hiding the row beats showing a permanent "—". */}
             {health?.vpsConfigured && (
-              <div className="flex items-center justify-between">
-                <span className="text-cream-dim">{t('settings.lastSync', 'Last VPS sync')}</span>
-                <span className="text-cream">
-                  {health.lastSyncAt ? new Date(health.lastSyncAt).toLocaleString() : t('settings.noSyncYet', 'None yet')}
-                  {health.pendingSyncCount > 0 && (
-                    <span className="ml-2 text-xs text-gold">
-                      ({health.pendingSyncCount} {t('settings.pending', 'pending')})
-                    </span>
-                  )}
-                </span>
-              </div>
+              <>
+                <div className="flex items-center justify-between">
+                  <span className="text-cream-dim">{t('settings.lastSync', 'Last VPS sync')}</span>
+                  <span className="text-cream">
+                    {health.lastSyncAt ? new Date(health.lastSyncAt).toLocaleString() : t('settings.noSyncYet', 'None yet')}
+                    {health.pendingSyncCount > 0 && (
+                      <span className="ml-2 text-xs text-gold">
+                        ({health.pendingSyncCount} {t('settings.pending', 'pending')})
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 border-t border-ink-line pt-3">
+                  <button
+                    onClick={syncNow}
+                    disabled={syncing}
+                    className="btn-ghost px-4 py-2 text-xs disabled:opacity-60"
+                  >
+                    <IconRefresh size={14} className={syncing ? 'animate-spin' : ''} />
+                    {syncing ? t('settings.syncing', 'Syncing…') : t('settings.syncNow', 'Sync Now')}
+                  </button>
+                  {syncMsg && <span className="text-xs text-emerald-300">{syncMsg}</span>}
+                  {syncErr && <span className="text-xs text-rose-300">{syncErr}</span>}
+                </div>
+              </>
             )}
           </>
         )}
       </div>
     </div>
+  )
+}
+
+// Left-panel nav item — a horizontal scrollable pill row on narrow screens,
+// a vertical full-width list from lg: up (same collapse pattern as the app's
+// own sidebar, just scoped to this page instead of the whole nav).
+function SectionNavButton({ active, icon: Icon, label, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex shrink-0 items-center gap-3 whitespace-nowrap rounded-xl px-4 py-3 text-sm font-semibold transition lg:w-full ${
+        active
+          ? 'bg-gold/12 text-gold ring-1 ring-gold/30'
+          : 'text-cream-dim hover:bg-white/5 hover:text-cream'
+      }`}
+    >
+      <Icon size={18} />
+      {label}
+    </button>
   )
 }
 
@@ -126,7 +222,7 @@ function Toggle({ checked, onChange, disabled, labelOn, labelOff }) {
         }`}
       >
         <span
-          className={`absolute top-1 h-5 w-5 rounded-full bg-cream shadow-md transition-all ${
+          className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-md transition-all ${
             checked ? 'start-6' : 'start-1'
           }`}
         />
@@ -232,7 +328,7 @@ function AccountFormModal({ account, onSave, onClose }) {
     <div dir="ltr" className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-md animate-fade-up">
-        <div className="card p-6">
+        <div className="card max-h-[90vh] overflow-y-auto p-6">
           <div className="flex items-start justify-between">
             <h3 className="font-serif text-2xl text-cream">
               {account ? t('settings.editAccount', 'Edit Account') : t('settings.addAccount', 'Add Account')}
@@ -556,6 +652,19 @@ export default function Settings() {
   const fill = (s) => s.replace('{rate}', ratePct)
   const [formFor, setFormFor] = useState(null) // 'new' | account object | null
 
+  // Left-nav sections — was one long stack of cards, which read as cluttered
+  // once Server Health / Passwords were added on top of Tax/WhatsApp/Accounts.
+  // A left panel + single-section right content mirrors how every other
+  // multi-area settings screen (macOS, most SaaS admin panels) organizes this.
+  const sections = [
+    { key: 'tax', label: t('settings.taxSection'), icon: IconReceipt },
+    { key: 'whatsapp', label: t('settings.whatsappSection', 'WhatsApp Daily Report'), icon: IconWhatsApp },
+    { key: 'accounts', label: t('settings.onlineAccounts', 'Online Payment Accounts'), icon: IconWallet },
+    ...(canEdit ? [{ key: 'server', label: t('settings.serverHealth', 'Server Health'), icon: IconClock }] : []),
+    ...(canEdit ? [{ key: 'password', label: t('settings.passwords', 'Login Passwords'), icon: IconLock }] : []),
+  ]
+  const [section, setSection] = useState('tax')
+
   // Editable GST rate (percent). Seeded from the saved rate; Save writes it back.
   const [rateInput, setRateInput] = useState(String(ratePct))
   const [rateError, setRateError] = useState('')
@@ -595,11 +704,29 @@ export default function Settings() {
   }
 
   return (
-    <div className="space-y-6">
+    <div>
       <PageHeader title={t('settings.title')} subtitle={t('settings.subtitle')} />
 
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+        {/* Left panel — horizontal pill row on narrow screens, vertical list from lg: up */}
+        <nav className="flex gap-2 overflow-x-auto pb-1 lg:w-64 lg:shrink-0 lg:flex-col lg:overflow-visible lg:pb-0">
+          {sections.map((s) => (
+            <SectionNavButton
+              key={s.key}
+              active={section === s.key}
+              icon={s.icon}
+              label={s.label}
+              onClick={() => setSection(s.key)}
+            />
+          ))}
+        </nav>
+
+        {/* Right content — one section at a time */}
+        <div className="min-w-0 max-w-2xl flex-1 space-y-6">
+
       {/* Tax & GST */}
-      <div className="card max-w-2xl p-6">
+      {section === 'tax' && (
+      <div className="card p-6">
         <div className="flex items-center gap-3 border-b border-ink-line pb-4">
           <span className="grid h-10 w-10 place-items-center rounded-xl bg-gold/10 text-gold ring-1 ring-gold/25">
             <IconReceipt size={20} />
@@ -672,9 +799,11 @@ export default function Settings() {
           {gstEnabled ? fill(t('settings.gstStatusOn')) : t('settings.gstStatusOff')}
         </div>
       </div>
+      )}
 
       {/* WhatsApp daily report */}
-      <div className="card max-w-2xl p-6">
+      {section === 'whatsapp' && (
+      <div className="card p-6">
         <div className="flex items-center gap-3 border-b border-ink-line pb-4">
           <span className="grid h-10 w-10 place-items-center rounded-xl bg-gold/10 text-gold ring-1 ring-gold/25">
             <IconWhatsApp size={20} />
@@ -773,9 +902,11 @@ export default function Settings() {
           )}
         </p>
       </div>
+      )}
 
       {/* Online payment accounts */}
-      <div className="card max-w-2xl p-6">
+      {section === 'accounts' && (
+      <div className="card p-6">
         <div className="flex items-center justify-between gap-3 border-b border-ink-line pb-4">
           <div className="flex items-center gap-3">
             <span className="grid h-10 w-10 place-items-center rounded-xl bg-gold/10 text-gold ring-1 ring-gold/25">
@@ -843,11 +974,16 @@ export default function Settings() {
           </ul>
         )}
       </div>
+      )}
 
-      {canEdit && <ServerHealthPanel />}
+      {/* Server health — Admin-only, same gate as the rest of this page */}
+      {section === 'server' && canEdit && <ServerHealthPanel />}
 
       {/* Password management — Admin-only, same gate as the rest of this page */}
-      {canEdit && <PasswordCard />}
+      {section === 'password' && canEdit && <PasswordCard />}
+
+        </div>
+      </div>
 
       {formFor && (
         <AccountFormModal
