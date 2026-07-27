@@ -61,8 +61,9 @@ export async function orderRoutes(app: FastifyInstance): Promise<void> {
   // Discount (Admin/Manager, per discount).
   app.post('/api/orders/:id/discount', { preHandler: requirePermission('discount') }, async (req) => {
     const { id } = req.params as { id: string }
-    const { amount, reason, notes } = (req.body ?? {}) as { amount?: number; reason?: string; notes?: string }
-    return { order: await orders.applyDiscount(ctx(req), id, { amount, reason, notes }) }
+    // `percent` wins when sent: the rupee amount is then derived server-side.
+    const { amount, percent, reason, notes } = (req.body ?? {}) as { amount?: number; percent?: number; reason?: string; notes?: string }
+    return { order: await orders.applyDiscount(ctx(req), id, { amount, percent, reason, notes }) }
   })
   app.delete('/api/orders/:id/discount', { preHandler: requirePermission('discount') }, async (req) => {
     const { id } = req.params as { id: string }

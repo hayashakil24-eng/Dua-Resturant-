@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { authenticate, requirePermission, requireRole } from '../auth/guard.js'
 import * as staff from '../services/staff.service.js'
+import { listLoginAccounts, setStaffPassword } from '../services/auth.service.js'
 
 export async function staffRoutes(app: FastifyInstance): Promise<void> {
   const ctx = (req: FastifyRequest) => ({ actor: req.actor })
@@ -20,6 +21,22 @@ export async function staffRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/staff/:id/toggle', { preHandler: requirePermission('employees') }, async (req) => {
     const { id } = req.params as { id: string }
     return { staff: await staff.toggleStaff(ctx(req), id) }
+  })
+
+  // Login accounts + Admin password reset. Admin-only: resetting a password is
+  // a takeover of that account, so it stays with the role that already holds
+  // staff approval and deletion, not with `employees` (which Manager holds).
+  app.get('/api/staff/login-accounts', { preHandler: requireRole('Admin') }, async () => ({
+    accounts: await listLoginAccounts(),
+  }))
+  app.post('/api/staff/:id/password', { preHandler: requireRole('Admin') }, async (req) => {
+    const { id } = req.params as { id: string }
+    const { newPassword, username, systemRole } = (req.body ?? {}) as {
+      newPassword?: unknown
+      username?: unknown
+      systemRole?: unknown
+    }
+    return await setStaffPassword(req.actor, id, newPassword, { username, systemRole })
   })
 
   // Self-signup approval queue — Admin-only (staffApproval), same

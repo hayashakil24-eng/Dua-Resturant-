@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useApp } from '../context/AppContext.jsx'
 import { useT, useLang } from '../i18n/LanguageContext.jsx'
@@ -7,6 +7,8 @@ import { PageHeader, StatCard, PaymentBadge } from '../components/ui.jsx'
 import { money, time, dateShort, clock as fmtClock, dayShort, monthName as fmtMonthName } from '../utils/format.js'
 import { tableLabel } from '../data/mockData.js'
 import HandoverApprovalModal from '../components/HandoverApprovalModal.jsx'
+import ForwardCashModal from '../components/ForwardCashModal.jsx'
+import { cashPositions } from '../utils/cashFlow.js'
 import { payrollTotal } from '../utils/payroll.js'
 import { Receipt } from './Billing.jsx'
 import { canModify } from '../config/permissions.js'
@@ -262,7 +264,12 @@ function RevenueByHour({ orders, orderTotal }) {
       {hours.length === 0 ? (
         <p className="mt-8 text-sm text-cream-dim">{t('dashboard.noPaidRevenue')}</p>
       ) : (
-        <div className="mt-8 flex h-44 items-end gap-3">
+        // items-stretch, not items-end: align-items:flex-end would size each
+        // column to its content, leaving the flex-1 bar track at zero height —
+        // and a bar's percentage height resolves against that track, so every
+        // bar collapsed to nothing while the labels still rendered. The bars
+        // are bottom-aligned by the track's own items-end below.
+        <div className="mt-8 flex h-44 items-stretch gap-3">
           {hours.map((h) => {
             const pct = (buckets[h] / max) * 100
             const label = `${((h + 11) % 12) + 1}${h < 12 ? 'a' : 'p'}`
@@ -563,13 +570,18 @@ function IngredientRequestsPanel({ role }) {
 // PENDING HANDOVERS PANEL (Manager / Admin)
 // ============================================================================
 
-// Cashier partial handovers awaiting a decision. Manager/Admin accepts (cash
-// leaves the drawer) or rejects (with reason). Hidden when nothing is pending.
+// Handovers awaiting a decision — accepts (cash changes hands) or rejects
+// (with reason). Hidden when nothing is pending.
+//
+// Only handovers ADDRESSED to the viewer's role appear: cash handed to the
+// Admin is signed for by an Admin, not by whichever Manager clicked first.
+// Re-checked server-side in shifts.service.ts assertAddressedTo — this filter
+// is the UI half of the same gate.
 function PendingHandoversPanel() {
-  const { pendingHandovers, acceptHandover, rejectHandover } = useApp()
+  const { pendingHandovers, acceptHandover, rejectHandover, user } = useApp()
   const t = useT()
   const [selected, setSelected] = useState(null)
-  const pending = pendingHandovers.filter((h) => h.status === 'pending')
+  const pending = pendingHandovers.filter((h) => h.status === 'pending' && h.toRole === user?.role)
   if (pending.length === 0) return null
 
   return (
@@ -612,6 +624,196 @@ function PendingHandoversPanel() {
             return res
           }}
           onClose={() => setSelected(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ============================================================================
+// CASH ON HAND  (Manager / Admin)
+// ============================================================================
+
+// Where the handed-over cash physically is, broken down by who is holding it.
+//
+// This used to show one lump "total received", which double-counted the middle
+// leg once a Manager could forward cash on to the Admin (counted when the
+// cashier gave it up, and again when the admin received it) and answered the
+// wrong question — the useful figure is how much sits with the Admin vs still
+// with a Manager. cashPositions() nets a holder's forwards back out; it mirrors
+// cashHeldBy() server-side, which caps how much a manager may forward.
+//
+// Dated by resolvedAt (when the cash actually changed hands), not initiatedAt,
+// and scoped to the open business session so it resets at day close with the
+// dashboard's other money figures.
+function CashOnHandPanel() {
+  const { pendingHandovers, lastClosingAt, user, forwardHandover } = useApp()
+  const t = useT()
+  const [forwardOpen, setForwardOpen] = useState(false)
+
+  const { roles } = useMemo(
+    () => cashPositions(pendingHandovers, lastClosingAt),
+    [pendingHandovers, lastClosingAt],
+  )
+
+  const sinceMs = lastClosingAt ? new Date(lastClosingAt).getTime() : null
+  const inSession = (h) =>
+    sinceMs === null || new Date(h.resolvedAt || h.initiatedAt).getTime() > sinceMs
+  const sum = (list) => list.reduce((s, h) => s + h.amount, 0)
+
+  // Only handovers addressed to this role need this viewer's decision.
+  const awaiting = pendingHandovers.filter((h) => h.status === 'pending' && h.toRole === user?.role)
+  const awaitingTotal = sum(awaiting)
+
+  // What THIS user is still holding — the cap on what they can forward.
+  const myHolding =
+    roles.find((r) => r.role === user?.role)?.people.find((p) => p.name === user?.name)?.amount ?? 0
+  const canForward = user && canModify(user.role, 'handoverForward')
+
+  // Only the Admin sees the whole picture. A Manager sees their own position
+  // and nothing else — not what the owner is holding, and not what another
+  // manager is holding. The overall total is Admin-only for the same reason:
+  // it would give away the Admin's figure by subtraction.
+  const seesAll = user?.role === 'Admin'
+  const headlineTotal = seesAll ? roles.reduce((s, r) => s + r.amount, 0) : myHolding
+
+  // Where it came from — cashier-origin legs only, so a manager's forward isn't
+  // listed as if a cashier had produced that cash twice. A Manager sees only
+  // the legs they personally signed for, otherwise the cashier rows would add
+  // back up to the figures hidden above.
+  const fromCashiers = pendingHandovers.filter(
+    (h) =>
+      h.status === 'accepted' &&
+      inSession(h) &&
+      h.kind !== 'forward' &&
+      (seesAll || h.resolvedBy === user?.name),
+  )
+  const byCashier = Object.values(
+    fromCashiers.reduce((acc, h) => {
+      const row = acc[h.fromName] || { name: h.fromName, amount: 0, partial: 0, shiftEnd: 0 }
+      row.amount += h.amount
+      if (h.kind === 'shift_end') row.shiftEnd += 1
+      else row.partial += 1
+      acc[h.fromName] = row
+      return acc
+    }, {}),
+  ).sort((a, b) => b.amount - a.amount)
+
+  return (
+    <div className="card p-6">
+      <div className="flex items-center justify-between border-b border-ink-line pb-4">
+        <div className="flex items-center gap-3">
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/25">
+            <IconWallet size={20} />
+          </span>
+          <div>
+            <h3 className="font-serif text-xl text-cream">{t('handover.onHandTitle')}</h3>
+            <p className="text-xs text-cream-dim">{t('handover.onHandSub')}</p>
+          </div>
+        </div>
+        <div className="text-end">
+          <p className="text-[11px] uppercase tracking-wider text-cream-dim">
+            {seesAll ? t('handover.totalOnHand') : t('handover.youHold')}
+          </p>
+          <p className="font-serif text-3xl font-semibold text-gold">{money(headlineTotal)}</p>
+        </div>
+      </div>
+
+      {/* The per-role breakdown is Admin-only — the headline figure above is
+          already this viewer's own position when they aren't the Admin. */}
+      {!seesAll ? (
+        headlineTotal === 0 && <p className="mt-4 text-sm text-cream-dim">{t('handover.noneReceived')}</p>
+      ) : roles.length === 0 ? (
+        <p className="mt-4 text-sm text-cream-dim">{t('handover.noneReceived')}</p>
+      ) : (
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {roles.map((r) => (
+            <div
+              key={r.role}
+              className={`rounded-xl border p-4 ${
+                r.role === 'Admin'
+                  ? 'border-gold/30 bg-gold/[0.06]'
+                  : 'border-sky-500/30 bg-sky-500/[0.06]'
+              }`}
+            >
+              <p className="text-[11px] uppercase tracking-wider text-cream-dim">
+                {t(`handover.heldBy${r.role}`, r.role)}
+              </p>
+              <p
+                className={`mt-1 font-serif text-2xl font-semibold ${
+                  r.role === 'Admin' ? 'text-gold' : 'text-sky-300'
+                }`}
+              >
+                {money(r.amount)}
+              </p>
+              <div className="mt-2 divide-y divide-ink-line/70">
+                {r.people.map((p) => (
+                  <div key={p.name} className="flex items-center justify-between gap-2 py-1.5">
+                    <span className="truncate text-xs text-cream-dim">{p.name}</span>
+                    <span className="shrink-0 text-xs font-semibold text-cream">{money(p.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Manager forwards their collected cash up to the Admin, so the whole
+          day's takings end in one pair of hands. */}
+      {canForward && (
+        <button
+          onClick={() => setForwardOpen(true)}
+          disabled={myHolding <= 0}
+          className="btn-gold mt-4 w-full py-3 text-sm disabled:opacity-50"
+        >
+          <IconWallet size={16} />{' '}
+          {myHolding > 0
+            ? `${t('handover.forwardCta')} · ${money(myHolding)}`
+            : t('handover.forwardNothing')}
+        </button>
+      )}
+
+      {byCashier.length > 0 && (
+        <div className="mt-5">
+          <p className="text-[11px] uppercase tracking-wider text-cream-dim">{t('handover.byCashier')}</p>
+          <div className="mt-2 divide-y divide-ink-line">
+            {byCashier.map((c) => (
+              <div key={c.name} className="flex items-center justify-between gap-3 py-2.5">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-cream">{c.name}</p>
+                  <p className="text-xs text-cream-dim">
+                    {c.partial} {t('handover.kindPartial')} · {c.shiftEnd} {t('handover.kindShiftEnd')}
+                  </p>
+                </div>
+                <p className="shrink-0 text-sm font-semibold text-emerald-300">{money(c.amount)}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {awaiting.length > 0 && (
+        <Link
+          to="/handovers"
+          className="mt-4 flex items-center justify-between rounded-xl border border-amber-500/30 bg-amber-500/[0.07] px-4 py-3 transition hover:bg-amber-500/[0.12]"
+        >
+          <span className="text-xs font-semibold text-amber-300">
+            {money(awaitingTotal)} · {awaiting.length} {t('handover.awaitingApproval')}
+          </span>
+          <span className="text-xs font-semibold text-amber-300">{t('handover.review')} →</span>
+        </Link>
+      )}
+
+      {forwardOpen && (
+        <ForwardCashModal
+          held={myHolding}
+          onClose={() => setForwardOpen(false)}
+          onSubmit={async (data) => {
+            const res = await forwardHandover(data)
+            if (!res?.error) setForwardOpen(false)
+            return res
+          }}
         />
       )}
     </div>
@@ -669,6 +871,7 @@ function AdminDashboard({ stats, orders, orderTotal, attendance, lowStock }) {
         {/* Main Column */}
         <div className="space-y-6 lg:col-span-2">
           <RevenueByHour orders={orders} orderTotal={orderTotal} />
+          <CashOnHandPanel />
           <CashReconciliation />
           <RecentOrders orders={orders} orderTotal={orderTotal} />
         </div>
@@ -761,6 +964,7 @@ function ManagerDashboard({ stats, orders, orderTotal, attendance, unpaidTotal, 
         {/* Main Column */}
         <div className="space-y-6 lg:col-span-2">
           <FloorMap orders={orders} orderTotal={orderTotal} />
+          <CashOnHandPanel />
           <CashReconciliation />
           <RecentOrders orders={orders} orderTotal={orderTotal} />
         </div>

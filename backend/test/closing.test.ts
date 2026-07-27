@@ -130,6 +130,17 @@ describe('buildClosingReport session boundary', () => {
     expect(report.netSale).toBe(0)
     expect(report.expenses).toBe(0)
   })
+
+  // The report states the window it covers, because `date` alone can't — a
+  // session routinely spans two calendar days. periodEnd stays null until the
+  // session is saved (closing.service.ts stamps it with closingTime).
+  it('reports the recording window it covers', () => {
+    const since = todayAt(11, 30).toISOString()
+    expect(buildClosingReport(orders, transactions, dateStr, inventory, recipes, since).periodStart).toBe(since)
+    expect(buildClosingReport(orders, transactions, dateStr, inventory, recipes, since).periodEnd).toBeNull()
+    // No boundary yet (before the first-ever closing) — calendar-day scoped.
+    expect(buildClosingReport(orders, transactions, dateStr, inventory, recipes).periodStart).toBeNull()
+  })
 })
 
 // Client's own reference sheets (reports/2.png, reports/3.png, reports/5.png,

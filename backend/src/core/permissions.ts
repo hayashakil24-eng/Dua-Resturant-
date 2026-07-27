@@ -56,7 +56,9 @@ export type PageKey =
   | 'closing'
   | 'receivables'
   | 'departments'
+  | 'drawer'
   | 'handovers'
+  | 'handoverForward'
   | 'orderComplimentary'
   | 'kds'
   | 'billing'
@@ -93,7 +95,9 @@ export const PERMISSIONS: Record<Role, Record<PageKey, AccessLevel>> = {
     closing: 'full', // end-of-day closing report (Admin/Manager)
     receivables: 'full', // credit accounts — view & settle
     departments: 'full', // create/edit counters + assign items to them
-    handovers: 'full', // review/accept/reject cashier cash handovers
+    drawer: 'full', // may run a cash drawer
+    handovers: 'full', // review/accept/reject handovers addressed to Admin
+    handoverForward: 'none', // Admin is the final destination — nowhere to forward to
     orderComplimentary: 'full', // mark an order free / on-the-house
     kds: 'full',
     billing: 'full',
@@ -115,7 +119,7 @@ export const PERMISSIONS: Record<Role, Record<PageKey, AccessLevel>> = {
   },
   Manager: {
     dashboard: 'full',
-    pos: 'hidden',
+    pos: 'full', // Manager may punch orders (no drawer — see `drawer`)
     orders: 'view',
     orderCancel: 'none', // Only Admin may cancel bills; Manager is view-only
     discount: 'full',
@@ -130,10 +134,12 @@ export const PERMISSIONS: Record<Role, Record<PageKey, AccessLevel>> = {
     closing: 'full', // end-of-day closing report (Admin/Manager)
     receivables: 'full', // Manager may view & settle credit accounts
     departments: 'full', // Manager may create counters + assign items too
-    handovers: 'full', // Manager may review/accept/reject cash handovers
+    drawer: 'none', // Manager RECEIVES cash; running a drawer too would defeat the chain
+    handovers: 'full', // Manager may review/accept/reject handovers addressed to Manager
+    handoverForward: 'full', // ONLY Manager forwards collected cash up to Admin
     orderComplimentary: 'full', // Manager may mark an order free / on-the-house
     kds: 'full',
-    billing: 'view',
+    billing: 'create', // may settle a bill they punched
     settings: 'hidden', // Only Admin controls app settings
     attendanceOverride: 'none',
     kitchen: 'view', // Manager can view the Kitchen dashboard / recipes
@@ -174,7 +180,9 @@ export const PERMISSIONS: Record<Role, Record<PageKey, AccessLevel>> = {
     closing: 'hidden',
     receivables: 'hidden',
     departments: 'hidden', // Kitchen doesn't configure counters
+    drawer: 'none',
     handovers: 'hidden',
+    handoverForward: 'none',
     orderComplimentary: 'none',
     kds: 'full', // kitchen staff can watch the live order display too
     billing: 'hidden',
@@ -211,7 +219,9 @@ export const PERMISSIONS: Record<Role, Record<PageKey, AccessLevel>> = {
     closing: 'hidden',
     receivables: 'hidden',
     departments: 'hidden', // Cashier only places orders (auto-routed)
+    drawer: 'full', // the cashier's own till
     handovers: 'hidden', // Cashier initiates handovers but doesn't approve them
+    handoverForward: 'none', // the cashier's own handover IS the initiation
     orderComplimentary: 'none', // only Admin/Manager may comp an order
     kds: 'hidden',
     billing: 'create',
@@ -251,7 +261,9 @@ export const PERMISSIONS: Record<Role, Record<PageKey, AccessLevel>> = {
     closing: 'hidden',
     receivables: 'hidden',
     departments: 'hidden',
+    drawer: 'none',
     handovers: 'hidden',
+    handoverForward: 'none',
     orderComplimentary: 'none',
     kds: 'hidden',
     billing: 'hidden',

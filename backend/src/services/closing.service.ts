@@ -12,6 +12,7 @@ import { writeAudit } from '../lib/audit.js'
 import { ServiceError } from '../lib/errors.js'
 import type { Actor } from '../lib/actor.js'
 import { enqueueOutbox } from '../sync/outbox.js'
+import { getBoundaryIso } from '../lib/businessDay.js'
 
 interface Ctx {
   actor: Actor
@@ -51,14 +52,9 @@ async function gather() {
   return { closingOrders, closingTxns, inv, rec }
 }
 
-// The business-day "session" boundary: the moment the day was last closed.
-// Everything after it belongs to the open session; null before the first ever
-// closing. A single timestamp (not per-date) so a forgotten-then-caught-up
-// close spanning two calendar days still reports one continuous session.
-async function getBoundaryIso(): Promise<string | null> {
-  const last = await prisma.dailyClosing.findFirst({ orderBy: { closingTime: 'desc' } })
-  return last ? last.closingTime.toISOString() : null
-}
+// The business-day "session" boundary now lives in lib/businessDay.ts so
+// shifts.service can scope cash positions to the same session without a
+// circular import back through this file.
 
 // Preview the closing figures for the current open session, without saving
 // (Reports/Closing page). Scoped to everything since the last closing.
@@ -82,13 +78,19 @@ export async function getLatestClosing() {
 // etc. — plus the closedBy/closingTime metadata columns).
 export async function listClosings() {
   const rows = await prisma.dailyClosing.findMany({ orderBy: { closingTime: 'desc' } })
-  return rows.map((r) => {
+  return rows.map((r, i) => {
     let report: Record<string, unknown> = {}
     try {
       report = JSON.parse(r.reportJson)
     } catch {
       /* leave empty */
     }
+    // A closing row only stores its END instant, so a session's recording
+    // window is derived here: rows are newest-first, so this row's start is the
+    // NEXT-OLDER row's closingTime (null for the oldest, where the report was
+    // calendar-day scoped). Derived after the spread so it wins over any
+    // periodStart frozen into reportJson — records saved before periodStart
+    // existed have none, and this is what gives them a correct range.
     return {
       ...report,
       id: r.id,
@@ -96,6 +98,8 @@ export async function listClosings() {
       closedBy: r.closedBy,
       closedByRole: r.closedByRole,
       closingTime: r.closingTime.toISOString(),
+      periodStart: rows[i + 1]?.closingTime.toISOString() ?? null,
+      periodEnd: r.closingTime.toISOString(),
       totalSales: r.totalSales,
     }
   })
@@ -150,6 +154,9 @@ export async function saveDailyClosing(ctx: Ctx, dateStr?: string) {
   const report = await buildReport(day)
   assertHasActivity(report)
   const closingTime = new Date()
+  // The frozen snapshot records its own recording window, so a reprinted sheet
+  // states the period it covers without needing the neighbouring row.
+  report.periodEnd = closingTime.toISOString()
   const record = await prisma.$transaction(async (tx) => {
     const saved = await tx.dailyClosing.create({
       data: {

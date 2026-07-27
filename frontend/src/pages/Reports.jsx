@@ -6,13 +6,12 @@ import { PageHeader } from '../components/ui.jsx'
 import { money, monthYear, dateLong, time } from '../utils/format.js'
 import KOTView from '../components/KOTView.jsx'
 import DailyReportSlip from '../components/DailyReportSlip.jsx'
+import SessionHistory from '../components/SessionHistory.jsx'
 import { monthFigures, isMaintenance } from '../utils/accounting.js'
+import { buildSessions, sessionLabel } from '../utils/sessions.js'
 import { safePrint } from '../utils/print.js'
 import { calculateDeductions } from '../utils/inventoryFlow.js'
 import { IconPrint, IconWhatsApp } from '../components/Icons.jsx'
-
-const toDayStr = (d) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 function topSelling(orderList, n = 5) {
   const map = {}
@@ -59,7 +58,7 @@ function Row({ label, value, tone = 'text-[#3498DB]', strong }) {
 }
 
 export default function Reports() {
-  const { orders, orderTotal, transactions, staff, inventory, recipes } = useApp()
+  const { orders, orderTotal, transactions, staff, inventory, recipes, dailyClosings, lastClosingAt } = useApp()
   const { t, lang } = useLang()
   const today = useMemo(() => new Date(), [])
 
@@ -75,22 +74,27 @@ export default function Reports() {
     return opts
   }, [today])
 
-  const [type, setType] = useState('daily')
-  const [view, setView] = useState('overview') // 'overview' | 'summary' | 'itemwise'
-  const [dailyDate, setDailyDate] = useState(() => toDayStr(new Date()))
+  const [type, setType] = useState('session')
+  const [view, setView] = useState('overview') // 'overview' | 'summary' | 'itemwise' | 'kot' | 'history'
+  // Which recording window to report on. The business day doesn't follow the
+  // calendar (open 2pm, close 3pm the next day), so a report is scoped to the
+  // session between two closings — the same boundary the Closing page and the
+  // Dashboard already use — not to a date. `sessions[0]` is the open one.
+  const [sessionId, setSessionId] = useState('current')
   const [monthKey, setMonthKey] = useState(monthOptions[0].key)
 
-  // Earliest selectable day — reports retain the last 6 months of history.
-  const minDay = useMemo(() => {
-    const d = new Date(today.getFullYear(), today.getMonth() - 6, today.getDate())
-    return toDayStr(d)
-  }, [today])
-  const maxDay = useMemo(() => toDayStr(today), [today])
+  const sessions = useMemo(
+    () => buildSessions(dailyClosings, lastClosingAt),
+    [dailyClosings, lastClosingAt],
+  )
+  // Falls back to the open session when the selected one disappears — e.g. a
+  // day gets closed on another device and the list refetches under us.
+  const selected = sessions.find((s) => s.id === sessionId) || sessions[0]
 
   // Orders in the selected scope
   const scopeOrders = useMemo(() => {
-    if (type === 'daily') {
-      return orders.filter((o) => !o.cancelled && toDayStr(new Date(o.createdAt)) === dailyDate)
+    if (type === 'session') {
+      return orders.filter((o) => !o.cancelled && selected.contains(o.createdAt))
     }
     const [y, m] = monthKey.split('-').map(Number)
     return orders.filter((o) => {
@@ -98,7 +102,7 @@ export default function Reports() {
       const d = new Date(o.createdAt)
       return d.getFullYear() === y && d.getMonth() === m - 1
     })
-  }, [orders, type, dailyDate, monthKey])
+  }, [orders, type, selected, monthKey])
 
   const report = useMemo(() => {
     const totalOrders = scopeOrders.length
@@ -181,15 +185,18 @@ export default function Reports() {
       }
     }
 
-    // Daily — expenses = transactions logged that day (maintenance split out)
+    // Session — expenses = transactions logged inside the same recording
+    // window as the orders above (maintenance split out)
     const dayExpenses = transactions.filter(
-      (tx) => tx.type === 'expense' && toDayStr(new Date(tx.date)) === dailyDate,
+      (tx) => tx.type === 'expense' && selected.contains(tx.date),
     )
     const dailyMaintenance = dayExpenses.filter((tx) => isMaintenance(tx.category)).reduce((s, tx) => s + tx.amount, 0)
     const dailyExpenses = dayExpenses.filter((tx) => !isMaintenance(tx.category)).reduce((s, tx) => s + tx.amount, 0)
     return {
-      titleKey: 'reports.dailyReport',
-      rangeLabel: dateLong(`${dailyDate}T00:00:00`),
+      titleKey: 'reports.sessionReport',
+      rangeLabel: sessionLabel(selected, t),
+      periodStart: selected.from,
+      periodEnd: selected.to,
       // Total Sale = collected (paid) orders only, so it always equals
       // Cash + Card + Online. Unpaid/running tabs are excluded until paid.
       revenueLabelKey: 'reports.totalSaleCollected',
@@ -209,7 +216,7 @@ export default function Reports() {
       items,
       discounts,
     }
-  }, [scopeOrders, type, monthKey, dailyDate, transactions, today, orderTotal, monthOptions, staff, inventory, recipes])
+  }, [scopeOrders, type, monthKey, selected, transactions, today, orderTotal, monthOptions, staff, inventory, recipes, t])
 
   const shareWhatsApp = () => {
     const lines = [
@@ -234,17 +241,19 @@ export default function Reports() {
     window.open(`https://wa.me/?text=${encodeURIComponent(lines.join('\n'))}`, '_blank')
   }
 
-  // KOT is inherently a daily report — it uses `dailyDate` and doesn't apply
-  // the daily/monthly period toggle.
-  const isDailyView = view === 'kot'
+  // KOT is inherently a single-session report — it uses `selected` and doesn't
+  // apply the session/monthly period toggle. History lists every past session,
+  // so it has no period scope of its own either.
+  const isSessionOnlyView = view === 'kot'
+  const isHistoryView = view === 'history'
 
   return (
     <div>
       <PageHeader title={t('reports.title')} subtitle={t('reports.subtitle')}>
         <div className="flex flex-wrap items-center gap-2 no-print">
-          {!isDailyView && (
+          {!isSessionOnlyView && !isHistoryView && (
             <div className="flex overflow-hidden rounded-xl border border-ink-line">
-              {['daily', 'monthly'].map((p) => (
+              {['session', 'monthly'].map((p) => (
                 <button
                   key={p}
                   onClick={() => setType(p)}
@@ -257,15 +266,22 @@ export default function Reports() {
               ))}
             </div>
           )}
-          {isDailyView || type === 'daily' ? (
-            <input
-              type="date"
-              className="input w-44 py-2"
-              value={dailyDate}
-              min={minDay}
-              max={maxDay}
-              onChange={(e) => setDailyDate(e.target.value)}
-            />
+          {isHistoryView ? null : isSessionOnlyView || type === 'session' ? (
+            /* Each option is one closing-to-closing recording window, newest
+               first, so the period a report covers is always explicit. */
+            <select
+              className="input w-72 py-2"
+              dir="ltr"
+              value={selected.id}
+              onChange={(e) => setSessionId(e.target.value)}
+            >
+              {sessions.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.open ? `${t('reports.currentSession')} — ` : ''}
+                  {sessionLabel(s, t)}
+                </option>
+              ))}
+            </select>
           ) : (
             <select
               className="input w-44 py-2"
@@ -285,10 +301,11 @@ export default function Reports() {
       {/* View tabs */}
       <div className="mb-4 flex flex-wrap gap-2 border-b border-ink-line no-print">
         {[
-          ['overview', 'reports.dailyReport'],
+          ['overview', 'reports.sessionReport'],
           ['summary', 'reports.summary'],
           ['itemwise', 'reports.itemWise'],
           ['kot', 'nav.kot'],
+          ['history', 'reports.history'],
         ].map(([key, labelKey]) => (
           <button
             key={key}
@@ -304,11 +321,22 @@ export default function Reports() {
         ))}
       </div>
 
-      {view === 'kot' && <KOTView dayStr={dailyDate} />}
+      {view === 'kot' && <KOTView session={selected} />}
 
-      {!isDailyView && (
+      {isHistoryView && (
+        <SessionHistory
+          sessions={sessions}
+          onView={(id) => {
+            setSessionId(id)
+            setType('session')
+            setView('overview')
+          }}
+        />
+      )}
+
+      {!isSessionOnlyView && !isHistoryView && (
       <div className="mx-auto max-w-2xl">
-        {/* Daily Report — a clean, at-a-glance overview (screen view, not the
+        {/* Session Report — a clean, at-a-glance overview (screen view, not the
             printable paper). Uses the app's real figures incl. net profit. */}
         {view === 'overview' && (
           <div className="space-y-4">
@@ -320,9 +348,17 @@ export default function Reports() {
 
             <DailyReportSlip report={report} />
 
-            <div className="card flex items-center justify-between p-5">
-              <span className="text-sm text-cream-dim">{t('reports.date')}</span>
-              <span className="font-serif text-lg font-semibold text-gold">{report.rangeLabel}</span>
+            {/* The window the figures below actually cover. Spelled out rather
+                than shown as a date, because one session routinely spans two
+                calendar days — dir=ltr so the "from → to" ends don't swap in
+                Urdu (RTL) and read backwards. */}
+            <div className="card flex flex-wrap items-center justify-between gap-2 p-5">
+              <span className="text-sm text-cream-dim">
+                {type === 'session' ? t('reports.recordingPeriod') : t('reports.date')}
+              </span>
+              <span className="font-serif text-lg font-semibold text-gold" dir="ltr">
+                {report.rangeLabel}
+              </span>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -414,10 +450,20 @@ export default function Reports() {
 
           <div className="my-5 border-t-2 border-dashed border-[#E8DCC4]" />
 
-          <div className="flex items-baseline justify-between">
+          <div className="flex items-baseline justify-between gap-3">
             <h2 className="font-serif text-xl font-bold text-[#C9A961]">{t(report.titleKey)}</h2>
-            <span className="text-sm font-semibold text-[#5D4037]">{report.rangeLabel}</span>
+            <span className="text-right text-sm font-semibold text-[#5D4037]" dir="ltr">
+              {report.rangeLabel}
+            </span>
           </div>
+          {/* Printed copies must state the exact window they cover — a sheet
+              that only says "26 Jul" hides the half of the session that ran on
+              the 25th. */}
+          {type === 'session' && (
+            <p className="mt-1 text-[11px] font-semibold text-[#5D4037]" dir="ltr">
+              {t('reports.recordingPeriod')}: {report.rangeLabel}
+            </p>
+          )}
           <p className="mt-1 text-[11px] text-[#8D6E63]">
             {t('reports.generated')} {dateLong()} · {time(new Date().toISOString())}
           </p>
@@ -428,7 +474,7 @@ export default function Reports() {
           <div className="mt-5">
             <Row label={t('reports.totalOrders')} value={report.totalOrders} tone="text-[#3498DB]" />
             <Row label={t(report.revenueLabelKey)} value={money(report.revenue)} tone="text-[#3498DB]" />
-            {type === 'daily' && (
+            {type === 'session' && (
               <>
                 <Row label={t('reports.cash')} value={money(report.cash)} tone="text-[#3498DB]" />
                 <Row label={t('reports.card')} value={money(report.card)} tone="text-[#3498DB]" />

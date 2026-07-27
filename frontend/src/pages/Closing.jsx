@@ -5,6 +5,7 @@ import { money, dateLong, time } from '../utils/format.js'
 import { canModify } from '../config/permissions.js'
 import { safePrint } from '../utils/print.js'
 import { buildClosingReport, toDayStr } from '../utils/closing.js'
+import { buildSessions, sessionLabel } from '../utils/sessions.js'
 import ClosingSummaryTable from '../components/ClosingSummaryTable.jsx'
 import ClosingSlip from '../components/ClosingSlip.jsx'
 import { IconPrint, IconCheck, IconAlert, IconClose } from '../components/Icons.jsx'
@@ -23,6 +24,18 @@ export default function Closing() {
     [orders, orderTotal, transactions, todayStr, inventory, recipes, lastClosingAt],
   )
   const liveMeta = { closedBy: user?.name, closedByRole: user?.role, closingTime: new Date().toISOString() }
+
+  // The recording window each saved closing covers. A row only stores its END
+  // instant, so its start is the previous row's — see utils/sessions.js. Shown
+  // because a session routinely spans two calendar days, which the single
+  // `rec.date` heading can't express.
+  const rangeById = useMemo(() => {
+    const map = {}
+    buildSessions(dailyClosings, lastClosingAt).forEach((s) => {
+      if (s.record) map[s.id] = sessionLabel(s)
+    })
+    return map
+  }, [dailyClosings, lastClosingAt])
 
   // Bills that must be resolved (Udhaar or Complimentary) before the day can
   // be closed — closing previously just silently excluded these from the
@@ -159,6 +172,11 @@ export default function Closing() {
               <li key={rec.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                 <div className="min-w-0">
                   <p className="font-semibold text-cream">{dateLong(`${rec.date}T00:00:00`)}</p>
+                  {rangeById[rec.id] && (
+                    <p className="mt-0.5 text-xs font-semibold text-gold/80" dir="ltr">
+                      {rangeById[rec.id]}
+                    </p>
+                  )}
                   <p className="mt-0.5 text-xs text-cream-dim">
                     Closed by {rec.closedBy} ({rec.closedByRole}) · {time(rec.closingTime)} · handover{' '}
                     {money(rec.remainingHandover)}

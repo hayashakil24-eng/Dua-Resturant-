@@ -22,6 +22,11 @@ const numLocale = () => (isUrdu() ? UR : 'en-PK')
 
 export const money = (n) => `${CURRENCY} ${Number(n || 0).toLocaleString(numLocale())}`
 
+// A bare number in the active locale's digits — for counts/durations that
+// aren't money (session length, order counts inside a composed label), so they
+// don't render Latin digits next to Urdu ones.
+export const num = (n) => Number(n || 0).toLocaleString(numLocale())
+
 export const time = (iso) => {
   if (!iso) return '—'
   const d = new Date(iso)

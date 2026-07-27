@@ -11,12 +11,22 @@ import { IconCash } from '../components/Icons.jsx'
 // immutable history (accepted + rejected) — resolved records stay in
 // pendingHandovers with a status + resolver, so no separate log is needed.
 export default function HandoverApprovals() {
-  const { pendingHandovers, acceptHandover, rejectHandover } = useApp()
+  const { pendingHandovers, acceptHandover, rejectHandover, user } = useApp()
   const { t } = useLang()
   const [tab, setTab] = useState('pending')
   const [selected, setSelected] = useState(null)
 
-  const pending = useMemo(() => pendingHandovers.filter((h) => h.status === 'pending'), [pendingHandovers])
+  // Only handovers ADDRESSED to this role are actionable — cash handed to the
+  // Admin is signed for by an Admin, not by whichever Manager got here first.
+  // Re-checked server-side (shifts.service.ts assertAddressedTo).
+  //
+  // The Processed tab needs no filter of its own: /api/handovers already scopes
+  // the response to the caller, so a Manager only ever receives their own
+  // resolved rows and the Admin receives the full history.
+  const pending = useMemo(
+    () => pendingHandovers.filter((h) => h.status === 'pending' && h.toRole === user?.role),
+    [pendingHandovers, user],
+  )
   const processed = useMemo(
     () =>
       pendingHandovers

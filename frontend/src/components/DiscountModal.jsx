@@ -14,24 +14,50 @@ const REASONS = [
   'Other',
 ]
 
-// Admin/Manager tool to knock a flat Rs. amount off a bill. `gross` is the
-// bill total (subtotal + tax) before any discount; the discount is clamped to
-// it so the final bill can never go negative.
-export default function DiscountModal({ order, gross, onApply, onClose }) {
+const QUICK_PERCENTS = [5, 10, 15, 20, 25, 50]
+
+// Admin/Manager tool to knock money off a bill, either as a percentage of the
+// bill or as a flat Rs. figure. `bill` is the order's own breakdown BEFORE any
+// discount ({ subtotal, tax, total }) — GST is added first and the discount
+// comes off that total, so the percentage is a percentage of what the customer
+// would otherwise pay. The breakdown is shown here because "10% of what?" is
+// the first thing anyone asks. In percent mode the rupee figure is only a
+// preview: the server recomputes it from the percent it is sent.
+export default function DiscountModal({ order, bill, rate = 0, onApply, onClose }) {
+  const gross = bill.total
+  const [mode, setMode] = useState('percent') // 'percent' | 'amount'
+  const [percent, setPercent] = useState('')
   const [amount, setAmount] = useState('')
   const [reason, setReason] = useState('')
   const [notes, setNotes] = useState('')
   const [error, setError] = useState('')
   useEscapeKey(onClose)
 
-  const amt = Number(amount) || 0
+  const byPercent = mode === 'percent'
+  const pct = Number(percent) || 0
+  const amt = byPercent ? Math.round((gross * pct) / 100) : Number(amount) || 0
   const newTotal = Math.max(0, gross - amt)
 
   const submit = () => {
-    if (amt <= 0) return setError('Enter a discount amount.')
-    if (amt > gross) return setError(`Discount cannot exceed ${money(gross)}.`)
+    if (byPercent) {
+      if (!Number.isInteger(pct) || pct <= 0 || pct > 100) return setError('Enter a whole percentage between 1 and 100.')
+    } else {
+      if (amt <= 0) return setError('Enter a discount amount.')
+      if (amt > gross) return setError(`Discount cannot exceed ${money(gross)}.`)
+    }
     setError('')
-    onApply({ amount: amt, reason: reason || 'Manual Discount', notes: notes.trim() })
+    onApply({
+      ...(byPercent ? { percent: pct } : { amount: amt }),
+      reason: reason || 'Manual Discount',
+      notes: notes.trim(),
+    })
+  }
+
+  const switchMode = (next) => {
+    setMode(next)
+    setError('')
+    setPercent('')
+    setAmount('')
   }
 
   return (
@@ -51,30 +77,110 @@ export default function DiscountModal({ order, gross, onApply, onClose }) {
             </button>
           </div>
 
-          {/* Current bill */}
-          <div className="mt-5 rounded-2xl border border-ink-line bg-ink-soft p-4 text-center">
-            <p className="text-[11px] uppercase tracking-widest text-cream-dim">Current bill total</p>
-            <p className="mt-1 font-serif text-3xl font-semibold text-cream">{money(gross)}</p>
+          {/* Current bill — GST shown separately so it's obvious the discount
+              is taken off the GST-inclusive total, not the subtotal. */}
+          <div className="mt-5 rounded-2xl border border-ink-line bg-ink-soft p-4">
+            {bill.tax > 0 && (
+              <div className="mb-2 space-y-1 border-b border-ink-line pb-2 text-xs">
+                <div className="flex justify-between text-cream-dim">
+                  <span>Subtotal</span>
+                  <span className="text-cream">{money(bill.subtotal)}</span>
+                </div>
+                <div className="flex justify-between text-cream-dim">
+                  <span>+ GST ({Math.round(rate * 100)}%)</span>
+                  <span className="text-cream">{money(bill.tax)}</span>
+                </div>
+              </div>
+            )}
+            <p className="text-center text-[11px] uppercase tracking-widest text-cream-dim">
+              Bill total{bill.tax > 0 ? ' (with GST)' : ''}
+            </p>
+            <p className="mt-1 text-center font-serif text-3xl font-semibold text-cream">{money(gross)}</p>
           </div>
 
-          {/* Amount */}
-          <div className="mt-5">
-            <label className="mb-2 block text-[11px] uppercase tracking-wider text-cream-dim">
-              Discount amount (Rs.)
-            </label>
-            <input
-              type="number"
-              inputMode="numeric"
-              min={0}
-              max={gross}
-              autoFocus
-              className="input"
-              placeholder="e.g. 150"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-            <p className="mt-1 text-[11px] text-cream-dim">Max {money(gross)}</p>
+          {/* Percentage or flat rupees */}
+          <div className="mt-5 grid grid-cols-2 gap-2">
+            {[
+              { key: 'percent', label: 'Percentage (%)' },
+              { key: 'amount', label: 'Fixed (Rs.)' },
+            ].map((m) => (
+              <button
+                key={m.key}
+                type="button"
+                onClick={() => switchMode(m.key)}
+                className={`rounded-xl border py-2.5 text-sm font-semibold transition ${
+                  mode === m.key
+                    ? 'border-gold/50 bg-gold/12 text-gold'
+                    : 'border-ink-line bg-ink-soft text-cream-dim hover:text-cream'
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
           </div>
+
+          {byPercent ? (
+            <div className="mt-4">
+              <label className="mb-2 block text-[11px] uppercase tracking-wider text-cream-dim">
+                Discount percentage (%)
+              </label>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={100}
+                step={1}
+                autoFocus
+                className="input"
+                placeholder="e.g. 10"
+                value={percent}
+                onChange={(e) => setPercent(e.target.value)}
+              />
+              <div className="mt-2 flex flex-wrap gap-2">
+                {QUICK_PERCENTS.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => {
+                      setPercent(String(p))
+                      setError('')
+                    }}
+                    className={`rounded-lg border px-3 py-1 text-xs font-semibold transition ${
+                      pct === p
+                        ? 'border-gold/50 bg-gold/12 text-gold'
+                        : 'border-ink-line bg-ink-soft text-cream-dim hover:text-cream'
+                    }`}
+                  >
+                    {p}%
+                  </button>
+                ))}
+              </div>
+              {pct > 0 && pct <= 100 && (
+                <p className="mt-2 text-[11px] text-cream-dim">
+                  {pct}% of {money(gross)}
+                  {bill.tax > 0 ? ' (with GST)' : ''} = <span className="text-gold">{money(amt)}</span>
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="mt-4">
+              <label className="mb-2 block text-[11px] uppercase tracking-wider text-cream-dim">
+                Discount amount (Rs.)
+              </label>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={gross}
+                autoFocus
+                className="input"
+                placeholder="e.g. 150"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+              <p className="mt-1 text-[11px] text-cream-dim">Max {money(gross)}</p>
+            </div>
+          )}
 
           {/* Reason */}
           <div className="mt-4">
@@ -117,7 +223,10 @@ export default function DiscountModal({ order, gross, onApply, onClose }) {
                   {money(newTotal)}
                 </span>
               </div>
-              <p className="mt-1 text-right text-[11px] text-cream-dim">Saves {money(amt)}</p>
+              <p className="mt-1 text-right text-[11px] text-cream-dim">
+                Saves {money(amt)}
+                {byPercent ? ` (${pct}%)` : ''}
+              </p>
             </div>
           )}
 

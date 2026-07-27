@@ -211,9 +211,11 @@ export default function Layout({ children }) {
   const needsShiftStart = isCashier && !activeShift
   const needsResume = hasOpenDrawer && !resumed
   // Cashier's own initiated handover, if still awaiting a Manager/Admin's
-  // decision — GET /api/handovers is readable by any authenticated staff
-  // (see backend/src/routes/shifts.routes.ts), just not the /handovers nav
-  // page itself, so this data is already available without a new endpoint.
+  // decision — GET /api/handovers is readable by any authenticated staff, just
+  // not the /handovers nav page itself, so this data is already available
+  // without a new endpoint. The endpoint scopes a cashier's response to their
+  // OWN handovers (backend/src/routes/shifts.routes.ts), which is exactly what
+  // this lookup wants.
   // Without this, a cashier whose handover fails/succeeds silently (item 5's
   // bug) had no way to check either way — the request just vanished from view.
   const myPendingHandover = isCashier

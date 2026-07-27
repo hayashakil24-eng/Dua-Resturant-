@@ -388,6 +388,7 @@ model Order {
   onlineAccountId   String?
   onlineAccountName String?
   onlineAccountType String?
+  onlineAccountBank String?
 
   // GST rate locked at creation time (0 = GST was off, or 0%) — editing the
   // global rate later never rewrites this order's bill.
@@ -409,6 +410,11 @@ model Order {
   materialLoss       Int? // ₨ write-off for wasted (non-reusable) cancelled items
 
   discountAmount Int?
+  // Set when the discount was given as a percentage of the bill (10%) rather
+  // than a flat rupee figure. discountAmount stays the money that was actually
+  // taken off — this only records how it was decided, so the receipt can print
+  // "Discount (10%)" and a later re-price never re-derives the amount.
+  discountPercent Int?
   discountReason String?
   discountNotes  String?
   discountBy     String?
@@ -505,9 +511,16 @@ model ShiftReconciliation {
 // handed over is computed by querying accepted rows for the shift instead.
 model PendingHandover {
   id           String   @id @default(cuid())
-  shiftId      String
-  shift        ShiftReconciliation @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  // Nullable because cash also moves Manager → Admin, and a Manager runs no
+  // drawer — that leg belongs to no shift. Cashier legs still carry theirs.
+  shiftId      String?
+  shift        ShiftReconciliation? @relation(fields: [shiftId], references: [id], onDelete: Cascade)
   fromName     String
+  // The giver's system role. Needed to net cash back OUT of whoever handed it
+  // on, so "what the Manager still holds" is received minus forwarded. Null on
+  // rows created before Manager → Admin existed — all cashier-initiated, so
+  // nothing to net out.
+  fromRole     String?
   toName       String
   toRole       String
   amount       Int
@@ -524,6 +537,8 @@ model PendingHandover {
   rejectReason String?
 
   @@index([shiftId, status])
+  // Approvals are fetched per recipient role — only the addressed role may act.
+  @@index([toRole, status])
 }
 
 // ---------------------------------------------------------------------------
@@ -626,6 +641,13 @@ model OnlineAccount {
   name     String  @unique
   type     String // "JazzCash" | "Easypaisa" | "Bank Account" | ...
   number   String?
+  // Which bank, for type "Bank Account" — the account's own name is the title
+  // holder, so without this the bank was being typed into `name` or lost.
+  bankName String?
+  // Second identifier for the digital banks (SadaPay/NayaPay): they issue a
+  // PK IBAN alongside the mobile number, and a customer may pay to either.
+  // Separate from `number`, which the 11-digit mobile rule owns.
+  iban     String?
   active   Boolean @default(true)
   // Optional Urdu display name (same pattern as Department.nameUrdu) — used
   // by the WhatsApp daily report (client-reply-on-whatsapp-report.ogg asked

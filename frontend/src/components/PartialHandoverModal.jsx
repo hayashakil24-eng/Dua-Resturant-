@@ -21,9 +21,13 @@ export default function PartialHandoverModal({ current, onClose, onSubmit }) {
   // Recipients: active Managers & Admins (cash is handed up the chain, and both
   // roles can approve it). Fallback to all active staff if none exist so the
   // picker is never empty.
+  // systemRole is the permission role the approval gate compares against;
+  // Staff.role is only a job title and the two can diverge, so prefer it and
+  // fall back for staff rows that carry no login.
+  const roleOf = (s) => s.systemRole || s.role
   const recipients = useMemo(() => {
     const active = staff.filter((s) => s.active !== false)
-    const seniors = active.filter((s) => s.role === 'Manager' || s.role === 'Admin')
+    const seniors = active.filter((s) => roleOf(s) === 'Manager' || roleOf(s) === 'Admin')
     return seniors.length ? seniors : active
   }, [staff])
 
@@ -39,7 +43,7 @@ export default function PartialHandoverModal({ current, onClose, onSubmit }) {
     const person = recipients.find((s) => s.id === toId)
     setError('')
     setSubmitting(true)
-    const res = await onSubmit({ amount: amt, toName: person?.name || 'Manager', toRole: person?.role || 'Manager', reason: reason.trim() })
+    const res = await onSubmit({ amount: amt, toName: person?.name || 'Manager', toRole: (person && roleOf(person)) || 'Manager', reason: reason.trim() })
     setSubmitting(false)
     if (res?.error) setError(res.error)
   }
@@ -101,7 +105,7 @@ export default function PartialHandoverModal({ current, onClose, onSubmit }) {
                 <option value="">Naam chunein · Select recipient…</option>
                 {recipients.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.name} ({s.role})
+                    {s.name} ({roleOf(s)})
                   </option>
                 ))}
               </select>

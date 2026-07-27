@@ -87,8 +87,12 @@ an explicit `totalCost` wins over `quantity × unitCost` (real bills round).
 |---|---|---|
 | GET | `/api/tables` | any authenticated |
 | POST | `/api/tables` | `tableAdd` |
+| POST | `/api/tables/bulk` | `tableAdd` |
 | PATCH | `/api/tables/:id` | `tableAdd` |
 | DELETE | `/api/tables/:id` | Admin only |
+| POST | `/api/tables/category/update` | `tableAdd` |
+| POST | `/api/tables/category/rename` | `tableAdd` |
+| POST | `/api/tables/category/delete` | Admin only |
 
 ## Staff & advances (`staff.routes.ts`)
 
@@ -127,14 +131,35 @@ report.
 | GET | `/api/shifts` | any authenticated |
 | GET | `/api/shifts/active` | any authenticated |
 | GET | `/api/shifts/:id/sales` | any authenticated |
-| GET | `/api/handovers` | any authenticated |
-| POST | `/api/shifts/start` | `pos` or `billing` |
-| POST | `/api/shifts/pause` | `pos` or `billing` |
-| POST | `/api/shifts/resume` | `pos` or `billing` |
-| POST | `/api/shifts/:id/end` | `pos` or `billing` |
-| POST | `/api/handovers` | `pos` or `billing` |
-| POST | `/api/handovers/:id/accept` | `handovers` |
-| POST | `/api/handovers/:id/reject` | `handovers` |
+| GET | `/api/handovers` | any authenticated — **response scoped to the caller** |
+| POST | `/api/shifts/start` | `drawer` |
+| POST | `/api/shifts/pause` | `drawer` |
+| POST | `/api/shifts/resume` | `drawer` |
+| POST | `/api/shifts/:id/end` | `drawer` |
+| POST | `/api/handovers` | `drawer` |
+| POST | `/api/handovers/forward` | `handoverForward` — Manager only |
+| POST | `/api/handovers/:id/accept` | `handovers` **+ addressed to the caller's role** |
+| POST | `/api/handovers/:id/reject` | `handovers` **+ addressed to the caller's role** |
+
+Cash flows **Cashier → Manager/Admin → Admin**. `handovers` (accept/reject) is
+not sufficient on its own: `assertAddressedTo` in `shifts.service.ts` also
+requires `handover.toRole === actor.role`, so cash handed to the Admin is signed
+for by an Admin and not by whichever Manager happens to be logged in. A
+handover may only be addressed to `Admin` or `Manager` (`assertReceivable`),
+since no other role can accept it. `/api/handovers/forward` is the Manager →
+Admin leg: it carries no `shiftId` (a Manager runs no drawer), is capped by what
+that manager is still holding, and is `kind: 'forward'` so `computeSales` never
+deducts it from a drawer. Admin holds `handoverForward: 'none'` — they are the
+final destination. See `07-post-phase1-features.md` → "Cash handover chain".
+
+`GET /api/handovers` returns a different slice per caller, because cash
+positions are confidential up the chain: **Admin** gets every row; **Manager**
+gets pending rows addressed to Manager plus rows they personally resolved or
+initiated (so they can never read the Admin's or another manager's position);
+**Cashier** gets only their own handovers (what Layout.jsx's "waiting for
+approval" badge reads); anyone else gets none. This is deliberately enforced
+server-side — filtering only in the UI would still ship the amounts to the
+device.
 
 ## Receivables (`receivables.routes.ts`)
 
@@ -180,8 +205,10 @@ There is no create-account route by design — a `Receivable` is only ever creat
 | Method | Path | Permission |
 |---|---|---|
 | GET | `/api/closing/report` | `closing` |
-| GET | `/api/closings` | `closing` |
+| GET | `/api/closings` | `closing` — each record carries a derived `periodStart`/`periodEnd` (see below) |
 | POST | `/api/closings` | `closing` — see `07-post-phase1-features.md` for preconditions/day-lock |
+
+A `DailyClosing` row stores only its END instant (`closingTime`); there is no `periodStart` column. `listClosings()` returns rows newest-first and derives each one's **recording window** from its neighbour: `periodStart` is the next-older row's `closingTime` (`null` for the oldest, which was calendar-day scoped), `periodEnd` is the row's own `closingTime`. Both are set after the frozen `reportJson` is spread in, so records saved before the field existed still report a correct window. See `07-post-phase1-features.md` → "Reports scoped by session, not calendar day".
 
 ## Attendance (`attendance.routes.ts`)
 

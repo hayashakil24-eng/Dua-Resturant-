@@ -116,6 +116,10 @@ async function withAccountUrduNames(report: ClosingReport): Promise<ClosingRepor
 function normalizeReport(raw: Partial<ClosingReport>): ClosingReport {
   return {
     date: raw.date ?? '',
+    // Closings saved before the recording window was captured have neither —
+    // null makes the render layer fall back to the date-only header.
+    periodStart: raw.periodStart ?? null,
+    periodEnd: raw.periodEnd ?? null,
     totalOrders: raw.totalOrders ?? 0,
     cancelledOrders: raw.cancelledOrders ?? 0,
     grossSale: raw.grossSale ?? 0,

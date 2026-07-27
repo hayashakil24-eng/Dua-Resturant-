@@ -70,7 +70,12 @@ function PLChart({ data }) {
           </span>
         </div>
       </div>
-      <div className="mt-6 flex h-56 items-end gap-3">
+      {/* items-stretch, not items-end: align-items:flex-end would size each
+          column to its content, leaving the flex-1 bar track at zero height —
+          and a bar's percentage height resolves against that track, so every
+          bar collapsed to nothing while the month labels still rendered. The
+          bars are bottom-aligned by the track's own items-end below. */}
+      <div className="mt-6 flex h-56 items-stretch gap-3">
         {data.map((d) => (
           <div key={d.label} className="group flex flex-1 flex-col items-center gap-2">
             <div className="flex w-full flex-1 items-end justify-center gap-1">

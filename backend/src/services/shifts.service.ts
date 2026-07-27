@@ -17,6 +17,7 @@ import { prisma } from '../db/client.js'
 import { orderTotal } from '../core/orderTotal.js'
 import { writeAudit } from '../lib/audit.js'
 import { ServiceError, NotFoundError } from '../lib/errors.js'
+import { getBoundaryIso } from '../lib/businessDay.js'
 import type { Actor } from '../lib/actor.js'
 import { broadcastEvent } from '../realtime/broadcast.js'
 import { enqueueOutbox } from '../sync/outbox.js'
@@ -64,8 +65,30 @@ export async function calculateShiftSales(shiftId: string) {
   return computeSales(prisma, shift)
 }
 
-export async function listPendingHandovers() {
-  return prisma.pendingHandover.findMany({ orderBy: { initiatedAt: 'desc' } })
+// Scoped per caller: cash positions are confidential up the chain, so a Manager
+// must not be able to read what the Admin (or another manager) is holding — and
+// hiding it only in the UI would still ship the numbers to their device.
+//
+//   Admin    — everything (owner-level).
+//   Manager  — every PENDING row addressed to Manager (any manager may sign for
+//              those), plus rows they personally resolved or initiated. Their
+//              own forward to the Admin stays visible via fromName, so they can
+//              still see whether it was accepted.
+//   Cashier  — only what they handed over themselves, which is what the "waiting
+//              for approval" badge in Layout.jsx reads.
+//   Anyone else — nothing.
+export async function listPendingHandovers(actor: Actor) {
+  const rows = await prisma.pendingHandover.findMany({ orderBy: { initiatedAt: 'desc' } })
+  if (actor.role === 'Admin') return rows
+  if (actor.role === 'Manager') {
+    return rows.filter(
+      (h) =>
+        (h.status === 'pending' && h.toRole === 'Manager') ||
+        h.resolvedBy === actor.name ||
+        h.fromName === actor.name,
+    )
+  }
+  return rows.filter((h) => h.fromName === actor.name)
 }
 
 // ---- Shift lifecycle ------------------------------------------------------
@@ -132,6 +155,8 @@ export async function endShift(
   return prisma.$transaction(async (tx) => {
     const shift = await tx.shiftReconciliation.findUnique({ where: { id: shiftId } })
     if (!shift) throw new NotFoundError('Shift not found.')
+    // Validated before any writes, so a bad recipient can't half-close a shift.
+    if (handover.to) assertReceivable(handover.to)
     const sales = await computeSales(tx, shift)
     const actual = Math.max(0, Number(actualCash) || 0)
     const difference = sales.expectedCash - actual
@@ -174,6 +199,7 @@ export async function endShift(
         data: {
           shiftId,
           fromName: closed.cashierName,
+          fromRole: 'Cashier',
           toName: handedToName ?? 'Manager',
           toRole: handedTo,
           amount: actual,
@@ -196,10 +222,23 @@ export async function endShift(
 
 // ---- Handovers ------------------------------------------------------------
 
+// Only these roles hold the 'handovers' permission, and a handover can now only
+// be accepted by the role it is addressed to — so addressing one to anybody
+// else (a waiter, or the literal 'Other' the shift-end modal used to send)
+// would strand the cash with nobody able to sign for it. Rejected at creation
+// rather than discovered later by an approval that never arrives.
+const RECEIVING_ROLES = ['Admin', 'Manager']
+function assertReceivable(toRole: string): void {
+  if (!RECEIVING_ROLES.includes(toRole)) {
+    throw new ServiceError(`Cash can only be handed to ${RECEIVING_ROLES.join(' or ')} — "${toRole}" cannot accept it.`, 400)
+  }
+}
+
 export async function initiateHandover(ctx: Ctx, input: { amount?: number; toName?: string; toRole?: string; reason?: string }) {
   return prisma.$transaction(async (tx) => {
     const shift = await activeShift(tx)
     if (!shift) throw new ServiceError('No active shift.')
+    assertReceivable(input.toRole || 'Manager')
     const amt = Math.max(0, Number(input.amount) || 0)
     const current = (await computeSales(tx, shift)).expectedCash
     if (amt <= 0 || amt > current) throw new ServiceError('Enter a valid amount within the drawer balance.')
@@ -208,6 +247,7 @@ export async function initiateHandover(ctx: Ctx, input: { amount?: number; toNam
       data: {
         shiftId: shift.id,
         fromName: shift.cashierName,
+        fromRole: 'Cashier',
         toName: input.toName || 'Manager',
         toRole: input.toRole || 'Manager',
         amount: amt,
@@ -226,10 +266,79 @@ export async function initiateHandover(ctx: Ctx, input: { amount?: number; toNam
   })
 }
 
+// Cash flows Cashier → Manager/Admin → Admin. A Manager runs no drawer, so
+// this leg has no shift; the amount is capped by what they are actually still
+// holding (accepted in, minus already forwarded on) rather than a drawer
+// balance. Admin is the final destination, which is why 'handoverForward' is
+// Manager-only in permissions.ts.
+export async function forwardHandover(ctx: Ctx, input: { amount?: number; reason?: string }) {
+  const sinceIso = await getBoundaryIso()
+  return prisma.$transaction(async (tx) => {
+    const amt = Math.max(0, Number(input.amount) || 0)
+    const held = await cashHeldBy(tx, ctx.actor.name, ctx.actor.role, sinceIso)
+    if (amt <= 0 || amt > held) {
+      throw new ServiceError(`Enter a valid amount within the cash you are holding (Rs. ${held}).`)
+    }
+    const at = new Date()
+    const ho = await tx.pendingHandover.create({
+      data: {
+        shiftId: null,
+        fromName: ctx.actor.name,
+        fromRole: ctx.actor.role,
+        toName: 'Admin',
+        toRole: 'Admin',
+        amount: amt,
+        reason: input.reason ?? '',
+        status: 'pending',
+        // Never 'mid_shift': there is no drawer for this to be deducted from,
+        // and computeSales must not see it.
+        kind: 'forward',
+        initiatedAt: at,
+      },
+    })
+    await writeAudit(tx, {
+      action: 'HANDOVER_INITIATED',
+      actor: ctx.actor,
+      at,
+      details: { amount: amt, from: ho.fromName, to: ho.toName, kind: 'forward' },
+    })
+    return ho
+  })
+}
+
+// Cash physically held by one person right now: everything they ACCEPTED into
+// their hands, minus everything they have since forwarded on. Attribution is by
+// `resolvedBy` (who actually took the cash) rather than `toName`, because a
+// shift-end handover is addressed to the role string "Admin"/"Manager" and only
+// names a person once someone accepts it. Scoped to the open business session
+// so it resets at day close with every other money figure.
+async function cashHeldBy(tx: Tx, name: string, role: string, sinceIso: string | null): Promise<number> {
+  const rows = await tx.pendingHandover.findMany({ where: { status: 'accepted' } })
+  const sinceMs = sinceIso ? new Date(sinceIso).getTime() : null
+  let held = 0
+  for (const h of rows) {
+    if (sinceMs !== null && new Date(h.resolvedAt ?? h.initiatedAt).getTime() <= sinceMs) continue
+    if (h.resolvedBy === name) held += h.amount
+    if (h.fromName === name && h.fromRole === role) held -= h.amount
+  }
+  return held
+}
+
+// Only the addressed role may act on a handover — a cashier handing cash to
+// the Admin must be signed for by an Admin, not by any Manager who happens to
+// have the 'handovers' permission. Without this the approval was effectively
+// "whoever clicks first", and the accepted record named the wrong holder.
+function assertAddressedTo(ho: { toRole: string; toName: string }, ctx: Ctx): void {
+  if (ho.toRole !== ctx.actor.role) {
+    throw new ServiceError(`This handover is addressed to ${ho.toRole} — only ${ho.toRole} can approve it.`, 403)
+  }
+}
+
 export async function acceptHandover(ctx: Ctx, id: string) {
   return prisma.$transaction(async (tx) => {
     const ho = await tx.pendingHandover.findUnique({ where: { id } })
     if (!ho || ho.status !== 'pending') throw new NotFoundError('Handover not found.')
+    assertAddressedTo(ho, ctx)
     const at = new Date()
     const updated = await tx.pendingHandover.update({ where: { id }, data: { status: 'accepted', resolvedAt: at, resolvedBy: ctx.actor.name } })
     await writeAudit(tx, {
@@ -246,6 +355,7 @@ export async function rejectHandover(ctx: Ctx, id: string, reason = '') {
   return prisma.$transaction(async (tx) => {
     const ho = await tx.pendingHandover.findUnique({ where: { id } })
     if (!ho || ho.status !== 'pending') throw new NotFoundError('Handover not found.')
+    assertAddressedTo(ho, ctx)
     const at = new Date()
     const updated = await tx.pendingHandover.update({ where: { id }, data: { status: 'rejected', rejectReason: reason, resolvedAt: at, resolvedBy: ctx.actor.name } })
     await writeAudit(tx, {

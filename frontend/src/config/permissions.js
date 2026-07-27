@@ -16,6 +16,21 @@
 //   • wastageReport / wastageApproval — reporting is broad; approval stays with
 //                         Manager + Admin. (No wastage feature is built yet;
 //                         these are declarative policy for when it is.)
+//   • drawer            — run a cash drawer (start/pause/end a shift, and the
+//                         cashier-side handover that empties it). Deliberately
+//                         NOT implied by 'pos'/'billing': a Manager punches and
+//                         settles orders but must never run a drawer, because
+//                         they are the one who RECEIVES handovers, and someone
+//                         who both hands cash over and signs for it defeats the
+//                         whole chain.
+//   • handovers         — accept/reject a cash handover. Held by Admin AND
+//                         Manager, but each may only act on handovers
+//                         addressed to their own role (enforced in
+//                         shifts.service.ts, not by this table) — the person
+//                         taking the cash is the person who signs for it.
+//   • handoverForward   — only Manager hands collected cash onward. Cash flows
+//                         Cashier → Manager/Admin → Admin, so Admin is the
+//                         final destination and has nowhere to forward to.
 //   • staffApproval     — only Admin reviews self-signup requests and assigns
 //                         the new account's role. Also doubles as the
 //                         Approvals tab's nav pageKey (unlike recipeApproval,
@@ -40,7 +55,9 @@ export const PERMISSIONS = {
     closing: 'full', // end-of-day closing report (Admin/Manager)
     receivables: 'full', // credit accounts — view & settle
     departments: 'full', // create/edit counters + assign items to them
-    handovers: 'full', // review/accept/reject cashier cash handovers
+    drawer: 'full', // may run a cash drawer
+    handovers: 'full', // review/accept/reject handovers addressed to Admin
+    handoverForward: 'none', // Admin is the final destination — nowhere to forward to
     orderComplimentary: 'full', // mark an order free / on-the-house
     kds: 'full',
     billing: 'full',
@@ -62,7 +79,7 @@ export const PERMISSIONS = {
   },
   Manager: {
     dashboard: 'full',
-    pos: 'hidden',
+    pos: 'full', // Manager may punch orders (no drawer — see `drawer`)
     orders: 'view',
     orderCancel: 'none', // Only Admin may cancel bills; Manager is view-only
     discount: 'full',
@@ -77,10 +94,12 @@ export const PERMISSIONS = {
     closing: 'full', // end-of-day closing report (Admin/Manager)
     receivables: 'full', // Manager may view & settle credit accounts
     departments: 'full', // Manager may create counters + assign items too
-    handovers: 'full', // Manager may review/accept/reject cash handovers
+    drawer: 'none', // Manager RECEIVES cash; running a drawer too would defeat the chain
+    handovers: 'full', // Manager may review/accept/reject handovers addressed to Manager
+    handoverForward: 'full', // ONLY Manager forwards collected cash up to Admin
     orderComplimentary: 'full', // Manager may mark an order free / on-the-house
     kds: 'full',
-    billing: 'view',
+    billing: 'create', // may settle a bill they punched
     settings: 'hidden', // Only Admin controls app settings
     attendanceOverride: 'none',
     kitchen: 'view', // Manager can view the Kitchen dashboard / recipes
@@ -117,7 +136,9 @@ export const PERMISSIONS = {
     closing: 'hidden',
     receivables: 'hidden',
     departments: 'hidden', // Kitchen doesn't configure counters
+    drawer: 'none',
     handovers: 'hidden',
+    handoverForward: 'none',
     orderComplimentary: 'none',
     kds: 'full', // kitchen staff can watch the live order display too
     billing: 'hidden',
@@ -154,7 +175,9 @@ export const PERMISSIONS = {
     closing: 'hidden',
     receivables: 'hidden',
     departments: 'hidden', // Cashier only places orders (auto-routed)
+    drawer: 'full', // the cashier's own till
     handovers: 'hidden', // Cashier initiates handovers but doesn't approve them
+    handoverForward: 'none', // the cashier's own handover IS the initiation
     orderComplimentary: 'none', // only Admin/Manager may comp an order
     kds: 'hidden',
     billing: 'create',
@@ -193,7 +216,9 @@ export const PERMISSIONS = {
     closing: 'hidden',
     receivables: 'hidden',
     departments: 'hidden',
+    drawer: 'none',
     handovers: 'hidden',
+    handoverForward: 'none',
     orderComplimentary: 'none',
     kds: 'hidden',
     billing: 'hidden',

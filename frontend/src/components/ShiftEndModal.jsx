@@ -29,7 +29,15 @@ export default function ShiftEndModal({ shift, onClose, onComplete }) {
   useEscapeKey(onClose)
 
   const sales = useMemo(() => calculateShiftSales(shift.id), [calculateShiftSales, shift.id])
-  const others = useMemo(() => staff.filter((s) => s.active !== false), [staff])
+  // Only Admins/Managers may be named: a handover can only be accepted by the
+  // role it is addressed to, so naming a waiter would strand the cash with
+  // nobody able to sign for it. systemRole is the permission role the approval
+  // gate compares against — Staff.role is only a job title.
+  const roleOf = (s) => s.systemRole || s.role
+  const others = useMemo(
+    () => staff.filter((s) => s.active !== false && (roleOf(s) === 'Admin' || roleOf(s) === 'Manager')),
+    [staff],
+  )
 
   if (!sales) return null
 
@@ -43,11 +51,12 @@ export default function ShiftEndModal({ shift, onClose, onComplete }) {
     if (handoverTo === 'Other' && !handoverPerson)
       return setError('Cash lene wale ka naam chunein · Select the person receiving the cash.')
     setError('')
-    const name =
-      handoverTo === 'Other'
-        ? others.find((s) => s.id === handoverPerson)?.name || 'Other'
-        : handoverTo
-    onComplete(shift.id, counted, { to: handoverTo, name, reason: reason.trim() })
+    // `to` must be the recipient's ROLE, never the literal 'Other' — it is what
+    // decides whose dashboard the approval shows up on.
+    const person = handoverTo === 'Other' ? others.find((s) => s.id === handoverPerson) : null
+    const to = person ? roleOf(person) : handoverTo
+    const name = person ? person.name : handoverTo
+    onComplete(shift.id, counted, { to, name, reason: reason.trim() })
   }
 
   return (
@@ -83,6 +92,7 @@ export default function ShiftEndModal({ shift, onClose, onComplete }) {
                 <Row label="Shuruati cash · Opening" value={money(shift.openingCash)} />
                 <Row label="Cash sales" value={money(sales.totalCashSales)} />
                 <Row label="Card sales" value={money(sales.totalCardSales)} />
+                <Row label="Online sales" value={money(sales.totalOnlineSales)} />
               </div>
               <div className="mt-3 flex items-center justify-between border-t border-ink-line pt-3">
                 <span className="text-sm font-semibold text-cream">Expected cash</span>
