@@ -17,13 +17,7 @@ import { Receipt } from './Billing.jsx'
 
 const FILTERS = ['All', 'Paid', 'Unpaid', 'Udhaar', 'Complimentary', 'Cancelled']
 const CANCEL_REASONS = ['Customer Request', 'Wrong Order', 'Out of Stock', 'Other']
-
-// Shared shape for the row actions; each button supplies its own gradient.
-// Colours follow PaymentBadge so a button and the badge it produces match.
-const ACTION_BTN =
-  'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white ' +
-  'shadow-sm transition-all duration-200 hover:shadow-lg active:scale-95 ' +
-  'disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-sm'
+const ORDERS_PAGE_SIZE = 20
 
 function CancelledBadge() {
   return (
@@ -49,7 +43,7 @@ function CancelModal({ order, orderTotal, materialLoss = 0, onConfirm, onClose }
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-md animate-fade-up">
-        <div className="card p-6">
+        <div className="card max-h-[90vh] overflow-y-auto p-6">
           <div className="flex items-start justify-between">
             <div>
               <h3 className="font-serif text-2xl text-cream">Cancel Order</h3>
@@ -177,6 +171,9 @@ export default function Orders() {
   const [billTarget, setBillTarget] = useState(null) // unpaid order → print bill only (no settle)
   const [udhaarTarget, setUdhaarTarget] = useState(null) // unpaid order → on-account
   const [compTarget, setCompTarget] = useState(null) // unpaid order → complimentary
+  const [detailTarget, setDetailTarget] = useState(null) // order details drawer
+  const [visibleCount, setVisibleCount] = useState(ORDERS_PAGE_SIZE)
+  const [logVisibleCount, setLogVisibleCount] = useState(ORDERS_PAGE_SIZE)
 
   const rows = useMemo(
     () =>
@@ -205,6 +202,8 @@ export default function Orders() {
     return orders.filter((o) => o.payment === f && !o.cancelled).length
   }
 
+  const shownRows = rows.slice(0, visibleCount)
+
   const cancelLog = useMemo(() => auditLog.filter((a) => a.action === 'CANCELLED'), [auditLog])
 
   // Audit entries record the server cuid, but every other surface shows the
@@ -215,66 +214,181 @@ export default function Orders() {
     return (serverId) => byServerId.get(serverId) ?? null
   }, [orders])
 
-  // Actions shared by desktop rows and mobile cards.
-  const OrderActions = ({ o }) => {
+  // Actions shown in the order details drawer. A flat stack of six identical
+  // full-width buttons reads as a wall of buttons, not a designed UI — so
+  // instead: one clear primary action (Mark as Paid), the alternate/utility
+  // actions as a compact icon grid, and Cancel set apart below a divider as a
+  // quieter outlined control (still rose-toned, just not shouting as loud as
+  // the rest — it's the one action here that's rare and destructive).
+  // `onClose` closes the drawer for any action that mutates the order (its
+  // snapshot in the drawer would otherwise go stale — table shifted, status
+  // changed, etc.) — except Print Bill, which changes nothing about the order
+  // itself, so there's no reason to lose the drawer over it.
+  const OrderActions = ({ o, onClose }) => {
     if (o.cancelled) return null
     const isUnpaid = o.payment === 'Unpaid'
+    if (!isUnpaid) return null
+
+    const secondary = [
+      canUdhaar && {
+        key: 'udhaar',
+        icon: <IconWallet size={18} />,
+        label: 'Udhaar',
+        onClick: () => {
+          setUdhaarTarget(o)
+          onClose()
+        },
+      },
+      canComp && {
+        key: 'comp',
+        icon: <span className="text-base leading-none">🎁</span>,
+        label: 'Complimentary',
+        onClick: () => {
+          setCompTarget(o)
+          onClose()
+        },
+      },
+      canPrintBill && {
+        key: 'print',
+        icon: <IconPrint size={18} />,
+        label: 'Print Bill',
+        onClick: () => setBillTarget(o),
+      },
+      canShiftTable && {
+        key: 'shift',
+        icon: <IconTable size={18} />,
+        label: 'Shift Table',
+        onClick: () => {
+          setShiftTarget(o)
+          onClose()
+        },
+      },
+    ].filter(Boolean)
+
     return (
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        {isUnpaid && canPrintBill && (
-          <button
-            onClick={() => setBillTarget(o)}
-            title="Print the bill for this running order — does NOT mark it paid"
-            className={`${ACTION_BTN} bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 hover:shadow-amber-500/40`}
-          >
-            <IconPrint size={14} /> Print Bill
+      <div className="space-y-4">
+        {canMarkPaid && (
+          <button onClick={() => { setPayTarget(o); onClose() }} className="btn-gold w-full py-3 text-sm">
+            <IconCheck size={16} /> Mark as Paid
           </button>
         )}
-        {isUnpaid && canShiftTable && (
-          <button
-            onClick={() => setShiftTarget(o)}
-            title="Move this running order to a different table"
-            className={`${ACTION_BTN} bg-gradient-to-r from-slate-500 to-slate-600 hover:from-slate-400 hover:to-slate-500 hover:shadow-slate-500/40`}
-          >
-            <IconTable size={14} /> Shift Table
-          </button>
+
+        {secondary.length > 0 && (
+          <div className="grid grid-cols-2 gap-2">
+            {secondary.map((a) => (
+              <button
+                key={a.key}
+                onClick={a.onClick}
+                className="btn-ghost flex-col gap-1.5 py-3 text-xs"
+              >
+                {a.icon}
+                {a.label}
+              </button>
+            ))}
+          </div>
         )}
-        {isUnpaid && canMarkPaid && (
-          <button
-            onClick={() => setPayTarget(o)}
-            title="Mark this order as paid (Cash / Card / Online)"
-            className={`${ACTION_BTN} bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 hover:shadow-emerald-500/40`}
-          >
-            <IconCheck size={14} /> Mark as Paid
-          </button>
+
+        {canCancel && (
+          <div className="border-t border-ink-line pt-4">
+            <button
+              onClick={() => {
+                setCancelTarget(o)
+                onClose()
+              }}
+              className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-rose-500/30 py-2.5 text-sm font-semibold text-rose-300 transition hover:bg-rose-500/10"
+            >
+              <IconClose size={16} /> Cancel Order
+            </button>
+          </div>
         )}
-        {isUnpaid && canUdhaar && (
-          <button
-            onClick={() => setUdhaarTarget(o)}
-            title="Put this bill on a customer's Udhaar (credit) account"
-            className={`${ACTION_BTN} bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 hover:shadow-sky-500/40`}
-          >
-            <IconWallet size={14} /> Udhaar
-          </button>
-        )}
-        {isUnpaid && canComp && (
-          <button
-            onClick={() => setCompTarget(o)}
-            title="Mark this order as complimentary (free / on-the-house)"
-            className={`${ACTION_BTN} bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-400 hover:to-purple-500 hover:shadow-violet-500/40`}
-          >
-            🎁 Complimentary
-          </button>
-        )}
-        {isUnpaid && canCancel && (
-          <button
-            onClick={() => setCancelTarget(o)}
-            title="Cancel this order (reason required, recorded in the audit log)"
-            className={`${ACTION_BTN} bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-400 hover:to-red-500 hover:shadow-rose-500/40`}
-          >
-            <IconClose size={14} /> Cancel
-          </button>
-        )}
+      </div>
+    )
+  }
+
+  // Order details drawer — slides in from the right when a row/card is
+  // clicked, replacing the old inline per-row action pills. Full order
+  // context (items, totals, status) plus the actions above, all in one place.
+  const OrderDetailsDrawer = ({ order, onClose }) => {
+    useEscapeKey(onClose)
+    const { subtotal, tax, discount, total } = orderTotal(order.items, order.discount?.amount, order.gstRate)
+    return (
+      <div className="fixed inset-0 z-50">
+        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+        <aside className="absolute inset-y-0 right-0 flex w-full max-w-md animate-slide-in-right flex-col border-l border-ink-line bg-ink-soft">
+          <div className="flex items-start justify-between border-b border-ink-line p-6">
+            <div>
+              <h3 className="font-serif text-2xl text-cream">{order.id}</h3>
+              <p className="mt-0.5 text-xs text-cream-dim">
+                {tableLabel(order.table)} · {order.waiter} · {time(order.createdAt)}
+              </p>
+            </div>
+            <button onClick={onClose} className="text-cream-dim hover:text-cream">
+              <IconClose size={20} />
+            </button>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto p-6">
+            <div className="flex items-center gap-2">
+              {order.cancelled ? <CancelledBadge /> : <PaymentBadge status={order.payment} />}
+              {order.payment === 'Udhaar' && order.udhaarCustomerName && (
+                <span className="text-xs text-cream-dim">📋 {order.udhaarCustomerName}</span>
+              )}
+              {order.payment === 'Complimentary' && order.complimentary?.orderedBy && (
+                <span className="text-xs text-cream-dim">🎁 {order.complimentary.orderedBy}</span>
+              )}
+            </div>
+
+            <ul className="mt-5 divide-y divide-ink-line">
+              {order.items.map((it) => (
+                <li key={it.id} className="flex items-center justify-between py-2.5 text-sm">
+                  <span className={order.cancelled ? 'text-cream-dim line-through' : 'text-cream'}>
+                    {it.name} <span className="text-cream-dim">×{it.qty}</span>
+                  </span>
+                  <span className="font-semibold text-cream">{money(it.price * it.qty)}</span>
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-3 space-y-1 border-t border-ink-line pt-3 text-sm">
+              <div className="flex justify-between text-cream-dim">
+                <span>Subtotal</span>
+                <span className="text-cream">{money(subtotal)}</span>
+              </div>
+              {tax > 0 && (
+                <div className="flex justify-between text-cream-dim">
+                  <span>GST</span>
+                  <span className="text-cream">{money(tax)}</span>
+                </div>
+              )}
+              {discount > 0 && (
+                <div className="flex justify-between text-emerald-300">
+                  <span>
+                    Discount
+                    {order.discount?.percent ? ` ${order.discount.percent}%` : ''}
+                    {order.discount?.reason ? ` (${order.discount.reason})` : ''}
+                  </span>
+                  <span>- {money(discount)}</span>
+                </div>
+              )}
+              {order.cancelled && order.materialLoss > 0 && (
+                <div className="flex justify-between text-rose-300">
+                  <span>Material loss</span>
+                  <span>{money(order.materialLoss)}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between pt-1">
+                <span className="font-serif text-lg text-cream">Total</span>
+                <span className="font-serif text-2xl font-semibold text-gold">{money(total)}</span>
+              </div>
+            </div>
+          </div>
+
+          {!order.cancelled && (
+            <div className="border-t border-ink-line p-6">
+              <OrderActions o={order} onClose={onClose} />
+            </div>
+          )}
+        </aside>
       </div>
     )
   }
@@ -290,7 +404,10 @@ export default function Orders() {
             className="input py-2 pl-9 sm:w-64"
             placeholder="Search order / waiter / table"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setVisibleCount(ORDERS_PAGE_SIZE)
+            }}
           />
         </div>
       </PageHeader>
@@ -299,7 +416,10 @@ export default function Orders() {
         {FILTERS.map((f) => (
           <button
             key={f}
-            onClick={() => setFilter(f)}
+            onClick={() => {
+              setFilter(f)
+              setVisibleCount(ORDERS_PAGE_SIZE)
+            }}
             className={`rounded-full border px-4 py-1.5 text-sm font-medium transition ${
               filter === f
                 ? 'border-gold/60 bg-gold/12 text-gold'
@@ -343,12 +463,15 @@ export default function Orders() {
                     )}
                     <th className="px-5 py-4 font-semibold">Status</th>
                     <th className="px-5 py-4 font-semibold">Time</th>
-                    <th className="px-5 py-4"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-ink-line">
-                  {rows.map((o) => (
-                    <tr key={o.id} className={`transition hover:bg-white/[0.02] ${o.cancelled ? 'opacity-60' : ''}`}>
+                  {shownRows.map((o) => (
+                    <tr
+                      key={o.id}
+                      onClick={() => setDetailTarget(o)}
+                      className={`cursor-pointer transition hover:bg-white/[0.02] ${o.cancelled ? 'opacity-60' : ''}`}
+                    >
                       <td className="px-5 py-4 font-semibold text-gold">{o.id}</td>
                       <td className="px-5 py-4">
                         <span className="rounded-lg bg-white/5 px-2 py-1 text-xs font-medium text-cream ring-1 ring-ink-line">
@@ -379,9 +502,6 @@ export default function Orders() {
                         )}
                       </td>
                       <td className="px-5 py-4 text-cream-dim">{time(o.createdAt)}</td>
-                      <td className="px-5 py-4 text-right">
-                        <OrderActions o={o} />
-                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -391,8 +511,12 @@ export default function Orders() {
 
           {/* Mobile cards */}
           <div className="space-y-3 md:hidden">
-            {rows.map((o) => (
-              <div key={o.id} className={`card p-4 ${o.cancelled ? 'opacity-60' : ''}`}>
+            {shownRows.map((o) => (
+              <button
+                key={o.id}
+                onClick={() => setDetailTarget(o)}
+                className={`card w-full p-4 text-left transition hover:border-gold/40 ${o.cancelled ? 'opacity-60' : ''}`}
+              >
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-gold">{o.id}</span>
                   <div className="text-right">
@@ -419,7 +543,6 @@ export default function Orders() {
                   <span className="font-serif text-lg font-semibold text-cream">
                     {money(orderTotal(o.items, o.discount?.amount, o.gstRate).total)}
                   </span>
-                  <OrderActions o={o} />
                 </div>
                 {o.cancelled && o.materialLoss > 0 && (
                   <div className="mt-2 flex items-center justify-between text-xs">
@@ -427,9 +550,20 @@ export default function Orders() {
                     <span className="font-semibold text-rose-300">{money(o.materialLoss)}</span>
                   </div>
                 )}
-              </div>
+              </button>
             ))}
           </div>
+
+          {shownRows.length < rows.length && (
+            <div className="mt-4 flex justify-center">
+              <button
+                onClick={() => setVisibleCount((c) => c + ORDERS_PAGE_SIZE)}
+                className="btn-ghost px-5 py-2 text-sm"
+              >
+                Load more · {shownRows.length}/{rows.length}
+              </button>
+            </div>
+          )}
         </>
       )}
 
@@ -442,7 +576,7 @@ export default function Orders() {
             <p className="text-xs text-cream-dim">{cancelLog.length} cancellation(s) recorded this session.</p>
           </div>
           <div className="divide-y divide-ink-line">
-            {cancelLog.map((a) => {
+            {cancelLog.slice(0, logVisibleCount).map((a) => {
               const orderNo = orderNumberOf(a.orderId)
               return (
               <div key={a.id} className="flex flex-col gap-1 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -465,7 +599,21 @@ export default function Orders() {
               )
             })}
           </div>
+          {logVisibleCount < cancelLog.length && (
+            <div className="flex justify-center border-t border-ink-line p-4">
+              <button
+                onClick={() => setLogVisibleCount((c) => c + ORDERS_PAGE_SIZE)}
+                className="btn-ghost px-5 py-2 text-sm"
+              >
+                Load more · {Math.min(logVisibleCount, cancelLog.length)}/{cancelLog.length}
+              </button>
+            </div>
+          )}
         </div>
+      )}
+
+      {detailTarget && (
+        <OrderDetailsDrawer order={detailTarget} onClose={() => setDetailTarget(null)} />
       )}
 
       {cancelTarget && (

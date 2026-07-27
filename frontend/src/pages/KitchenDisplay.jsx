@@ -70,7 +70,7 @@ function OrderCard({ order, items, now, onReady, onItemReady, onClear, deptFor, 
                     : 'border-ink-line bg-white/[0.02] hover:border-gold/40'
                 }`}
               >
-                <span className="flex min-w-0 items-center gap-2.5">
+                <span className="flex min-w-0 flex-1 items-center gap-2.5">
                   <span
                     className={`grid h-6 w-6 shrink-0 place-items-center rounded-md border ${
                       it.ready ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-300' : 'border-ink-line text-transparent'
@@ -78,10 +78,18 @@ function OrderCard({ order, items, now, onReady, onItemReady, onClear, deptFor, 
                   >
                     <IconCheck size={15} />
                   </span>
-                  <span className={`min-w-0 text-base leading-tight ${it.ready ? 'text-cream-dim line-through' : 'text-cream'}`}>
-                    {it.name}
+                  {/* Name truncates first — the department tag must never wrap
+                      mid-word (a long name + a long tag like "Beverages
+                      Counter" used to split the tag's pill across two lines). */}
+                  <span className="flex min-w-0 flex-1 items-center gap-2">
+                    <span
+                      title={it.name}
+                      className={`truncate text-base leading-tight ${it.ready ? 'text-cream-dim line-through' : 'text-cream'}`}
+                    >
+                      {it.name}
+                    </span>
                     {dept && (
-                      <span className="ms-2 rounded bg-white/5 px-1.5 py-0.5 align-middle text-[11px] font-medium text-cream-dim ring-1 ring-ink-line">
+                      <span className="shrink-0 whitespace-nowrap rounded bg-white/5 px-1.5 py-0.5 text-[11px] font-medium text-cream-dim ring-1 ring-ink-line">
                         {dept.name}
                       </span>
                     )}

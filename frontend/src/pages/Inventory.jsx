@@ -82,7 +82,7 @@ function PurchaseModal({ item, unitName, onClose, onSave }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-md animate-fade-up">
-        <div className="card p-6">
+        <div className="card max-h-[90vh] overflow-y-auto p-6">
           <div className="flex items-start justify-between">
             <div>
               <h3 className="font-serif text-2xl text-cream">{t('inventory.buyStock')}</h3>
@@ -227,7 +227,7 @@ function AddItemModal({ categories, onClose, onSave }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-md animate-fade-up">
-        <div className="card p-6">
+        <div className="card max-h-[90vh] overflow-y-auto p-6">
           <div className="flex items-start justify-between">
             <div>
               <h3 className="font-serif text-2xl text-cream">{t('inventory.addNewItem')}</h3>
@@ -376,11 +376,14 @@ function AddItemModal({ categories, onClose, onSave }) {
   )
 }
 
+const INVENTORY_PAGE_SIZE = 20
+
 export default function Inventory() {
   const { inventory, lowStock, adjustStock, recordPurchase, addInventoryItem, user } = useApp()
   const { t, lang } = useLang()
   const [query, setQuery] = useState('')
   const [showAdd, setShowAdd] = useState(false)
+  const [visibleCount, setVisibleCount] = useState(INVENTORY_PAGE_SIZE)
   const [buying, setBuying] = useState(null) // inventory item being purchased
   // Page access (also gates whether the Adjust column shows at all).
   const canEdit = user && canModify(user.role, 'inventory')
@@ -411,6 +414,7 @@ export default function Inventory() {
   }, [inventory, query])
 
   const critical = inventory.filter((i) => stockLevel(i) === 'critical').length
+  const shown = filtered.slice(0, visibleCount)
 
   return (
     <div>
@@ -422,7 +426,10 @@ export default function Inventory() {
             </span>
             <input
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                setQuery(e.target.value)
+                setVisibleCount(INVENTORY_PAGE_SIZE)
+              }}
               placeholder={t('inventory.searchItems')}
               className="w-56 rounded-xl border border-ink-line bg-ink-soft py-2 ps-9 pe-3 text-sm text-cream placeholder:text-cream-dim focus:border-gold/40 focus:outline-none"
             />
@@ -463,7 +470,7 @@ export default function Inventory() {
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-line">
-              {filtered.map((item) => {
+              {shown.map((item) => {
                 const level = stockLevel(item)
                 const pct = Math.min(100, (item.stock / (item.threshold * 2)) * 100)
                 return (
@@ -550,6 +557,16 @@ export default function Inventory() {
         {filtered.length === 0 && (
           <div className="p-10 text-center text-sm text-cream-dim">
             {t('inventory.noMatch')} “{query}”.
+          </div>
+        )}
+        {shown.length < filtered.length && (
+          <div className="flex items-center justify-center border-t border-ink-line p-4">
+            <button
+              onClick={() => setVisibleCount((c) => c + INVENTORY_PAGE_SIZE)}
+              className="btn-ghost px-5 py-2 text-sm"
+            >
+              {t('inventory.loadMore', 'Load more')} · {shown.length}/{filtered.length}
+            </button>
           </div>
         )}
       </div>

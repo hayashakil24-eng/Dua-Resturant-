@@ -83,8 +83,9 @@ function MenuImage({ item }) {
   )
 }
 
-// "Best sellers" — a manually-curated, shared list (see AppContext). Tap to
-// quick-add to the current order.
+// "Best sellers" — a manually-curated, shared list (see AppContext). The
+// whole card is tappable to quick-add, same as the main menu grid below —
+// the "+ Add" pill is a status label, not a separate nested button.
 function MostOrderedCard({ item, onAdd }) {
   const [added, setAdded] = useState(false)
   // Boolean, not the raw length: an empty variants array (0) would otherwise
@@ -96,7 +97,10 @@ function MostOrderedCard({ item, onAdd }) {
     setTimeout(() => setAdded(false), 700)
   }
   return (
-    <div className="w-32 shrink-0 overflow-hidden rounded-xl border border-gold/30 bg-ink-card">
+    <button
+      onClick={click}
+      className="w-32 shrink-0 overflow-hidden rounded-xl border border-gold/30 bg-ink-card text-left transition hover:border-gold/60 hover:shadow-gold"
+    >
       <MenuImage item={item} />
       <div className="p-2">
         <p className="truncate text-xs font-semibold text-cream">{item.name}</p>
@@ -104,18 +108,15 @@ function MostOrderedCard({ item, onAdd }) {
           {hasVariants && 'from '}
           {money(item.price)}
         </p>
-        <button
-          onClick={click}
-          className={`mt-2 w-full rounded-lg py-1 text-xs font-bold transition ${
-            added
-              ? 'bg-emerald-500/20 text-emerald-300'
-              : 'bg-gold-grad text-ink hover:brightness-110'
+        <span
+          className={`mt-2 block w-full rounded-lg py-1 text-center text-xs font-bold transition ${
+            added ? 'bg-emerald-500/20 text-emerald-300' : 'bg-gold-grad text-ink'
           }`}
         >
           {added ? '✓ Added' : '+ Add'}
-        </button>
+        </span>
       </div>
-    </div>
+    </button>
   )
 }
 
@@ -160,7 +161,7 @@ function VariantModal({ item, onPick, onClose }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-sm animate-fade-up">
-        <div className="card p-6">
+        <div className="card max-h-[90vh] overflow-y-auto p-6">
           <div className="flex items-start justify-between">
             <div>
               <h3 className="font-serif text-xl text-cream">{item.name}</h3>
@@ -333,7 +334,11 @@ export default function POS() {
   // Once a table is chosen AND items are on the order, lock the table until
   // checkout. Locking only after a table is picked avoids stranding an
   // items-first order (the selector stays usable until a table is set).
-  const tableLocked = isContinuing || (items.length > 0 && Boolean(table))
+  // Excludes a busy table — that selection can never be checked out as-is
+  // (see selectedTableBusy), so locking it too used to trap the cashier:
+  // the only way out was clearing the whole cart just to re-enable the
+  // dropdown and pick a free table.
+  const tableLocked = isContinuing || (items.length > 0 && Boolean(table) && !selectedTableBusy)
   const [lockedAt, setLockedAt] = useState(null)
   useEffect(() => {
     setLockedAt((prev) => (tableLocked ? prev || new Date() : null))
@@ -752,7 +757,7 @@ export default function POS() {
         {/* Cart side */}
         <div id="pos-order" className="scroll-mt-20 lg:sticky lg:top-20 lg:h-fit">
           <div className="card flex max-h-[calc(100vh-7rem)] flex-col">
-            <div className="flex items-center justify-between border-b border-ink-line p-5">
+            <div className="flex shrink-0 items-center justify-between border-b border-ink-line p-5">
               <h3 className="font-serif text-xl text-cream">
                 {isContinuing ? 'New Items to Add' : 'Current Order'}
               </h3>
@@ -767,7 +772,7 @@ export default function POS() {
             </div>
 
             {/* Assignment */}
-            <div className="border-b border-ink-line p-5">
+            <div className="shrink-0 border-b border-ink-line p-5">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="mb-1.5 flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-cream-dim">
@@ -845,16 +850,18 @@ export default function POS() {
 
             {/* Items — flex-1 so the list scrolls and yields space to the pinned
                 totals/checkout buttons on short screens (a fixed min-height here
-                pushed the checkout buttons below the viewport). */}
+                pushed the checkout buttons below the viewport). The empty-cart
+                placeholder below has no fixed height of its own for the same
+                reason — a h-40 minimum was enough, combined with the header,
+                assignment and totals sections, to push "Place as Unpaid" past
+                the bottom of the viewport on shorter windows. */}
             <div className="min-h-0 flex-1 overflow-y-auto p-5">
               {items.length === 0 ? (
-                <div className="grid h-40 place-items-center text-center">
-                  <div>
-                    <p className="text-sm text-cream-dim">Cart is empty</p>
-                    <p className="mt-1 text-xs text-cream-dim">
-                      Tap menu items to add them.
-                    </p>
-                  </div>
+                <div className="py-6 text-center">
+                  <p className="text-sm text-cream-dim">Cart is empty</p>
+                  <p className="mt-1 text-xs text-cream-dim">
+                    Tap menu items to add them.
+                  </p>
                 </div>
               ) : (
                 <ul className="space-y-2.5">
@@ -911,7 +918,7 @@ export default function POS() {
             </div>
 
             {/* Totals + checkout */}
-            <div className="border-t border-ink-line p-5">
+            <div className="shrink-0 border-t border-ink-line p-5">
               <div className="space-y-1.5 text-sm">
                 <div className="flex justify-between text-cream-dim">
                   <span>Subtotal</span>

@@ -128,30 +128,30 @@ export default function DepartmentManagement() {
               )}
             </div>
 
-            {/* Assigned items */}
+            {/* Assigned items — a fixed-height, internally-scrolling box so
+                every department card renders at the same height regardless of
+                how many items it has (an empty counter and a 20-item one used
+                to produce very differently sized cards in the same grid). */}
             <div className="mt-4 rounded-xl border border-ink-line bg-white/[0.02] p-3">
               <p className="mb-2 text-xs font-semibold text-cream-dim">
                 {t('departments.itemsCount')}: <span className="text-cream">{dept.items.length}</span>
               </p>
-              {dept.items.length > 0 ? (
-                <div className="flex flex-wrap gap-1.5">
-                  {dept.items.slice(0, 12).map((id) => {
-                    const item = menu.find((m) => m.id === id)
-                    return (
-                      <span key={id} className="rounded-full bg-gold/10 px-2 py-0.5 text-xs text-gold ring-1 ring-gold/20">
-                        {item?.name || id}
-                      </span>
-                    )
-                  })}
-                  {dept.items.length > 12 && (
-                    <span className="rounded-full bg-white/5 px-2 py-0.5 text-xs text-cream-dim">
-                      +{dept.items.length - 12}
-                    </span>
-                  )}
-                </div>
-              ) : (
-                <p className="text-xs text-cream-dim">{t('departments.noItems')}</p>
-              )}
+              <div className="h-28 overflow-y-auto">
+                {dept.items.length > 0 ? (
+                  <div className="flex flex-wrap content-start gap-1.5">
+                    {dept.items.map((id) => {
+                      const item = menu.find((m) => m.id === id)
+                      return (
+                        <span key={id} className="rounded-full bg-gold/10 px-2 py-0.5 text-xs text-gold ring-1 ring-gold/20">
+                          {item?.name || id}
+                        </span>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-xs text-cream-dim">{t('departments.noItems')}</p>
+                )}
+              </div>
             </div>
 
             <button onClick={() => setAssignFor(dept)} className="btn-ghost mt-4 w-full">

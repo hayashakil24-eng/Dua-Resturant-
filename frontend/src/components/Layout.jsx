@@ -204,6 +204,15 @@ export default function Layout({ children }) {
   // global <html dir> (Urdu = RTL) regardless.
   const contentDir = lang === 'ur' && RTL_ROUTES.has(location.pathname) ? 'rtl' : 'ltr'
 
+  // React Router doesn't reset scroll on navigation (that's only native
+  // full-page-load behaviour) — without this, scrolling down a long page
+  // (Reports, Orders...) and then clicking to a shorter one left the window
+  // scrolled past the new page's own top, rendering its title clipped behind
+  // the sticky header above.
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [location.pathname])
+
   // Cashiers run against an open cash drawer. On login: no drawer → prompt for
   // opening cash; a persisted (paused) drawer → offer to resume it.
   const isCashier = user.role === 'Cashier'
@@ -388,7 +397,7 @@ export default function Layout({ children }) {
         <div dir="ltr" className="fixed inset-0 z-[80] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setExitChoice(false)} />
           <div className="relative z-10 w-full max-w-sm animate-fade-up">
-            <div className="card p-6">
+            <div className="card max-h-[90vh] overflow-y-auto p-6">
               <h3 className="font-serif text-2xl text-cream">Log out — kya karein?</h3>
               {activeShift && (
                 <div className="mt-3 flex items-center justify-between rounded-xl border border-ink-line bg-ink-soft px-4 py-2.5 text-xs">

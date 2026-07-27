@@ -311,6 +311,12 @@ function ItemModal({ item, categories, onSave, onClose }) {
   )
 }
 
+// Items revealed at a time — a restaurant here can carry 70+ menu items (see
+// CLAUDE.md), so rendering the whole list at once made the table a long,
+// unbroken scroll. "Load more" appends rather than paging, so an in-progress
+// edit's row position doesn't jump around between clicks.
+const MENU_PAGE_SIZE = 20
+
 // ---------------------------------------------------------------------------
 export default function MenuManagement() {
   const {
@@ -327,6 +333,7 @@ export default function MenuManagement() {
 
   const [query, setQuery] = useState('')
   const [catFilter, setCatFilter] = useState('All')
+  const [visibleCount, setVisibleCount] = useState(MENU_PAGE_SIZE)
   const [modalItem, setModalItem] = useState(undefined) // undefined=closed, null=add, obj=edit
   const [notice, setNotice] = useState('')
   const [categoryError, setCategoryError] = useState('')
@@ -381,6 +388,8 @@ export default function MenuManagement() {
       .sort((a, b) => catOrder(a.category) - catOrder(b.category) || a.name.localeCompare(b.name))
   }, [menu, query, catFilter])
 
+  const shown = filtered.slice(0, visibleCount)
+
   const activeCount = menu.filter((m) => m.active !== false).length
 
   const flash = (msg) => {
@@ -425,13 +434,19 @@ export default function MenuManagement() {
             className="input ps-11"
             placeholder={t('menu.searchItems')}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setVisibleCount(MENU_PAGE_SIZE)
+            }}
           />
         </div>
         <select
           className="input sm:w-56"
           value={catFilter}
-          onChange={(e) => setCatFilter(e.target.value)}
+          onChange={(e) => {
+            setCatFilter(e.target.value)
+            setVisibleCount(MENU_PAGE_SIZE)
+          }}
         >
           <option value="All">{t('menu.allCategories')}</option>
           {menuCategories.map((c) => (
@@ -468,7 +483,7 @@ export default function MenuManagement() {
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-line">
-              {filtered.map((m) => (
+              {shown.map((m) => (
                 <tr key={m.id} className="transition hover:bg-white/[0.02]">
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-3">
@@ -503,7 +518,7 @@ export default function MenuManagement() {
                         }`}
                       >
                         <span
-                          className={`absolute top-0.5 h-5 w-5 rounded-full bg-cream transition-all ${
+                          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-all ${
                             m.active !== false ? 'left-[22px]' : 'left-0.5'
                           }`}
                         />
@@ -536,6 +551,16 @@ export default function MenuManagement() {
         {filtered.length === 0 && (
           <div className="p-10 text-center text-sm text-cream-dim">{t('menu.noItems')}</div>
         )}
+        {shown.length < filtered.length && (
+          <div className="flex items-center justify-center border-t border-ink-line p-4">
+            <button
+              onClick={() => setVisibleCount((c) => c + MENU_PAGE_SIZE)}
+              className="btn-ghost px-5 py-2 text-sm"
+            >
+              {t('menu.loadMore', 'Load more')} · {shown.length}/{filtered.length}
+            </button>
+          </div>
+        )}
       </div>
 
       {modalItem !== undefined && (
@@ -556,7 +581,7 @@ export default function MenuManagement() {
             onClick={() => setShowCatManager(false)}
           />
           <div className="relative z-10 w-full max-w-md animate-fade-up">
-            <div className="card p-6">
+            <div className="card max-h-[90vh] overflow-y-auto p-6">
               <div className="flex items-start justify-between">
                 <div>
                   <h3 className="font-serif text-2xl text-cream">{t('menu.manageCategories')}</h3>
@@ -612,7 +637,7 @@ export default function MenuManagement() {
             onClick={() => setConfirmingDelete(null)}
           />
           <div className="relative z-10 w-full max-w-sm animate-fade-up">
-            <div className="card p-6">
+            <div className="card max-h-[90vh] overflow-y-auto p-6">
               <h3 className="font-serif text-xl text-cream">{t('menu.deleteCategoryQ')}</h3>
               <p className="mt-2 text-sm text-cream-dim">
                 {t('menu.deleteEmptyCatMsg')} “<span className="text-cream">{confirmingDelete}</span>”؟

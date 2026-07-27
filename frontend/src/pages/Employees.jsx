@@ -156,11 +156,14 @@ function EmployeeModal({ employee, onSave, onClose }) {
   )
 }
 
+const EMPLOYEES_PAGE_SIZE = 20
+
 export default function Employees() {
   const { staff, addStaff, updateStaff, deleteStaff, toggleStaff, user } = useApp()
   const t = useT()
   const [query, setQuery] = useState('')
   const [modal, setModal] = useState(undefined) // undefined=closed, null=add, obj=edit
+  const [visibleCount, setVisibleCount] = useState(EMPLOYEES_PAGE_SIZE)
 
   const canDelete = user?.role === 'Admin'
 
@@ -176,6 +179,7 @@ export default function Employees() {
       : staff
   }, [staff, query])
 
+  const shown = rows.slice(0, visibleCount)
   const activeCount = staff.filter((s) => s.active !== false).length
   const waiterCount = staff.filter((s) => s.role === 'Waiter' && s.active !== false).length
   const chefCount = staff.filter((s) => s.role === 'Chef' && s.active !== false).length
@@ -203,7 +207,10 @@ export default function Employees() {
           className="input ps-11"
           placeholder={t('employees.searchPh')}
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value)
+            setVisibleCount(EMPLOYEES_PAGE_SIZE)
+          }}
         />
       </div>
 
@@ -222,7 +229,7 @@ export default function Employees() {
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-line">
-              {rows.map((s) => (
+              {shown.map((s) => (
                 <tr key={s.id} className={`transition hover:bg-white/[0.02] ${s.active === false ? 'opacity-60' : ''}`}>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-3">
@@ -253,7 +260,7 @@ export default function Employees() {
                         }`}
                       >
                         <span
-                          className={`absolute top-0.5 h-5 w-5 rounded-full bg-cream transition-all ${
+                          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-all ${
                             s.active !== false ? 'left-[22px]' : 'left-0.5'
                           }`}
                         />
@@ -287,6 +294,16 @@ export default function Employees() {
         </div>
         {rows.length === 0 && (
           <div className="p-10 text-center text-sm text-cream-dim">{t('employees.noMatch')}</div>
+        )}
+        {shown.length < rows.length && (
+          <div className="flex items-center justify-center border-t border-ink-line p-4">
+            <button
+              onClick={() => setVisibleCount((c) => c + EMPLOYEES_PAGE_SIZE)}
+              className="btn-ghost px-5 py-2 text-sm"
+            >
+              {t('employees.loadMore', 'Load more')} · {shown.length}/{rows.length}
+            </button>
+          </div>
         )}
       </div>
 

@@ -10,6 +10,8 @@ import ClosingSummaryTable from '../components/ClosingSummaryTable.jsx'
 import ClosingSlip from '../components/ClosingSlip.jsx'
 import { IconPrint, IconCheck, IconAlert, IconClose } from '../components/Icons.jsx'
 
+const CLOSING_HISTORY_PAGE_SIZE = 20
+
 export default function Closing() {
   const { orders, orderTotal, transactions, user, dailyClosings, lastClosingAt, saveDailyClosing, activeShift, inventory, recipes } = useApp()
   const canClose = user && canModify(user.role, 'closing')
@@ -65,6 +67,7 @@ export default function Closing() {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [historyVisibleCount, setHistoryVisibleCount] = useState(CLOSING_HISTORY_PAGE_SIZE)
 
   const armAndPrint = (rep, meta) => {
     setSlip({ report: rep, meta })
@@ -168,7 +171,7 @@ export default function Closing() {
           <p className="text-sm text-cream-dim">No closings saved yet.</p>
         ) : (
           <ul className="divide-y divide-ink-line">
-            {dailyClosings.map((rec) => (
+            {dailyClosings.slice(0, historyVisibleCount).map((rec) => (
               <li key={rec.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                 <div className="min-w-0">
                   <p className="font-semibold text-cream">{dateLong(`${rec.date}T00:00:00`)}</p>
@@ -195,6 +198,16 @@ export default function Closing() {
             ))}
           </ul>
         )}
+        {historyVisibleCount < dailyClosings.length && (
+          <div className="mt-4 flex justify-center border-t border-ink-line pt-4">
+            <button
+              onClick={() => setHistoryVisibleCount((c) => c + CLOSING_HISTORY_PAGE_SIZE)}
+              className="btn-ghost px-5 py-2 text-sm"
+            >
+              Load more · {Math.min(historyVisibleCount, dailyClosings.length)}/{dailyClosings.length}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Hidden print surface — armed by the Print buttons above. */}
@@ -204,7 +217,7 @@ export default function Closing() {
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setConfirmOpen(false)} />
           <div className="relative z-10 w-full max-w-md animate-fade-up">
-            <div className="card p-6">
+            <div className="card max-h-[90vh] overflow-y-auto p-6">
               <div className="flex items-start justify-between">
                 <h3 className="font-serif text-2xl text-cream">Save today's closing?</h3>
                 <button onClick={() => setConfirmOpen(false)} className="text-cream-dim hover:text-cream">

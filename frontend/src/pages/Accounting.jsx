@@ -207,7 +207,7 @@ function AddTransactionModal({ onClose, onSave }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-md animate-fade-up">
-        <div className="card p-6">
+        <div className="card max-h-[90vh] overflow-y-auto p-6">
           <div className="flex items-start justify-between">
             <h3 className="font-serif text-2xl text-cream">{t('accounting.addExpense')}</h3>
             <button onClick={onClose} className="text-cream-dim hover:text-cream">
@@ -632,9 +632,14 @@ export default function Accounting() {
             {t('accounting.noTransactions')} {scopeLabel}.
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          // Capped + internally scrollable on screen — this table is also the
+          // print surface (#printable-report), so rows can't be paginated away
+          // (printing would then only show the current page). The print CSS
+          // resets this wrapper's height/overflow (see .ledger-scroll in
+          // index.css) so the printed sheet always gets every row regardless.
+          <div className="ledger-scroll max-h-[32rem] overflow-auto">
             <table className="w-full min-w-[640px] text-left text-sm">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-ink-card">
                 <tr className="border-b border-ink-line text-xs uppercase tracking-wider text-cream-dim">
                   <th className="px-5 py-3 font-semibold">{t('accounting.colDate')}</th>
                   <th className="px-5 py-3 font-semibold">{t('accounting.colDescription')}</th>

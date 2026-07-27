@@ -10,11 +10,14 @@ import { IconCash } from '../components/Icons.jsx'
 // same accept/reject flow as the Dashboard panel; Processed tab is the
 // immutable history (accepted + rejected) — resolved records stay in
 // pendingHandovers with a status + resolver, so no separate log is needed.
+const PROCESSED_PAGE_SIZE = 20
+
 export default function HandoverApprovals() {
   const { pendingHandovers, acceptHandover, rejectHandover, user } = useApp()
   const { t } = useLang()
   const [tab, setTab] = useState('pending')
   const [selected, setSelected] = useState(null)
+  const [visibleCount, setVisibleCount] = useState(PROCESSED_PAGE_SIZE)
 
   // Only handovers ADDRESSED to this role are actionable — cash handed to the
   // Admin is signed for by an Admin, not by whichever Manager got here first.
@@ -116,7 +119,7 @@ export default function HandoverApprovals() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-ink-line">
-                {processed.map((h) => (
+                {processed.slice(0, visibleCount).map((h) => (
                   <tr key={h.id} className="transition hover:bg-white/[0.02]">
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">
@@ -149,6 +152,16 @@ export default function HandoverApprovals() {
           </div>
           {processed.length === 0 && (
             <div className="p-12 text-center text-sm text-cream-dim">{t('handover.noProcessed')}</div>
+          )}
+          {visibleCount < processed.length && (
+            <div className="flex items-center justify-center border-t border-ink-line p-4">
+              <button
+                onClick={() => setVisibleCount((c) => c + PROCESSED_PAGE_SIZE)}
+                className="btn-ghost px-5 py-2 text-sm"
+              >
+                {t('handover.loadMore', 'Load more')} · {Math.min(visibleCount, processed.length)}/{processed.length}
+              </button>
+            </div>
           )}
         </div>
       )}

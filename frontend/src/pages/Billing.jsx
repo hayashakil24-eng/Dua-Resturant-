@@ -14,6 +14,7 @@ import { IconReceipt, IconPrint, IconCheck, IconClose, IconWallet, IconSearch } 
 // Same set (and order) as Orders.jsx's FILTERS — the two pages list the same
 // orders, so a cashier who learns one toolbar knows the other.
 const FILTERS = ['All', 'Paid', 'Unpaid', 'Udhaar', 'Complimentary', 'Cancelled']
+const BILLING_PAGE_SIZE = 20
 
 export function Receipt({
   order,
@@ -272,6 +273,7 @@ export default function Billing() {
   const [showDiscount, setShowDiscount] = useState(false)
   const [filter, setFilter] = useState('All')
   const [query, setQuery] = useState('')
+  const [visibleCount, setVisibleCount] = useState(BILLING_PAGE_SIZE)
   const active = activeId ? orders.find((o) => o.id === activeId) : null
 
   const canDiscount = Boolean(user && canModify(user.role, 'discount'))
@@ -292,6 +294,8 @@ export default function Billing() {
     if (f === 'Cancelled') return orders.filter((o) => o.cancelled).length
     return orders.filter((o) => o.payment === f && !o.cancelled).length
   }
+
+  const shownRows = rows.slice(0, visibleCount)
 
   // The four stat cards below stay deliberately unfiltered — they are the day's
   // running totals (what the drawer should hold), so narrowing to one status
@@ -334,7 +338,10 @@ export default function Billing() {
             className="input py-2 pl-9 sm:w-64"
             placeholder="Search order no."
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setVisibleCount(BILLING_PAGE_SIZE)
+            }}
           />
         </div>
       </PageHeader>
@@ -379,7 +386,10 @@ export default function Billing() {
         {FILTERS.map((f) => (
           <button
             key={f}
-            onClick={() => setFilter(f)}
+            onClick={() => {
+              setFilter(f)
+              setVisibleCount(BILLING_PAGE_SIZE)
+            }}
             className={`rounded-full border px-4 py-1.5 text-sm font-medium transition ${
               filter === f
                 ? 'border-gold/60 bg-gold/12 text-gold'
@@ -397,7 +407,7 @@ export default function Billing() {
         <EmptyState icon={IconReceipt} title="No receipts found" hint="Try a different filter or order number." />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {rows.map((o) => (
+          {shownRows.map((o) => (
             <button
               key={o.id}
               onClick={() => setActiveId(o.id)}
@@ -432,6 +442,17 @@ export default function Billing() {
               </div>
             </button>
           ))}
+        </div>
+      )}
+
+      {shownRows.length < rows.length && (
+        <div className="mt-4 flex justify-center">
+          <button
+            onClick={() => setVisibleCount((c) => c + BILLING_PAGE_SIZE)}
+            className="btn-ghost px-5 py-2 text-sm"
+          >
+            Load more · {shownRows.length}/{rows.length}
+          </button>
         </div>
       )}
 

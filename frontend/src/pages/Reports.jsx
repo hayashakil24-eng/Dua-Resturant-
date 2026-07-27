@@ -5,7 +5,6 @@ import { itemNameLabel, unitLabel } from '../i18n/dataDict.js'
 import { PageHeader } from '../components/ui.jsx'
 import { money, monthYear, dateLong, time } from '../utils/format.js'
 import KOTView from '../components/KOTView.jsx'
-import DailyReportSlip from '../components/DailyReportSlip.jsx'
 import SessionHistory from '../components/SessionHistory.jsx'
 import { monthFigures, isMaintenance } from '../utils/accounting.js'
 import { buildSessions, sessionLabel } from '../utils/sessions.js'
@@ -336,109 +335,10 @@ export default function Reports() {
 
       {!isSessionOnlyView && !isHistoryView && (
       <div className="mx-auto max-w-2xl">
-        {/* Session Report — a clean, at-a-glance overview (screen view, not the
-            printable paper). Uses the app's real figures incl. net profit. */}
-        {view === 'overview' && (
-          <div className="space-y-4">
-            <div className="flex justify-end no-print">
-              <button onClick={() => safePrint('print-daily')} className="btn-gold px-4 py-2 text-sm">
-                <IconPrint size={16} /> {t('reports.printSlip', 'Print')}
-              </button>
-            </div>
-
-            <DailyReportSlip report={report} />
-
-            {/* The window the figures below actually cover. Spelled out rather
-                than shown as a date, because one session routinely spans two
-                calendar days — dir=ltr so the "from → to" ends don't swap in
-                Urdu (RTL) and read backwards. */}
-            <div className="card flex flex-wrap items-center justify-between gap-2 p-5">
-              <span className="text-sm text-cream-dim">
-                {type === 'session' ? t('reports.recordingPeriod') : t('reports.date')}
-              </span>
-              <span className="font-serif text-lg font-semibold text-gold" dir="ltr">
-                {report.rangeLabel}
-              </span>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="card p-6">
-                <p className="text-xs uppercase tracking-widest text-cream-dim">{t('reports.totalOrders')}</p>
-                <p className="mt-2 font-serif text-4xl font-semibold text-cream">{report.totalOrders}</p>
-              </div>
-              <div className="card p-6">
-                <p className="text-xs uppercase tracking-widest text-cream-dim">{t(report.revenueLabelKey)}</p>
-                <p className="mt-2 font-serif text-4xl font-semibold text-gold">{money(report.revenue)}</p>
-              </div>
-              <div className="card border border-emerald-500/25 bg-emerald-500/[0.06] p-6">
-                <p className="text-xs uppercase tracking-widest text-emerald-300/80">💵 {t('reports.cashPayment')}</p>
-                <p className="mt-2 font-serif text-3xl font-semibold text-emerald-300">{money(report.cash)}</p>
-              </div>
-              <div className="card border border-sky-500/25 bg-sky-500/[0.06] p-6">
-                <p className="text-xs uppercase tracking-widest text-sky-300/80">💳 {t('reports.cardPayment')}</p>
-                <p className="mt-2 font-serif text-3xl font-semibold text-sky-300">{money(report.card)}</p>
-              </div>
-              <div className="card border border-indigo-500/25 bg-indigo-500/[0.06] p-6">
-                <p className="text-xs uppercase tracking-widest text-indigo-300/80">🌐 {t('reports.onlinePayment')}</p>
-                <p className="mt-2 font-serif text-3xl font-semibold text-indigo-300">{money(report.online)}</p>
-              </div>
-              {/* Expenses used to appear only on the printed slip, so a day with
-                  no logged expense looked like a print bug rather than an empty
-                  ledger. Shown on screen (with maintenance split out, as in the
-                  Summary tab) so the figure can be checked before printing. */}
-              <div className="card border border-rose-500/25 bg-rose-500/[0.06] p-6">
-                <p className="text-xs uppercase tracking-widest text-rose-300/80">🔴 {t('reports.expenses')}</p>
-                <p className="mt-2 font-serif text-3xl font-semibold text-rose-300">{money(report.expenses)}</p>
-                {report.maintenance > 0 && (
-                  <p className="mt-1 text-xs text-amber-300/80">
-                    + {t('reports.maintenance')}: {money(report.maintenance)}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Online reconciliation — how much landed in each account, so the
-                totals can be matched against each wallet/bank statement. */}
-            {report.onlineByAccount?.length > 0 && (
-              <div className="card border border-indigo-500/25 bg-indigo-500/[0.04] p-6">
-                <p className="text-xs uppercase tracking-widest text-indigo-300/80">
-                  🌐 {t('reports.onlineByAccount', 'Online — received by account')}
-                </p>
-                <ul className="mt-4 divide-y divide-ink-line">
-                  {report.onlineByAccount.map(([name, amount]) => (
-                    <li key={name} className="flex items-center justify-between py-2.5">
-                      <span className="text-sm text-cream">{name}</span>
-                      <span className="font-serif text-lg font-semibold text-indigo-300">
-                        {money(amount)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <div className="card border border-gold/30 bg-gold/[0.06] p-6">
-              <p className="text-xs uppercase tracking-widest text-gold">{t('reports.totalProfit')}</p>
-              <p
-                className={`mt-2 font-serif text-4xl font-semibold ${
-                  report.netProfit >= 0 ? 'text-gold' : 'text-rose-300'
-                }`}
-              >
-                {money(report.netProfit)}
-              </p>
-            </div>
-
-            {report.totalOrders === 0 && (
-              <div className="card p-8 text-center text-sm text-cream-dim">
-                {t('reports.noOrdersPeriod')}
-              </div>
-            )}
-          </div>
-        )}
-
-        {view !== 'overview' && (
-        <>
-        {/* Printable report (light "paper" — matches print output) */}
+        {/* Printable report (light "paper" — matches print output). Session
+            Report, Summary and Item-Wise all share this one surface, toggling
+            content by `view`, so the three tabs look and print consistently
+            instead of each inventing its own layout. */}
         <div id="printable-report" className="rounded-2xl bg-white p-8 text-[#3E2723] shadow-lift border border-[#E8DCC4]">
           {/* Brand header */}
           <div className="text-center">
@@ -467,6 +367,37 @@ export default function Reports() {
           <p className="mt-1 text-[11px] text-[#8D6E63]">
             {t('reports.generated')} {dateLong()} · {time(new Date().toISOString())}
           </p>
+
+          {view === 'overview' && (
+            <div className="mt-5">
+              <Row label={t('reports.totalOrders')} value={report.totalOrders} tone="text-[#3498DB]" />
+              <Row label={t(report.revenueLabelKey)} value={money(report.revenue)} tone="text-[#3498DB]" />
+              {type === 'session' && (
+                <>
+                  <Row label={t('reports.cash')} value={money(report.cash)} tone="text-[#3498DB]" />
+                  <Row label={t('reports.card')} value={money(report.card)} tone="text-[#3498DB]" />
+                  <Row label={t('reports.online')} value={money(report.online)} tone="text-[#3498DB]" />
+                  {/* Per-account online reconciliation — which wallet/bank each
+                      online payment landed in, so totals can be matched
+                      against statements. */}
+                  {report.onlineByAccount?.map(([name, amount]) => (
+                    <div key={name} className="flex items-center justify-between py-1 pl-7 text-xs text-[#8D6E63]">
+                      <span>· {name}</span>
+                      <span className="font-semibold text-[#3498DB]">{money(amount)}</span>
+                    </div>
+                  ))}
+                </>
+              )}
+              <Row label={t('reports.expenses')} value={money(report.expenses)} tone="text-[#E74C3C]" />
+              <Row label={t('reports.maintenance')} value={money(report.maintenance || 0)} tone="text-[#E67E22]" />
+              <Row
+                label={t('reports.netProfit')}
+                value={money(report.netProfit)}
+                tone={report.netProfit >= 0 ? 'text-[#27AE60]' : 'text-[#E74C3C]'}
+                strong
+              />
+            </div>
+          )}
 
           {view === 'summary' && (
           <>
@@ -622,8 +553,6 @@ export default function Reports() {
             <IconWhatsApp size={18} /> {t('reports.shareWhatsApp')}
           </button>
         </div>
-        </>
-        )}
       </div>
       )}
     </div>

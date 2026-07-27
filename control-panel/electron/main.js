@@ -134,8 +134,23 @@ async function runMigrations(env) {
 
   const prismaEntry = path.join(nodeModulesDir, 'prisma/build/index.js')
   const schemaPath = path.join(unpackedBackendDir, 'prisma/schema.prisma')
+  // Prisma's CLI keeps its own copy of the query engine under
+  // node_modules/@prisma/engines, separate from the one @cafe-ali/backend's
+  // @prisma/client already ships (.prisma/client) — that copy is only ever
+  // populated for whatever OS ran `npm install` (this package's Linux build
+  // machine), so a fresh Windows install is missing it there. The CLI's own
+  // fix-up-on-first-run then tries to download one and cache it into
+  // node_modules/@prisma/engines, which fails with EPERM: that folder is
+  // inside Program Files, unwritable by a non-elevated process. Pointing it
+  // straight at the engine already shipped for @prisma/client — which the
+  // running server already uses successfully — skips that fetch entirely.
+  const queryEngineLibrary = path.join(nodeModulesDir, '.prisma/client/query_engine-windows.dll.node')
+  const migrationEnv = { ...env, ELECTRON_RUN_AS_NODE: '1' }
+  if (fs.existsSync(queryEngineLibrary)) {
+    migrationEnv.PRISMA_QUERY_ENGINE_LIBRARY = queryEngineLibrary
+  }
   await execFileAsync(process.execPath, [prismaEntry, 'migrate', 'deploy', '--schema', schemaPath], {
-    env: { ...env, ELECTRON_RUN_AS_NODE: '1' },
+    env: migrationEnv,
   })
 }
 
@@ -251,7 +266,7 @@ function createWindow() {
     },
   })
   win.webContents.on('preload-error', (_e, preloadPath, error) => {
-    fs.appendFileSync('/tmp/cp-debug.log', `preload error at ${preloadPath}: ${error?.stack || error}\n`)
+    fs.appendFileSync(path.join(userDataDir, 'cp-debug.log'), `preload error at ${preloadPath}: ${error?.stack || error}\n`)
   })
   win.loadFile(path.join(__dirname, '../src/index.html'))
   // Minimize to tray instead of quitting — this app is meant to run quietly

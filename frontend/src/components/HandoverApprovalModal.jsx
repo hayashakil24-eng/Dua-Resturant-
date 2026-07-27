@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { money, time } from '../utils/format.js'
 import { useT } from '../i18n/LanguageContext.jsx'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
@@ -33,11 +34,18 @@ export default function HandoverApprovalModal({ handover, onAccept, onReject, on
     if (res?.error) setError(res.error)
   }
 
-  return (
+  // Portaled straight to <body> — this modal is opened from the Dashboard's
+  // Pending Handovers panel, which sits inside a `space-y-*` stack; a plain
+  // in-tree render made the space-y utility's sibling margin push the
+  // overlay's top edge down (and the panel's own `.card` backdrop-blur
+  // separately trapped `position: fixed` to the card's box, not the
+  // viewport) — both go away once this is a body-level sibling instead of a
+  // layout-flow child of whatever page happens to open it.
+  return createPortal(
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-md animate-fade-up">
-        <div className="card p-6">
+        <div className="card max-h-[90vh] overflow-y-auto p-6">
           <div className="flex items-start justify-between">
             <h3 className="font-serif text-2xl text-cream">{t('handover.approvalTitle')}</h3>
             <button onClick={onClose} className="text-cream-dim hover:text-cream">
@@ -104,6 +112,7 @@ export default function HandoverApprovalModal({ handover, onAccept, onReject, on
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

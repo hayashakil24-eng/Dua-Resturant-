@@ -610,6 +610,8 @@ function PendingHandoversPanel() {
         ))}
       </div>
 
+      {/* HandoverApprovalModal portals itself to <body>, so nesting it here
+          doesn't trap its fixed overlay inside this card. */}
       {selected && (
         <HandoverApprovalModal
           handover={selected}

@@ -43,7 +43,7 @@ export default function PaymentModal({ total, onClose, onConfirm, onlineAccounts
     <div dir="ltr" className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-md animate-fade-up">
-        <div className="card p-6">
+        <div className="card max-h-[90vh] overflow-y-auto p-6">
           <div className="flex items-start justify-between">
             <div>
               <h3 className="font-serif text-2xl text-cream">Take Payment</h3>

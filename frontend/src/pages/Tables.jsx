@@ -87,7 +87,7 @@ function OrderDetailsModal({ order, tableLabel, orderTotal, onClose, canAddItems
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-md animate-fade-up">
-        <div className="card p-6">
+        <div className="card max-h-[90vh] overflow-y-auto p-6">
           <div className="flex items-start justify-between">
             <div>
               <h3 className="font-serif text-2xl text-cream">{tableLabel || `${t('tables.table')} ${order.table}`}</h3>
@@ -427,6 +427,8 @@ function TablesManageModal({ tables, occupied, canDelete, onBulkAdd, onUpdateCat
   )
 }
 
+const TABLES_PAGE_SIZE = 24
+
 const TABS = [
   { key: 'running', labelKey: 'tables.running', dot: 'bg-rose-400' },
   { key: 'available', labelKey: 'tables.available', dot: 'bg-emerald-400' },
@@ -443,6 +445,7 @@ export default function Tables() {
   const [detail, setDetail] = useState(null)
   const [shiftTarget, setShiftTarget] = useState(null) // running order → move to another table
   const [manage, setManage] = useState(false)
+  const [page, setPage] = useState(1)
   const [now, setNow] = useState(() => Date.now())
   const catScrollRef = useRef(null)
   const scrollCats = (dir) =>
@@ -480,6 +483,12 @@ export default function Tables() {
   const query = q.trim().toLowerCase()
   if (query) shown = shown.filter((i) => (i.number || '').toLowerCase().includes(query))
 
+  // Paginate the grid — a restaurant here runs 300+ tables (see pageWindow.js),
+  // so rendering every card at once would make the tab unusably long.
+  const pageCount = Math.max(1, Math.ceil(shown.length / TABLES_PAGE_SIZE))
+  const safePage = Math.min(page, pageCount)
+  const paged = shown.slice((safePage - 1) * TABLES_PAGE_SIZE, safePage * TABLES_PAGE_SIZE)
+
   // Add/manage tables is Admin+Manager only; adding items to a running order
   // needs POS access (Cashier + Admin — Manager has no POS).
   const canManageTables = user && canModify(user.role, 'tableAdd')
@@ -512,7 +521,10 @@ export default function Tables() {
           return (
             <button
               key={tb.key}
-              onClick={() => setTab(tb.key)}
+              onClick={() => {
+                setTab(tb.key)
+                setPage(1)
+              }}
               className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition ${
                 tab === tb.key
                   ? 'border-gold/60 bg-gold/12 text-gold'
@@ -544,7 +556,10 @@ export default function Tables() {
           {catTabs.map((c) => (
             <button
               key={c}
-              onClick={() => setCat(c)}
+              onClick={() => {
+                setCat(c)
+                setPage(1)
+              }}
               className={`shrink-0 whitespace-nowrap rounded-full border px-4 py-1.5 text-sm font-medium transition ${
                 cat === c
                   ? 'border-gold/60 bg-gold/12 text-gold'
@@ -571,7 +586,10 @@ export default function Tables() {
         </div>
         <input
           value={q}
-          onChange={(e) => setQ(e.target.value)}
+          onChange={(e) => {
+            setQ(e.target.value)
+            setPage(1)
+          }}
           placeholder={t('tables.searchPlaceholder')}
           className="input w-full py-2 lg:w-56"
         />
@@ -589,11 +607,37 @@ export default function Tables() {
                 : t('tables.noneConfigured')}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
-          {shown.map((info) => (
-            <TableCard key={info.id} info={info} now={now} onClick={() => onCardClick(info)} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+            {paged.map((info) => (
+              <TableCard key={info.id} info={info} now={now} onClick={() => onCardClick(info)} />
+            ))}
+          </div>
+
+          {pageCount > 1 && (
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-1.5">
+              {pageWindow(safePage, pageCount).map((p, i) =>
+                p === '…' ? (
+                  <span key={`gap-${i}`} className="px-1 text-xs text-cream-dim">
+                    …
+                  </span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    className={`min-w-8 rounded-lg border px-2 py-1 text-xs font-semibold transition ${
+                      p === safePage
+                        ? 'border-gold/50 bg-gold/12 text-gold'
+                        : 'border-ink-line bg-ink-soft text-cream-dim hover:text-cream'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ),
+              )}
+            </div>
+          )}
+        </>
       )}
 
       {/* Stats footer */}

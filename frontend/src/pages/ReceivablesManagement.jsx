@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader, StatCard } from '../components/ui.jsx'
@@ -6,6 +6,8 @@ import { money, dateShort } from '../utils/format.js'
 import SettleReceivableModal from '../components/SettleReceivableModal.jsx'
 import { Receipt } from './Billing.jsx'
 import { IconWallet, IconAlert, IconCheck, IconChevronDown, IconReceipt } from '../components/Icons.jsx'
+
+const RECEIVABLES_PAGE_SIZE = 20
 
 export default function ReceivablesManagement() {
   const { receivables, recordReceivablePayment, orders, orderTotal } = useApp()
@@ -16,6 +18,7 @@ export default function ReceivablesManagement() {
   const orderByServerId = useMemo(() => new Map(orders.map((o) => [o.serverId, o])), [orders])
   const orderLabel = (orderId) => orderByServerId.get(orderId)?.id || orderId
   const [showAll, setShowAll] = useState(false)
+  const [visibleCount, setVisibleCount] = useState(RECEIVABLES_PAGE_SIZE)
   const [viewOrder, setViewOrder] = useState(null) // order whose bill is being viewed
   const [settleTarget, setSettleTarget] = useState(null)
   // Which account rows are expanded to show their bill-by-bill breakdown
@@ -33,6 +36,7 @@ export default function ReceivablesManagement() {
     () => (showAll ? receivables : receivables.filter((r) => r.status === 'open')),
     [receivables, showAll],
   )
+  const shown = rows.slice(0, visibleCount)
 
   const openTotal = useMemo(
     () => receivables.filter((r) => r.status === 'open').reduce((s, r) => s + r.balance, 0),
@@ -63,7 +67,10 @@ export default function ReceivablesManagement() {
             <input
               type="checkbox"
               checked={showAll}
-              onChange={(e) => setShowAll(e.target.checked)}
+              onChange={(e) => {
+                setShowAll(e.target.checked)
+                setVisibleCount(RECEIVABLES_PAGE_SIZE)
+              }}
               className="h-4 w-4 accent-gold"
             />
             {t('receivables.showAll')}
@@ -90,12 +97,12 @@ export default function ReceivablesManagement() {
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-line">
-              {rows.map((r) => {
+              {shown.map((r) => {
                 const open = r.status === 'open'
                 const isOpen = expanded.has(r.id)
                 const charges = [...(r.charges || [])].sort((a, b) => new Date(b.at) - new Date(a.at))
                 return (
-                  <>
+                  <Fragment key={r.id}>
                     <tr
                       key={r.id}
                       className="cursor-pointer transition hover:bg-white/[0.02]"
@@ -184,7 +191,7 @@ export default function ReceivablesManagement() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 )
               })}
             </tbody>
@@ -193,6 +200,16 @@ export default function ReceivablesManagement() {
         {rows.length === 0 && (
           <div className="p-10 text-center text-sm text-cream-dim">
             {showAll ? t('receivables.none') : t('receivables.noOpen')}
+          </div>
+        )}
+        {shown.length < rows.length && (
+          <div className="flex items-center justify-center border-t border-ink-line p-4">
+            <button
+              onClick={() => setVisibleCount((c) => c + RECEIVABLES_PAGE_SIZE)}
+              className="btn-ghost px-5 py-2 text-sm"
+            >
+              {t('receivables.loadMore', 'Load more')} · {shown.length}/{rows.length}
+            </button>
           </div>
         )}
       </div>
