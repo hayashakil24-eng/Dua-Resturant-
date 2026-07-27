@@ -53,6 +53,7 @@ function EmployeeModal({ employee, onSave, onClose }) {
       phone: '',
       email: '',
       baseSalary: '',
+      deviceUserId: '',
       active: true,
     },
   )
@@ -118,6 +119,15 @@ function EmployeeModal({ employee, onSave, onClose }) {
 
             <Field label={t('employees.email')}>
               <input className="input" value={form.email || ''} onChange={(e) => set('email', e.target.value)} placeholder={t('employees.emailPh')} />
+            </Field>
+
+            <Field label={t('employees.deviceUserId')}>
+              <input
+                className="input"
+                value={form.deviceUserId || ''}
+                onChange={(e) => set('deviceUserId', e.target.value)}
+                placeholder={t('employees.deviceUserIdPh')}
+              />
             </Field>
 
             <label className="flex items-center gap-2.5 text-sm text-cream">
@@ -239,6 +249,9 @@ export default function Employees() {
                       <div>
                         <p className="font-medium text-cream">{s.name}</p>
                         {s.email && <p className="text-xs text-cream-dim">{s.email}</p>}
+                        {s.deviceUserId && (
+                          <p className="text-xs text-cream-dim">{t('employees.deviceUserIdShort')} {s.deviceUserId}</p>
+                        )}
                       </div>
                     </div>
                   </td>

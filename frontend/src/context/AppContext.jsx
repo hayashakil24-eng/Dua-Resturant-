@@ -39,6 +39,8 @@ const ACTION_REFETCH_MAP = {
   TABLE_CATEGORY_DELETED: ['tables'],
   STAFF_ADDED: ['staff'],
   STAFF_DELETED: ['staff'],
+  ATTENDANCE_OVERRIDE: ['attendance'],
+  ATTENDANCE_MACHINE_SYNC: ['attendance'],
   STAFF_SIGNUP_REQUESTED: ['pendingSignups'],
   STAFF_SIGNUP_APPROVED: ['pendingSignups', 'staff'],
   STAFF_SIGNUP_REJECTED: ['pendingSignups'],
@@ -74,6 +76,7 @@ const ACTION_REFETCH_MAP = {
   GST_ENABLED: ['settings'],
   GST_DISABLED: ['settings'],
   GST_RATE_CHANGED: ['settings'],
+  ATTENDANCE_DEVICE_CONFIG_CHANGED: ['settings'],
   DAY_CLOSED: ['dailyClosings'],
 }
 
@@ -121,6 +124,7 @@ export function AppProvider({ children }) {
   const [gstEnabled, setGstEnabled] = useState(false)
   const [gstRate, setGstRateState] = useState(TAX_RATE)
   const [whatsappReport, setWhatsappReport] = useState({ enabled: false, hour: 23, recipient: '' })
+  const [attendanceDevice, setAttendanceDevice] = useState({ ip: '', port: 4370 })
   const [onlineAccounts, setOnlineAccounts] = useState([])
   const [dailyClosings, setDailyClosings] = useState([])
   const [receivables, setReceivables] = useState([])
@@ -165,6 +169,10 @@ export function AppProvider({ children }) {
           enabled: Boolean(d.settings?.whatsappReportEnabled),
           hour: d.settings?.whatsappReportHour ?? 23,
           recipient: d.settings?.whatsappReportRecipient ?? '',
+        })
+        setAttendanceDevice({
+          ip: d.settings?.attendanceDeviceIp ?? '',
+          port: d.settings?.attendanceDevicePort ?? 4370,
         })
       }),
     onlineAccounts: () => apiGet('/api/online-accounts').then((d) => setOnlineAccounts(d.accounts || [])),
@@ -357,6 +365,15 @@ export function AppProvider({ children }) {
   const setWhatsappReportConfig = async (patch = {}) => {
     try {
       await apiPost('/api/settings/whatsapp-report', patch)
+      await refresh(['settings'])
+      return {}
+    } catch (e) {
+      return toError(e)
+    }
+  }
+  const setAttendanceDeviceConfig = async (patch = {}) => {
+    try {
+      await apiPost('/api/settings/attendance-device', patch)
       await refresh(['settings'])
       return {}
     } catch (e) {
@@ -1157,6 +1174,8 @@ export function AppProvider({ children }) {
     setGstRate,
     whatsappReport,
     setWhatsappReportConfig,
+    attendanceDevice,
+    setAttendanceDeviceConfig,
     onlineAccounts,
     addOnlineAccount,
     updateOnlineAccount,

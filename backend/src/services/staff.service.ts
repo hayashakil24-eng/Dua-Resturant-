@@ -6,6 +6,7 @@
 // frontend which had no concept of credentials. The frontend didn't audit
 // advances; that parity is kept.
 
+import { Prisma } from '@prisma/client'
 import { prisma } from '../db/client.js'
 import { writeAudit } from '../lib/audit.js'
 import { ServiceError } from '../lib/errors.js'
@@ -39,35 +40,70 @@ export interface StaffInput {
   phone?: string
   email?: string
   baseSalary?: number
+  deviceUserId?: string | null
+}
+
+// The uFace 950 enrolls each person under a numeric ID entered on the device
+// itself; this is only ever how a punch coming off the device gets matched
+// back to a Staff row (attendanceDevice.service.ts), never written by the
+// device flow. Empty string means "clear the link", not "leave unset".
+async function checkDeviceUserIdAvailable(deviceUserId: string, excludeStaffId?: string) {
+  const existing = await prisma.staff.findUnique({ where: { deviceUserId } })
+  if (existing && existing.id !== excludeStaffId) {
+    throw new ServiceError('That attendance machine ID is already linked to another staff member.', 409)
+  }
+}
+
+// checkDeviceUserIdAvailable runs before the transaction, so two requests
+// linking the same device ID at the same instant could both pass it — the
+// schema's @unique constraint is what actually prevents the bad data either
+// way, this just turns that race's raw Prisma error into the same friendly
+// message the common (non-racing) path already gives.
+function rethrowDeviceUserIdConflict(err: unknown): never {
+  if (
+    err instanceof Prisma.PrismaClientKnownRequestError &&
+    err.code === 'P2002' &&
+    (err.meta?.target as string[] | undefined)?.includes('deviceUserId')
+  ) {
+    throw new ServiceError('That attendance machine ID is already linked to another staff member.', 409)
+  }
+  throw err
 }
 
 export async function addStaff(ctx: Ctx, emp: StaffInput) {
   const name = (emp.name ?? '').trim()
   if (!name) throw new ServiceError('Employee name is required.')
   const shift = emp.shift || 'Morning'
-  return prisma.$transaction(async (tx) => {
-    const created = await tx.staff.create({
-      data: {
-        name,
-        role: emp.role || 'Waiter',
-        shift,
-        // Derive the start time from the shift (same as the seed) so a record
-        // without one doesn't always read as Absent.
-        shiftStartTime: emp.shiftStartTime || SHIFT_START_TIMES[shift] || SHIFT_START_TIMES.Morning,
-        phone: emp.phone ?? null,
-        email: emp.email ?? null,
-        baseSalary: Number(emp.baseSalary) || 0,
-        active: true,
-      },
+  const deviceUserId = emp.deviceUserId?.trim() || null
+  if (deviceUserId) await checkDeviceUserIdAvailable(deviceUserId)
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const created = await tx.staff.create({
+        data: {
+          name,
+          role: emp.role || 'Waiter',
+          shift,
+          // Derive the start time from the shift (same as the seed) so a record
+          // without one doesn't always read as Absent.
+          shiftStartTime: emp.shiftStartTime || SHIFT_START_TIMES[shift] || SHIFT_START_TIMES.Morning,
+          phone: emp.phone ?? null,
+          email: emp.email ?? null,
+          baseSalary: Number(emp.baseSalary) || 0,
+          deviceUserId,
+          active: true,
+        },
+      })
+      await writeAudit(tx, { action: 'STAFF_ADDED', actor: ctx.actor, details: { staffId: created.id, name: created.name } })
+      // Synced (docs/05-phase-4-vps-sync.md "Production hardening") so a
+      // ShiftReconciliation.staffId referencing this row can resolve on the
+      // VPS — Postgres enforces that FK even though the local SQLite copy
+      // doesn't necessarily.
+      await enqueueOutbox(tx, 'Staff', created.id, created)
+      return created
     })
-    await writeAudit(tx, { action: 'STAFF_ADDED', actor: ctx.actor, details: { staffId: created.id, name: created.name } })
-    // Synced (docs/05-phase-4-vps-sync.md "Production hardening") so a
-    // ShiftReconciliation.staffId referencing this row can resolve on the
-    // VPS — Postgres enforces that FK even though the local SQLite copy
-    // doesn't necessarily.
-    await enqueueOutbox(tx, 'Staff', created.id, created)
-    return created
-  })
+  } catch (err) {
+    rethrowDeviceUserIdConflict(err)
+  }
 }
 
 export async function updateStaff(_ctx: Ctx, id: string, updates: StaffInput) {
@@ -80,11 +116,20 @@ export async function updateStaff(_ctx: Ctx, id: string, updates: StaffInput) {
     data.shiftStartTime = SHIFT_START_TIMES[updates.shift] || current.shiftStartTime
   }
   if (updates.baseSalary != null) data.baseSalary = Number(updates.baseSalary) || 0
-  return prisma.$transaction(async (tx) => {
-    const updated = await tx.staff.update({ where: { id }, data })
-    await enqueueOutbox(tx, 'Staff', updated.id, updated)
-    return updated
-  })
+  if (updates.deviceUserId !== undefined) {
+    const deviceUserId = updates.deviceUserId?.trim() || null
+    if (deviceUserId) await checkDeviceUserIdAvailable(deviceUserId, id)
+    data.deviceUserId = deviceUserId
+  }
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const updated = await tx.staff.update({ where: { id }, data })
+      await enqueueOutbox(tx, 'Staff', updated.id, updated)
+      return updated
+    })
+  } catch (err) {
+    rethrowDeviceUserIdConflict(err)
+  }
 }
 
 export async function deleteStaff(ctx: Ctx, id: string) {

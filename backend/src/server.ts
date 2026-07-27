@@ -9,6 +9,7 @@ import { startDiscoveryResponder } from './realtime/discovery.js'
 import { startBackupSchedule } from './backup/schedule.js'
 import { startSyncSchedule } from './sync/job.js'
 import { startWhatsappReportSchedule } from './whatsapp/schedule.js'
+import { startAttendanceDevicePolling } from './services/attendanceDevice.service.js'
 
 const app = buildApp()
 
@@ -20,6 +21,7 @@ app
     startBackupSchedule()
     startSyncSchedule()
     startWhatsappReportSchedule()
+    startAttendanceDevicePolling()
     app.log.info(`Cafe Ali backend listening on http://${env.host}:${env.port}`)
   })
   .catch((err) => {

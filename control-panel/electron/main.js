@@ -197,8 +197,17 @@ async function startBackend() {
     // Dynamic import: must happen AFTER the env vars above are set, since
     // @cafe-ali/backend's db/client.ts constructs its PrismaClient (which
     // reads DATABASE_URL) at module-load time.
-    const { buildApp, attachSocket, startDiscoveryResponder, startBackupSchedule, startSyncSchedule, startWhatsappReportSchedule, seedBaseline, env } =
-      await import('@cafe-ali/backend')
+    const {
+      buildApp,
+      attachSocket,
+      startDiscoveryResponder,
+      startBackupSchedule,
+      startSyncSchedule,
+      startWhatsappReportSchedule,
+      startAttendanceDevicePolling,
+      seedBaseline,
+      env,
+    } = await import('@cafe-ali/backend')
 
     // `migrate deploy` only creates empty tables (no prisma/seed.ts, unlike dev)
     // — so without this a fresh install has a working login but an empty menu
@@ -215,8 +224,9 @@ async function startBackend() {
     const backupTimer = startBackupSchedule()
     const syncTimer = startSyncSchedule()
     const whatsappTimer = startWhatsappReportSchedule()
+    const attendanceDeviceTimer = startAttendanceDevicePolling()
 
-    backend = { fastify, io, discoverySocket, backupTimer, syncTimer, whatsappTimer }
+    backend = { fastify, io, discoverySocket, backupTimer, syncTimer, whatsappTimer, attendanceDeviceTimer }
     serverStatus = 'online'
     lastError = null
   } catch (err) {
@@ -232,6 +242,7 @@ async function stopBackend() {
   clearInterval(backend.backupTimer)
   clearInterval(backend.syncTimer)
   clearInterval(backend.whatsappTimer)
+  clearInterval(backend.attendanceDeviceTimer)
   backend.discoverySocket.close()
   await backend.io.close()
   await backend.fastify.close()

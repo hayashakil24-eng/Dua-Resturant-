@@ -18,6 +18,9 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/settings/whatsapp-report', { preHandler: requirePermission('settings') }, async (req) => {
     return { settings: await settings.setWhatsappReportConfig(ctx(req), req.body as never) }
   })
+  app.post('/api/settings/attendance-device', { preHandler: requirePermission('settings') }, async (req) => {
+    return { settings: await settings.setAttendanceDeviceConfig(ctx(req), req.body as never) }
+  })
 
   // Online payment accounts
   app.get('/api/online-accounts', { preHandler: authenticate }, async () => ({ accounts: await settings.listOnlineAccounts() }))

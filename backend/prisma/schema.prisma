@@ -69,6 +69,12 @@ model Staff {
   shiftStartTime String? // "HH:MM", 24h — drives Late calculation
   phone          String?
   email          String?
+  // The numeric user ID this staff member is enrolled under on the on-site
+  // ZKTeco uFace 950 (fingerprint/face attendance machine) — see
+  // attendanceDevice.service.ts. Enrollment itself always happens on the
+  // device; this field is only how a punch coming off the device gets
+  // matched back to a Staff row.
+  deviceUserId   String?   @unique
   baseSalary     Int      @default(0)
   active         Boolean  @default(true)
   createdAt      DateTime @default(now())
@@ -633,6 +639,13 @@ model AppSettings {
   // rather than being keyed to a calendar date that might not match session
   // boundaries (see core/closing.ts's "business-day session" comment).
   whatsappReportLastSentClosingId String?
+  // Attendance machine (ZKTeco uFace 950) — set from Settings.jsx, not an
+  // env var/.env edit, so an on-site install never needs anyone to touch a
+  // config file or restart the server: entering the IP here takes effect on
+  // the poller's very next tick (attendanceDevice.service.ts reads this row
+  // fresh every poll, the same way whatsapp/schedule.ts reads its config).
+  attendanceDeviceIp   String?
+  attendanceDevicePort Int     @default(4370)
   updatedAt  DateTime @updatedAt
 }
 

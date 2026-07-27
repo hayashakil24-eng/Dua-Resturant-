@@ -65,6 +65,14 @@ export const env = {
     tlsCertPath: process.env.VPS_TLS_CERT_PATH ?? null,
     tlsKeyPath: process.env.VPS_TLS_KEY_PATH ?? null,
   },
+  // How often src/services/attendanceDevice.service.ts polls the attendance
+  // machine (ZKTeco uFace 950) for new punches. The machine's IP/port
+  // themselves are NOT here — they're AppSettings.attendanceDeviceIp/Port,
+  // set from Settings.jsx, so an on-site install never needs an env var/
+  // restart for that. This one stays an env var because it's an infra
+  // tuning knob no restaurant admin needs to touch, with a sane universal
+  // default.
+  attendanceDevicePollIntervalMs: Number(process.env.ATTENDANCE_DEVICE_POLL_INTERVAL_MS ?? 30_000),
   // requirements.md §6/§7: WhatsApp Cloud API. All optional — a deployment
   // that never sets these just never sends (whatsapp/client.ts's
   // isWhatsAppConfigured() gate), same pattern as vps.* above. Read from

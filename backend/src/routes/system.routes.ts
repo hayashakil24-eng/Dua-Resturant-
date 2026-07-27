@@ -8,6 +8,8 @@ import { lastBackupInfo, runBackup } from '../backup/backup.js'
 import { prisma } from '../db/client.js'
 import { env } from '../env.js'
 import { syncOnce } from '../sync/job.js'
+import { pollAttendanceDeviceOnce, getAttendanceDeviceStatus } from '../services/attendanceDevice.service.js'
+import { scanForAttendanceDevices } from '../services/attendanceDeviceDiscovery.service.js'
 
 const startedAt = Date.now()
 
@@ -22,12 +24,15 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
       ? await prisma.outboxEntry.findFirst({ where: { status: 'synced' }, orderBy: { syncedAt: 'desc' } })
       : null
     const pendingSyncCount = env.vps.url ? await prisma.outboxEntry.count({ where: { status: { in: ['pending', 'failed'] } } }) : 0
+    const attendanceDevice = await getAttendanceDeviceStatus()
     return {
       uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
       lastBackupAt: backup?.at ?? null,
       vpsConfigured: Boolean(env.vps.url),
       lastSyncAt: lastSync?.syncedAt?.toISOString() ?? null,
       pendingSyncCount,
+      attendanceDeviceConfigured: attendanceDevice.configured,
+      lastAttendanceSyncAt: attendanceDevice.lastSyncAt,
     }
   })
 
@@ -45,6 +50,30 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(502).send({ error: 'Could not reach the VPS. Check its address and your internet connection.' })
     }
     return result
+  })
+
+  // Manual "Sync Attendance Now" — the background poller (startAttendance-
+  // DevicePolling) already retries on its own interval, so this is for an
+  // Admin who wants to see a just-happened punch reflected right away
+  // instead of waiting out the interval. Same pollAttendanceDeviceOnce() the
+  // scheduled job calls.
+  app.post('/api/system/attendance-sync-now', { preHandler: requirePermission('settings', 'access') }, async (_req, reply) => {
+    const result = await pollAttendanceDeviceOnce()
+    if (result === null) {
+      return reply.code(400).send({ error: 'The attendance machine is not configured on this server.' })
+    }
+    if (result.error) {
+      return reply.code(502).send({ error: `Could not reach the attendance machine: ${result.error}` })
+    }
+    return result
+  })
+
+  // "Scan for device" (Settings.jsx) — sweeps the server's own LAN subnet
+  // for a responding ZK device instead of requiring the IP be typed in. See
+  // attendanceDeviceDiscovery.service.ts's file header for why this is a
+  // TCP-probe + handshake sweep rather than a broadcast search.
+  app.post('/api/system/attendance-scan', { preHandler: requirePermission('settings', 'access') }, async () => {
+    return { devices: await scanForAttendanceDevices() }
   })
 
   // Manual backup — the scheduled job (startBackupSchedule) already writes

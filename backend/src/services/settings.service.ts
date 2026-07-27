@@ -88,6 +88,43 @@ export async function setWhatsappReportConfig(ctx: Ctx, patch: WhatsappReportCon
   })
 }
 
+// ---- Attendance machine (ZKTeco uFace 950) ---------------------------------
+// Set from Settings.jsx — see schema.prisma's AppSettings comment for why
+// this lives here rather than an env var: an on-site install shouldn't ever
+// need anyone to touch a config file or restart the server for this.
+
+export interface AttendanceDeviceConfig {
+  ip?: string | null
+  port?: number
+}
+
+// Matches what the UI actually promises (Settings.jsx's label is "Machine IP
+// address", placeholder "192.168.1.201") — a plain dotted-quad, not a
+// hostname. Rejecting an obvious typo here beats accepting it silently and
+// only surfacing the mistake as a failed poll a poll cycle later.
+const IPV4_RE = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/
+
+export async function setAttendanceDeviceConfig(ctx: Ctx, patch: AttendanceDeviceConfig) {
+  const data: Record<string, unknown> = {}
+  if (patch.ip !== undefined) {
+    const ip = (patch.ip ?? '').trim()
+    if (ip && !IPV4_RE.test(ip)) throw new ServiceError('Enter a valid IP address (e.g. 192.168.1.201).')
+    data.attendanceDeviceIp = ip || null
+  }
+  if (patch.port != null) {
+    const p = Number(patch.port)
+    if (!Number.isInteger(p) || p < 1 || p > 65535) throw new ServiceError('Enter a valid port number (1-65535).')
+    data.attendanceDevicePort = p
+  }
+  if (Object.keys(data).length === 0) return ensureSettings()
+  return prisma.$transaction(async (tx) => {
+    await tx.appSettings.upsert({ where: { id: SETTINGS_ID }, create: { id: SETTINGS_ID }, update: {} })
+    const updated = await tx.appSettings.update({ where: { id: SETTINGS_ID }, data })
+    await writeAudit(tx, { action: 'ATTENDANCE_DEVICE_CONFIG_CHANGED', actor: ctx.actor, details: data })
+    return updated
+  })
+}
+
 // ---- Online accounts ------------------------------------------------------
 
 export async function listOnlineAccounts() {

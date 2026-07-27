@@ -4,7 +4,7 @@ import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader } from '../components/ui.jsx'
 import { canModify } from '../config/permissions.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
-import { IconSettings, IconReceipt, IconWallet, IconPlus, IconClose, IconCheck, IconClock, IconRefresh, IconWhatsApp, IconLock } from '../components/Icons.jsx'
+import { IconSettings, IconReceipt, IconWallet, IconPlus, IconClose, IconCheck, IconClock, IconRefresh, IconWhatsApp, IconLock, IconAttendance } from '../components/Icons.jsx'
 import { apiGet, apiPost } from '../api/client.js'
 import { WALLET_TYPES, PK_BANKS, BANK_OTHER, ERR_WALLET, ERR_BANK, accountFieldsFor, sanitizeAccountNumber, sanitizeIban, validateAccount } from '../utils/accountNumber.js'
 
@@ -24,6 +24,9 @@ function ServerHealthPanel() {
   const [backingUp, setBackingUp] = useState(false)
   const [backupMsg, setBackupMsg] = useState('')
   const [backupErr, setBackupErr] = useState('')
+  const [attSyncing, setAttSyncing] = useState(false)
+  const [attSyncMsg, setAttSyncMsg] = useState('')
+  const [attSyncErr, setAttSyncErr] = useState('')
 
   const load = () => {
     setLoading(true)
@@ -78,6 +81,26 @@ function ServerHealthPanel() {
       setBackupErr(err.message)
     } finally {
       setBackingUp(false)
+    }
+  }
+
+  // Manual attendance-machine sync — the background poller already retries
+  // on its own interval, so this is for an Admin who wants a just-happened
+  // punch to show up right away instead of waiting out the interval.
+  const attSyncNow = async () => {
+    setAttSyncing(true)
+    setAttSyncMsg('')
+    setAttSyncErr('')
+    try {
+      const res = await apiPost('/api/system/attendance-sync-now')
+      setAttSyncMsg(
+        t('settings.attendanceSyncResult', '{records} record(s) updated.').replace('{records}', res.recordsUpdated),
+      )
+      load()
+    } catch (err) {
+      setAttSyncErr(err.message)
+    } finally {
+      setAttSyncing(false)
     }
   }
 
@@ -176,6 +199,32 @@ function ServerHealthPanel() {
                   </button>
                   {syncMsg && <span className="text-xs text-emerald-300">{syncMsg}</span>}
                   {syncErr && <span className="text-xs text-rose-300">{syncErr}</span>}
+                </div>
+              </>
+            )}
+            {/* Same "only when configured" reasoning as the VPS block above —
+                no attendance machine on-site yet means nothing to report. */}
+            {health?.attendanceDeviceConfigured && (
+              <>
+                <div className="flex items-center justify-between">
+                  <span className="text-cream-dim">{t('settings.lastAttendanceSync', 'Last attendance sync')}</span>
+                  <span className="text-cream">
+                    {health.lastAttendanceSyncAt
+                      ? new Date(health.lastAttendanceSyncAt).toLocaleString()
+                      : t('settings.noSyncYet', 'None yet')}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 border-t border-ink-line pt-3">
+                  <button
+                    onClick={attSyncNow}
+                    disabled={attSyncing}
+                    className="btn-ghost px-4 py-2 text-xs disabled:opacity-60"
+                  >
+                    <IconRefresh size={14} className={attSyncing ? 'animate-spin' : ''} />
+                    {attSyncing ? t('settings.syncing', 'Syncing…') : t('settings.attendanceSyncNow', 'Sync Attendance Now')}
+                  </button>
+                  {attSyncMsg && <span className="text-xs text-emerald-300">{attSyncMsg}</span>}
+                  {attSyncErr && <span className="text-xs text-rose-300">{attSyncErr}</span>}
                 </div>
               </>
             )}
@@ -640,6 +689,8 @@ export default function Settings() {
     setGstRate,
     whatsappReport,
     setWhatsappReportConfig,
+    attendanceDevice,
+    setAttendanceDeviceConfig,
     onlineAccounts,
     addOnlineAccount,
     updateOnlineAccount,
@@ -659,6 +710,7 @@ export default function Settings() {
   const sections = [
     { key: 'tax', label: t('settings.taxSection'), icon: IconReceipt },
     { key: 'whatsapp', label: t('settings.whatsappSection', 'WhatsApp Daily Report'), icon: IconWhatsApp },
+    { key: 'attendance', label: t('settings.attendanceSection', 'Attendance Machine'), icon: IconAttendance },
     { key: 'accounts', label: t('settings.onlineAccounts', 'Online Payment Accounts'), icon: IconWallet },
     ...(canEdit ? [{ key: 'server', label: t('settings.serverHealth', 'Server Health'), icon: IconClock }] : []),
     ...(canEdit ? [{ key: 'password', label: t('settings.passwords', 'Login Passwords'), icon: IconLock }] : []),
@@ -701,6 +753,52 @@ export default function Settings() {
     setWaError('')
     setWaSaved(true)
     setTimeout(() => setWaSaved(false), 2000)
+  }
+
+  // Attendance machine (ZKTeco uFace 950) — IP/port live in the database
+  // (AppSettings), not an env var, so this Save button is the entire setup:
+  // no config file, no restart. Same draft-then-Save shape as WhatsApp above.
+  const [attIpInput, setAttIpInput] = useState(attendanceDevice.ip)
+  const [attPortInput, setAttPortInput] = useState(String(attendanceDevice.port))
+  const [attError, setAttError] = useState('')
+  const [attSaved, setAttSaved] = useState(false)
+  useEffect(() => {
+    setAttIpInput(attendanceDevice.ip)
+    setAttPortInput(String(attendanceDevice.port))
+  }, [attendanceDevice.ip, attendanceDevice.port])
+  const saveAttendanceDeviceConfig = async () => {
+    const res = await setAttendanceDeviceConfig({ ip: attIpInput, port: Number(attPortInput) })
+    if (res?.error) {
+      setAttSaved(false)
+      return setAttError(res.error)
+    }
+    setAttError('')
+    setAttSaved(true)
+    setTimeout(() => setAttSaved(false), 2000)
+  }
+
+  // "Scan for device" — sweeps the server's own LAN subnet instead of
+  // requiring the IP be typed in (see attendanceDeviceDiscovery.service.ts
+  // for why a true zero-touch broadcast search isn't safe to build). A
+  // single match fills the field automatically; more than one (or zero)
+  // leaves it to the admin to pick/investigate.
+  const [scanning, setScanning] = useState(false)
+  const [scanResults, setScanResults] = useState(null) // null = not run yet
+  const [scanError, setScanError] = useState('')
+  const scanForDevice = async () => {
+    setScanning(true)
+    setScanError('')
+    setScanResults(null)
+    try {
+      const res = await apiPost('/api/system/attendance-scan')
+      const devices = res.devices || []
+      setScanResults(devices)
+      if (devices.length === 1) setAttIpInput(devices[0])
+    } catch (err) {
+      setScanError(err.message)
+    } finally {
+      setScanning(false)
+    }
   }
 
   return (
@@ -899,6 +997,142 @@ export default function Settings() {
           {t(
             'settings.whatsappHint',
             'Digits only, country code first, no leading + (e.g. 923001234567). The admin can also request the latest report any time by messaging the system directly on WhatsApp.',
+          )}
+        </p>
+      </div>
+      )}
+
+      {/* Attendance machine (ZKTeco uFace 950) */}
+      {section === 'attendance' && (
+      <div className="card p-6">
+        <div className="flex items-center gap-3 border-b border-ink-line pb-4">
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-gold/10 text-gold ring-1 ring-gold/25">
+            <IconAttendance size={20} />
+          </span>
+          <div>
+            <h3 className="font-serif text-xl text-cream">
+              {t('settings.attendanceSection', 'Attendance Machine')}
+            </h3>
+            <p className="text-xs text-cream-dim">
+              {t('settings.attendanceDesc', 'Connect the on-site fingerprint/face attendance terminal.')}
+            </p>
+          </div>
+        </div>
+
+        {canEdit && (
+          <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-ink-line pt-5">
+            <button
+              onClick={scanForDevice}
+              disabled={scanning}
+              className="btn-ghost px-4 py-2.5 text-sm disabled:opacity-60"
+            >
+              <IconRefresh size={14} className={scanning ? 'animate-spin' : ''} />
+              {scanning
+                ? t('settings.attendanceScanning', 'Scanning your network…')
+                : t('settings.attendanceScan', 'Scan for device')}
+            </button>
+            {scanError && <span className="text-xs text-rose-300">{scanError}</span>}
+          </div>
+        )}
+        {scanResults && (
+          <div className="mt-3 text-xs">
+            {scanResults.length === 0 && (
+              <p className="text-cream-dim">
+                {t(
+                  'settings.attendanceScanEmpty',
+                  'No device found on this network. Make sure it’s powered on and connected via Ethernet to the same network as this server.',
+                )}
+              </p>
+            )}
+            {scanResults.length === 1 && (
+              <p className="text-emerald-300">
+                {t('settings.attendanceScanFound', 'Found a device at {ip} — filled in below.').replace('{ip}', scanResults[0])}
+              </p>
+            )}
+            {scanResults.length > 1 && (
+              <div>
+                <p className="mb-1.5 text-cream-dim">
+                  {t('settings.attendanceScanMultiple', 'Found more than one — pick the right one:')}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {scanResults.map((ip) => (
+                    <button
+                      key={ip}
+                      onClick={() => setAttIpInput(ip)}
+                      className={`rounded-lg border px-3 py-1.5 font-mono transition ${
+                        attIpInput === ip
+                          ? 'border-gold/40 bg-gold/10 text-gold'
+                          : 'border-ink-line text-cream-dim hover:border-gold/30 hover:text-cream'
+                      }`}
+                    >
+                      {ip}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="mt-5 grid grid-cols-1 gap-4 border-t border-ink-line pt-5 sm:grid-cols-[1fr_120px]">
+          <div>
+            <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+              {t('settings.attendanceIpLabel', 'Machine IP address')}
+            </label>
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="192.168.1.201"
+              className="input w-full"
+              value={attIpInput}
+              onChange={(e) => setAttIpInput(e.target.value)}
+              disabled={!canEdit}
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+              {t('settings.attendancePortLabel', 'Port')}
+            </label>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={65535}
+              className="input w-full"
+              value={attPortInput}
+              onChange={(e) => setAttPortInput(e.target.value)}
+              disabled={!canEdit}
+            />
+          </div>
+        </div>
+
+        {canEdit && (
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button onClick={saveAttendanceDeviceConfig} className="btn-gold px-5 py-2.5 text-sm">
+              {t('common.save', 'Save')}
+            </button>
+            {attError && <span className="text-xs text-rose-300">{attError}</span>}
+            {attSaved && <span className="text-xs text-emerald-300">{t('settings.attendanceSaved', 'Saved.')}</span>}
+          </div>
+        )}
+
+        <div
+          className={`mt-5 flex items-center gap-2 rounded-xl border px-4 py-3 text-xs font-medium ${
+            attendanceDevice.ip
+              ? 'border-gold/25 bg-gold/[0.06] text-gold'
+              : 'border-ink-line bg-ink-soft/50 text-cream-dim'
+          }`}
+        >
+          <IconAttendance size={14} />
+          {attendanceDevice.ip
+            ? t('settings.attendanceStatusOn', 'Connected — punches sync automatically in the background.')
+            : t('settings.attendanceStatusOff', 'Not set up yet — enter the machine’s IP address above.')}
+        </div>
+
+        <p className="mt-3 text-xs text-cream-dim">
+          {t(
+            'settings.attendanceHint',
+            'Find the IP on the machine itself: Menu → Comm. → Ethernet. A fixed (non-DHCP) IP set on the device is recommended so this never needs updating after a power cycle.',
           )}
         </p>
       </div>
