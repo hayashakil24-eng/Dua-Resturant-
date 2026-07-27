@@ -10,7 +10,6 @@ import {
   IconInventory,
   IconAlert,
   IconPlus,
-  IconMinus,
   IconSearch,
   IconClose,
   IconCheck,
@@ -379,7 +378,7 @@ function AddItemModal({ categories, onClose, onSave }) {
 const INVENTORY_PAGE_SIZE = 20
 
 export default function Inventory() {
-  const { inventory, lowStock, adjustStock, recordPurchase, addInventoryItem, user } = useApp()
+  const { inventory, lowStock, recordPurchase, addInventoryItem, user } = useApp()
   const { t, lang } = useLang()
   const [query, setQuery] = useState('')
   const [showAdd, setShowAdd] = useState(false)
@@ -387,10 +386,10 @@ export default function Inventory() {
   const [buying, setBuying] = useState(null) // inventory item being purchased
   // Page access (also gates whether the Adjust column shows at all).
   const canEdit = user && canModify(user.role, 'inventory')
-  // Separation of duties: only Manager adds new stock; Admin & Manager may
-  // adjust existing quantities for corrections.
+  // Stock only ever moves through a recorded purchase (Buy Stock) or a
+  // recipe deduction — the old one-click +/- adjust buttons were removed
+  // because they changed quantities with no cost, supplier or reason attached.
   const canAddStock = user && canModify(user.role, 'inventoryAdd')
-  const canAdjust = user && canModify(user.role, 'inventoryDirectEdit')
   // Admin & Manager may create a brand-new inventory item directly.
   const canCreate = user && canModify(user.role, 'inventoryCreate')
 
@@ -466,7 +465,7 @@ export default function Inventory() {
                 <th className="px-5 py-4 font-semibold">{t('inventory.colThreshold')}</th>
                 <th className="px-5 py-4 text-right font-semibold">{t('inventory.colCost')}</th>
                 <th className="px-5 py-4 font-semibold">{t('inventory.colStatus')}</th>
-                {canEdit && <th className="px-5 py-4 text-right font-semibold">{t('inventory.colAdjust')}</th>}
+                {canAddStock && <th className="px-5 py-4 text-right font-semibold">{t('inventory.colAdjust')}</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-line">
@@ -515,36 +514,16 @@ export default function Inventory() {
                     <td className="px-5 py-4">
                       <span className={`badge ring-1 ${LEVEL_STYLES[level]}`}>{t(LEVEL_LABEL_KEY[level])}</span>
                     </td>
-                    {canEdit && (
+                    {canAddStock && (
                       <td className="px-5 py-4">
                         <div className="flex items-center justify-end gap-2">
-                          {canAdjust && (
-                            <>
-                              <button
-                                onClick={() => adjustStock(item.id, -1)}
-                                className="grid h-8 w-8 place-items-center rounded-lg border border-ink-line bg-ink-soft text-cream-dim transition hover:border-rose-500/40 hover:text-rose-300"
-                                title={t('inventory.useOne')}
-                              >
-                                <IconMinus size={14} />
-                              </button>
-                              <button
-                                onClick={() => adjustStock(item.id, 1)}
-                                className="grid h-8 w-8 place-items-center rounded-lg border border-ink-line bg-ink-soft text-cream-dim transition hover:border-emerald-500/40 hover:text-emerald-300"
-                                title={t('inventory.addOne')}
-                              >
-                                <IconPlus size={14} />
-                              </button>
-                            </>
-                          )}
-                          {canAddStock && (
-                            <button
-                              onClick={() => setBuying(item)}
-                              className="btn-gold px-3 py-1.5 text-xs font-bold"
-                              title={t('inventory.addNewStock')}
-                            >
-                              {t('inventory.buyStock')}
-                            </button>
-                          )}
+                          <button
+                            onClick={() => setBuying(item)}
+                            className="btn-gold px-3 py-1.5 text-xs font-bold"
+                            title={t('inventory.addNewStock')}
+                          >
+                            {t('inventory.buyStock')}
+                          </button>
                         </div>
                       </td>
                     )}

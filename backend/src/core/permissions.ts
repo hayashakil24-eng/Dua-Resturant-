@@ -15,7 +15,11 @@
 //   • recipeCreate      — kitchen staff author recipes (pending approval); only
 //                         the Kitchen role has it.
 //   • kitchen           — page access to the Kitchen dashboard (/kitchen).
-//   • inventoryAdd      — only Manager may add new stock / purchases.
+//   • inventoryAdd      — Admin & Manager may add new stock / purchases. This
+//                         was Manager-only as an anti-collusion split; the
+//                         client asked for Buy Stock on the Admin table too, so
+//                         the split no longer holds — purchases are still fully
+//                         audited, which is what the trail now relies on.
 //   • inventoryDirectEdit — Admin & Manager may adjust existing quantities for
 //                         corrections (Cashier cannot).
 //   • inventoryCreate   — Admin & Manager may create a brand-new inventory item
@@ -110,7 +114,7 @@ export const PERMISSIONS: Record<Role, Record<PageKey, AccessLevel>> = {
     // Separation of duties
     recipeApproval: 'full', // ONLY Admin approves recipes
     recipeCreate: 'none',
-    inventoryAdd: 'none', // Admin does NOT add new stock (Manager only)
+    inventoryAdd: 'full', // Admin records purchases too (client asked for Buy Stock on the Admin table)
     inventoryDirectEdit: 'full', // Admin may edit existing stock for corrections
     inventoryCreate: 'full', // ONLY Admin creates brand-new inventory items
     wastageReport: 'full',
@@ -124,7 +128,7 @@ export const PERMISSIONS: Record<Role, Record<PageKey, AccessLevel>> = {
     orderCancel: 'none', // Only Admin may cancel bills; Manager is view-only
     discount: 'full',
     tables: 'full',
-    menu: 'hidden',
+    menu: 'full',
     inventory: 'full',
     attendance: 'full',
     employees: 'full',
@@ -149,7 +153,7 @@ export const PERMISSIONS: Record<Role, Record<PageKey, AccessLevel>> = {
     // Separation of duties
     recipeApproval: 'none', // Manager CANNOT approve recipes (collusion risk)
     recipeCreate: 'none',
-    inventoryAdd: 'full', // ONLY Manager adds new stock / purchases
+    inventoryAdd: 'full', // Manager adds new stock / purchases
     inventoryDirectEdit: 'full', // Manager may adjust existing stock too
     inventoryCreate: 'full', // Manager may also create new inventory items
     wastageReport: 'full',
