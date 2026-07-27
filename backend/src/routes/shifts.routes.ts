@@ -1,12 +1,15 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify'
-import { authenticate, requirePermission, requireAnyPermission } from '../auth/guard.js'
+import { authenticate, requirePermission } from '../auth/guard.js'
 import * as shifts from '../services/shifts.service.js'
 
 export async function shiftRoutes(app: FastifyInstance): Promise<void> {
   const ctx = (req: FastifyRequest) => ({ actor: req.actor })
-  // Running a drawer is a POS/cashier action (Cashier/Admin have pos; Manager
-  // does not cashier). Handover approval is the separate 'handovers' permission.
-  const drawer = requireAnyPermission(['pos', 'billing'])
+  // Running a cash drawer is its own permission, NOT implied by 'pos'/'billing'.
+  // A Manager can punch and settle orders but must never run a drawer: they are
+  // the ones who RECEIVE handovers, and someone who both hands cash over and
+  // signs for it defeats the whole chain. Handover approval is the separate
+  // 'handovers' permission; forwarding is 'handoverForward'.
+  const drawer = requirePermission('drawer')
 
   // Reads
   app.get('/api/shifts', { preHandler: authenticate }, async () => ({ shifts: await shifts.listShifts() }))
@@ -15,7 +18,12 @@ export async function shiftRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string }
     return { sales: await shifts.calculateShiftSales(id) }
   })
-  app.get('/api/handovers', { preHandler: authenticate }, async () => ({ handovers: await shifts.listPendingHandovers() }))
+  // Scoped to the caller — see listPendingHandovers. A Manager must not be able
+  // to read the Admin's cash position, so the filtering happens here rather than
+  // being left to the UI.
+  app.get('/api/handovers', { preHandler: authenticate }, async (req) => ({
+    handovers: await shifts.listPendingHandovers(req.actor),
+  }))
 
   // Shift lifecycle
   app.post('/api/shifts/start', { preHandler: drawer }, async (req) => {
@@ -34,6 +42,13 @@ export async function shiftRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/handovers', { preHandler: drawer }, async (req) => {
     const { amount, toName, toRole, reason } = (req.body ?? {}) as { amount?: number; toName?: string; toRole?: string; reason?: string }
     return { handover: await shifts.initiateHandover(ctx(req), { amount, toName, toRole, reason }) }
+  })
+  // Manager → Admin: forwarding cash already collected, so the whole chain
+  // ends in one pair of hands. Not 'handovers' — that permission is for
+  // approving, and Admin holds it but must never forward (nowhere above).
+  app.post('/api/handovers/forward', { preHandler: requirePermission('handoverForward') }, async (req) => {
+    const { amount, reason } = (req.body ?? {}) as { amount?: number; reason?: string }
+    return { handover: await shifts.forwardHandover(ctx(req), { amount, reason }) }
   })
   app.post('/api/handovers/:id/accept', { preHandler: requirePermission('handovers') }, async (req) => {
     const { id } = req.params as { id: string }

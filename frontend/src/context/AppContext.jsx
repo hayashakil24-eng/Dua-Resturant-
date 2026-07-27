@@ -33,7 +33,9 @@ const ACTION_REFETCH_MAP = {
   TABLE_ADDED: ['tables'],
   TABLE_UPDATED: ['tables'],
   TABLE_DELETED: ['tables'],
+  TABLES_BULK_ADDED: ['tables'],
   TABLE_CATEGORY_RENAMED: ['tables'],
+  TABLE_CATEGORY_UPDATED: ['tables'],
   TABLE_CATEGORY_DELETED: ['tables'],
   STAFF_ADDED: ['staff'],
   STAFF_DELETED: ['staff'],
@@ -272,10 +274,15 @@ export function AppProvider({ children }) {
       return toError(e)
     }
   }
-  const setStaffPassword = async (staffId, newPassword) => {
+  // `username`/`systemRole` are only read server-side when the employee has no
+  // login yet — that's how an Employees-page row (created without credentials)
+  // gets its first one.
+  const setStaffPassword = async (staffId, newPassword, { username, systemRole } = {}) => {
     if (!user || user.role !== 'Admin') return { error: 'Only an Admin can change another user’s password.' }
     try {
-      return await apiPost(`/api/staff/${staffId}/password`, { newPassword })
+      const res = await apiPost(`/api/staff/${staffId}/password`, { newPassword, username, systemRole })
+      await refresh(['staff'])
+      return res
     } catch (e) {
       return toError(e)
     }
@@ -467,10 +474,13 @@ export function AppProvider({ children }) {
     }
   }
 
-  const applyDiscount = async (id, { amount, reason = '', notes = '' } = {}) => {
+  // Either a flat rupee `amount` or a whole-number `percent` of the bill — when
+  // a percent is sent the server derives the rupees, so the two can't drift.
+  const applyDiscount = async (id, { amount, percent, reason = '', notes = '' } = {}) => {
     try {
-      await apiPost(`/api/orders/${orderSid(id)}/discount`, { amount, reason, notes })
+      await apiPost(`/api/orders/${orderSid(id)}/discount`, { amount, percent, reason, notes })
       await refresh(['orders'])
+      return { success: true }
     } catch (e) {
       return toError(e)
     }
@@ -648,10 +658,24 @@ export function AppProvider({ children }) {
   }
 
   // ---- Tables ------------------------------------------------------------
-  const addTable = async ({ id, number, seats, section }) => {
+  // `id` is optional — the server allocates max+1 inside its transaction, which
+  // is the only collision-free choice when two managers add tables at once.
+  const addTable = async ({ id, number, category, seats, section }) => {
     try {
-      await apiPost('/api/tables', { id: Number(id), number, seats, section })
+      await apiPost('/api/tables', { ...(id != null ? { id: Number(id) } : {}), number, category, seats, section })
       await refresh(['tables'])
+      return { success: true }
+    } catch (e) {
+      return toError(e)
+    }
+  }
+  // A whole hall in one call: 40 single adds would be 40 transactions and 40
+  // socket broadcasts, each making every device refetch the full table list.
+  const bulkAddTables = async ({ category, count, seats, section }) => {
+    try {
+      const res = await apiPost('/api/tables/bulk', { category, count, seats, section })
+      await refresh(['tables'])
+      return { success: true, ...res }
     } catch (e) {
       return toError(e)
     }
@@ -660,6 +684,7 @@ export function AppProvider({ children }) {
     try {
       await apiPatch(`/api/tables/${id}`, updates)
       await refresh(['tables'])
+      return { success: true }
     } catch (e) {
       return toError(e)
     }
@@ -668,6 +693,18 @@ export function AppProvider({ children }) {
     try {
       await apiDelete(`/api/tables/${id}`)
       await refresh(['tables'])
+      return { success: true }
+    } catch (e) {
+      return toError(e)
+    }
+  }
+  // The hall edit form: rename (merging into an existing hall keeps that hall's
+  // numbering), restyle seats/section, grow it, straighten drifted labels.
+  const updateTableCategory = async ({ category, newName, seats, section, count, renumber }) => {
+    try {
+      const res = await apiPost('/api/tables/category/update', { category, newName, seats, section, count, renumber })
+      await refresh(['tables'])
+      return { success: true, ...res }
     } catch (e) {
       return toError(e)
     }
@@ -889,27 +926,37 @@ export function AppProvider({ children }) {
   const shiftSalesForShift = (shiftId) => {
     let totalCashSales = 0
     let totalCardSales = 0
+    let totalOnlineSales = 0
     orders.forEach((o) => {
       if (o.payment !== 'Paid' || o.cancelled) return
       if (o.shiftId !== shiftId) return
       const total = orderTotal(o.items, o.discount?.amount, o.gstRate).total
       if (o.method === 'Cash') totalCashSales += total
       else if (o.method === 'Card') totalCardSales += total
+      else if (o.method === 'Online') totalOnlineSales += total
     })
-    return { totalCashSales, totalCardSales }
+    return { totalCashSales, totalCardSales, totalOnlineSales }
   }
 
   const calculateShiftSales = (shiftId) => {
     const shift = activeShift?.id === shiftId ? activeShift : shiftReconciliations.find((s) => s.id === shiftId)
     if (!shift) return null
-    const { totalCashSales, totalCardSales } = shiftSalesForShift(shift.id)
+    const { totalCashSales, totalCardSales, totalOnlineSales } = shiftSalesForShift(shift.id)
     // Accepted mid-shift handovers left the drawer, reducing accountable cash.
     // A 'shift_end' handover is the whole counted drawer handed over after
     // reconciliation, so it must not reduce this shift's expectedCash.
     const handedOver = pendingHandovers
       .filter((h) => h.shiftId === shift.id && h.status === 'accepted' && h.kind !== 'shift_end')
       .reduce((s, h) => s + h.amount, 0)
-    return { totalCashSales, totalCardSales, handedOver, expectedCash: shift.openingCash + totalCashSales - handedOver }
+    // Card/Online never enter the drawer — they're shown for the cashier's
+    // sanity check only, so expectedCash stays cash-only.
+    return {
+      totalCashSales,
+      totalCardSales,
+      totalOnlineSales,
+      handedOver,
+      expectedCash: shift.openingCash + totalCashSales - handedOver,
+    }
   }
 
   const startShift = async (openingCash) => {
@@ -953,6 +1000,18 @@ export function AppProvider({ children }) {
     try {
       const { handover } = await apiPost('/api/handovers', { amount, toName, toRole, reason })
       await refresh(['handovers', 'activeShift'])
+      return { success: true, id: handover?.id }
+    } catch (e) {
+      return toError(e)
+    }
+  }
+  // Manager forwarding collected cash up to the Admin — no drawer involved, so
+  // no activeShift refetch. The amount is capped server-side by what the
+  // manager is actually still holding.
+  const forwardHandover = async ({ amount, reason = '' } = {}) => {
+    try {
+      const { handover } = await apiPost('/api/handovers/forward', { amount, reason })
+      await refresh(['handovers'])
       return { success: true, id: handover?.id }
     } catch (e) {
       return toError(e)
@@ -1129,9 +1188,11 @@ export function AppProvider({ children }) {
     getMostOrderedItems,
     tables,
     addTable,
+    bulkAddTables,
     updateTable,
     deleteTable,
     renameTableCategory,
+    updateTableCategory,
     deleteTableCategory,
     staff,
     waiters,
@@ -1155,6 +1216,7 @@ export function AppProvider({ children }) {
     calculateShiftSales,
     pendingHandovers,
     initiateHandover,
+    forwardHandover,
     acceptHandover,
     rejectHandover,
     receivables,

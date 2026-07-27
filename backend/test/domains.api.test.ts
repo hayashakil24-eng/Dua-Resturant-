@@ -251,6 +251,33 @@ describe('accounting', () => {
   })
 })
 
+// A Manager punches and settles orders, but must never run a cash drawer:
+// they are the one who RECEIVES handovers, and someone who both hands cash
+// over and signs for it defeats the chain. 'drawer' is therefore its own
+// permission rather than being implied by 'pos'/'billing'.
+describe('manager can punch and settle orders but not run a drawer', () => {
+  it('allows placing and paying an order, and refuses every drawer action', async () => {
+    const manager = await tokenFor('manager')
+
+    const placed = await post('/api/orders', manager, {
+      table: 27,
+      payment: 'Unpaid',
+      items: [{ menuItemId: 'br2', name: 'Garlic Naan', price: 150, qty: 2 }],
+    })
+    expect(placed.statusCode).toBe(200)
+    const orderId = JSON.parse(placed.body).order.id
+
+    const paid = await post(`/api/orders/${orderId}/pay`, manager, { method: 'Cash' })
+    expect(paid.statusCode).toBe(200)
+    expect(JSON.parse(paid.body).order.payment).toBe('Paid')
+
+    // No drawer, and no cashier-side handover (they use /forward instead).
+    expect((await post('/api/shifts/start', manager, { openingCash: 1000 })).statusCode).toBe(403)
+    expect((await post('/api/shifts/pause', manager)).statusCode).toBe(403)
+    expect((await post('/api/handovers', manager, { amount: 100, toRole: 'Admin' })).statusCode).toBe(403)
+  })
+})
+
 describe('daily closing', () => {
   it('builds a server-side closing report for today', async () => {
     const admin = await tokenFor('admin')
@@ -282,5 +309,33 @@ describe('daily closing', () => {
 
     const saved = await post('/api/closings', admin)
     expect(saved.statusCode).toBe(200)
+  })
+
+  // A DailyClosing row stores only its END instant, so the window a saved
+  // closing covers is derived: newest-first, each row starts where the next
+  // older one ended. This is what lets Reports scope by session instead of by
+  // calendar date. Depends on the closing saved by the test above.
+  it('derives each saved closing recording window from the previous closing', async () => {
+    const admin = await tokenFor('admin')
+    const cashier = await tokenFor('cashier')
+
+    // New activity — an empty session can't be re-closed (the day lock).
+    await post('/api/orders', cashier, {
+      table: 33,
+      payment: 'Paid',
+      method: 'Cash',
+      items: [{ menuItemId: 'br2', name: 'Garlic Naan', price: 150, qty: 1 }],
+    })
+    expect((await post('/api/closings', admin)).statusCode).toBe(200)
+
+    const list = await app.inject({ method: 'GET', url: '/api/closings', headers: auth(admin) })
+    expect(list.statusCode).toBe(200)
+    const { closings } = JSON.parse(list.body)
+    expect(closings.length).toBeGreaterThanOrEqual(2)
+
+    expect(closings[0].periodStart).toBe(closings[1].closingTime)
+    expect(closings[0].periodEnd).toBe(closings[0].closingTime)
+    // The oldest closing has no predecessor — it was calendar-day scoped.
+    expect(closings[closings.length - 1].periodStart).toBeNull()
   })
 })
