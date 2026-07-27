@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader } from '../components/ui.jsx'
@@ -348,33 +348,35 @@ function AccountFormModal({ account, onSave, onClose }) {
 // old password's sessions must stop working.
 function PasswordCard() {
   const t = useT()
-  const { user, changeMyPassword, setStaffPassword } = useApp()
-  const [accounts, setAccounts] = useState([])
+  const { user, staff, changeMyPassword, setStaffPassword } = useApp()
   const [target, setTarget] = useState('me')
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
   const [confirm, setConfirm] = useState('')
+  const [newUsername, setNewUsername] = useState('')
+  const [newRole, setNewRole] = useState('Cashier')
   const [error, setError] = useState('')
   const [done, setDone] = useState('')
   const [busy, setBusy] = useState(false)
 
-  // Admin-only route, and only accounts that actually have a login — most
-  // staff rows are created without credentials.
-  useEffect(() => {
-    let alive = true
-    apiGet('/api/staff/login-accounts')
-      .then((d) => alive && setAccounts((d.accounts || []).filter((a) => a.id !== user?.id)))
-      .catch(() => {})
-    return () => {
-      alive = false
-    }
-  }, [user?.id])
+  // Every active employee, not just the ones that already have credentials —
+  // an Admin can hand a login to a staff row that was created without one
+  // (Employees page never writes credentials), so the picker must list them.
+  const people = useMemo(
+    () => staff.filter((s) => s.active !== false && s.id !== user?.id),
+    [staff, user?.id],
+  )
 
   const isSelf = target === 'me'
+  const who = people.find((s) => s.id === target)
+  const needsLogin = !isSelf && who && !who.username
+
   const reset = () => {
     setCurrent('')
     setNext('')
     setConfirm('')
+    setNewUsername('')
+    setNewRole('Cashier')
   }
   const changeTarget = (value) => {
     setTarget(value)
@@ -386,19 +388,25 @@ function PasswordCard() {
   const submit = async () => {
     setError('')
     setDone('')
+    if (needsLogin && !newUsername.trim())
+      return setError(t('settings.pwUsernameRequired', 'Choose a username for this employee.'))
     if (next.length < 6) return setError(t('settings.pwTooShort', 'Password must be at least 6 characters.'))
     if (next !== confirm) return setError(t('settings.pwMismatch', 'The two passwords do not match.'))
     setBusy(true)
     const res = isSelf
       ? await changeMyPassword({ currentPassword: current, newPassword: next })
-      : await setStaffPassword(target, next)
+      : await setStaffPassword(target, next, {
+          username: newUsername.trim().toLowerCase(),
+          systemRole: newRole,
+        })
     setBusy(false)
     if (res?.error) return setError(res.error)
-    const who = accounts.find((a) => a.id === target)
     setDone(
       isSelf
         ? t('settings.pwChangedSelf', 'Your password has been changed.')
-        : t('settings.pwChangedOther', 'Password changed. That user must log in again.').replace('{name}', who?.name || ''),
+        : needsLogin
+          ? t('settings.pwLoginCreated', 'Login created. {name} can now sign in.').replace('{name}', who?.name || '')
+          : t('settings.pwChangedOther', 'Password changed. That user must log in again.').replace('{name}', who?.name || ''),
     )
     reset()
   }
@@ -426,14 +434,50 @@ function PasswordCard() {
             <option value="me">
               {t('settings.pwMine', 'My password')} — {user?.name} ({user?.role})
             </option>
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name} ({a.systemRole || '—'}) · {a.username}
-                {a.active ? '' : ` · ${t('settings.inactive', 'Inactive')}`}
+            {people.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name} ({s.systemRole || s.role || '—'}) ·{' '}
+                {s.username || t('settings.pwNoLogin', 'no login yet')}
               </option>
             ))}
           </select>
         </div>
+
+        {/* First-time login for an employee added without credentials. */}
+        {needsLogin && (
+          <div className="space-y-4 rounded-xl border border-gold/25 bg-gold/[0.05] p-4">
+            <p className="text-xs text-gold">
+              {t('settings.pwNoLoginHint', '{name} has no login yet — set a username and role to create one.').replace(
+                '{name}',
+                who?.name || '',
+              )}
+            </p>
+            <div>
+              <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+                {t('settings.pwUsername', 'Username')} <span className="text-rose-300">*</span>
+              </label>
+              <input
+                className="input"
+                autoComplete="off"
+                placeholder={t('settings.pwUsernamePh', 'e.g. waiter1')}
+                value={newUsername}
+                onChange={(e) => setNewUsername(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+                {t('settings.pwSystemRole', 'System role')} <span className="text-rose-300">*</span>
+              </label>
+              <select className="input" value={newRole} onChange={(e) => setNewRole(e.target.value)}>
+                {['Admin', 'Manager', 'Cashier', 'Kitchen'].map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
 
         {isSelf && (
           <div>
@@ -475,7 +519,7 @@ function PasswordCard() {
           />
         </div>
 
-        {!isSelf && (
+        {!isSelf && !needsLogin && (
           <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-200/90">
             {t('settings.pwResetWarning', 'This user will be signed out of every device and must log in with the new password.')}
           </p>
@@ -484,7 +528,8 @@ function PasswordCard() {
         {done && <p className="rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">{done}</p>}
 
         <button onClick={submit} disabled={busy} className="btn-gold px-5 py-2.5 text-sm disabled:opacity-60">
-          <IconCheck size={16} /> {t('settings.pwSave', 'Change Password')}
+          <IconCheck size={16} />{' '}
+          {needsLogin ? t('settings.pwCreateLogin', 'Create Login') : t('settings.pwSave', 'Change Password')}
         </button>
       </div>
     </div>

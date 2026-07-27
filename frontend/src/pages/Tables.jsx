@@ -5,8 +5,10 @@ import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader, PaymentBadge } from '../components/ui.jsx'
 import { canModify, hasAccess } from '../config/permissions.js'
 import ShiftTableModal from '../components/ShiftTableModal.jsx'
+import TableFormModal from '../components/TableFormModal.jsx'
 import { money, time } from '../utils/format.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
+import { pageWindow } from '../utils/pageWindow.js'
 import {
   IconTable,
   IconClose,
@@ -14,6 +16,7 @@ import {
   IconPlus,
   IconTrash,
   IconEdit,
+  IconSearch,
 } from '../components/Icons.jsx'
 
 const URGENT_MINS = 15
@@ -128,7 +131,11 @@ function OrderDetailsModal({ order, tableLabel, orderTotal, onClose, canAddItems
             )}
             {discount > 0 && (
               <div className="flex justify-between text-emerald-300">
-                <span>{t('tables.discount')}{order.discount?.reason ? ` (${order.discount.reason})` : ''}</span>
+                <span>
+                  {t('tables.discount')}
+                  {order.discount?.percent ? ` ${order.discount.percent}%` : ''}
+                  {order.discount?.reason ? ` (${order.discount.reason})` : ''}
+                </span>
                 <span>- {money(discount)}</span>
               </div>
             )}
@@ -157,21 +164,21 @@ function OrderDetailsModal({ order, tableLabel, orderTotal, onClose, canAddItems
   )
 }
 
-function TablesManageModal({ tables, occupied, canDelete, onAdd, onUpdate, onDelete, onRenameCategory, onDeleteCategory, onClose }) {
+const MANAGE_PAGE_SIZE = 20
+
+// Manage Tables: halls on top (each opens the same form the add button uses),
+// then a searchable, paginated list of every table. There is deliberately no
+// per-table edit here — seats/section/label are hall-level properties now, so a
+// 300-row list only needs delete, and that is behind a two-step confirm.
+function TablesManageModal({ tables, occupied, canDelete, onBulkAdd, onUpdateCategory, onDelete, onDeleteCategory, onClose }) {
   const t = useT()
-  const [editingId, setEditingId] = useState(null)
-  const [number, setNumber] = useState('')
-  // `name` is the table's display label (data field `number`, e.g. "A1"), kept
-  // separate from the numeric `id` above so a table can be renamed without
-  // changing its identity.
-  const [name, setName] = useState('')
-  const [capacity, setCapacity] = useState('4')
-  const [section, setSection] = useState('')
-  // Category-level rename/delete (separate from per-table edit/delete above).
-  const [catEditing, setCatEditing] = useState(null)
-  const [catName, setCatName] = useState('')
+  const [form, setForm] = useState(null) // { mode: 'add' | 'edit', hall }
   const [catConfirmDelete, setCatConfirmDelete] = useState(null)
   const [catError, setCatError] = useState('')
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  const [query, setQuery] = useState('')
+  const [hallFilter, setHallFilter] = useState('')
+  const [page, setPage] = useState(1)
   useEscapeKey(onClose)
 
   // Group tables by category, preserving id order within each group.
@@ -185,59 +192,36 @@ function TablesManageModal({ tables, occupied, canDelete, onAdd, onUpdate, onDel
     return [...m.entries()]
   }, [tables])
 
-  const startCatEdit = (cat) => {
-    setCatError('')
-    setCatConfirmDelete(null)
-    setCatEditing(cat)
-    setCatName(cat)
-  }
-  const saveCatEdit = async () => {
-    const next = catName.trim()
-    if (!next || next === catEditing) return setCatEditing(null)
-    const res = await onRenameCategory(catEditing, next)
-    if (res?.error) return setCatError(res.error)
-    setCatEditing(null)
-  }
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return tables.filter((tbl) => {
+      if (hallFilter && (tbl.category || 'Other') !== hallFilter) return false
+      if (!q) return true
+      return (tbl.number || `T${tbl.id}`).toLowerCase().includes(q) || String(tbl.id) === q
+    })
+  }, [tables, query, hallFilter])
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / MANAGE_PAGE_SIZE))
+  // Clamp during render — filtering can shrink the list below the current page.
+  const safePage = Math.min(page, pageCount)
+  const shown = filtered.slice((safePage - 1) * MANAGE_PAGE_SIZE, safePage * MANAGE_PAGE_SIZE)
+
   const confirmCatDelete = async (cat) => {
     const res = await onDeleteCategory(cat)
     setCatConfirmDelete(null)
     if (res?.error) setCatError(res.error)
   }
-
-  const reset = () => {
-    setEditingId(null)
-    setNumber('')
-    setName('')
-    setCapacity('4')
-    setSection('')
-  }
-
-  const numTaken = tables.some((tbl) => tbl.id === Number(number)) && Number(number) !== editingId
-  const valid = Number(number) > 0 && Number(capacity) > 0 && (editingId != null || !numTaken)
-
-  const submit = () => {
-    if (!valid) return
-    const label = name.trim()
-    if (editingId != null) {
-      onUpdate(editingId, { number: label || String(editingId), seats: Number(capacity), section })
-    } else {
-      onAdd({ id: Number(number), number: label, seats: Number(capacity), section })
-    }
-    reset()
-  }
-
-  const startEdit = (tbl) => {
-    setEditingId(tbl.id)
-    setNumber(String(tbl.id))
-    setName(tbl.number || '')
-    setCapacity(String(tbl.seats))
-    setSection(tbl.section || '')
+  const removeTable = async (id) => {
+    setCatError('')
+    const res = await onDelete(id)
+    setConfirmDeleteId(null)
+    if (res?.error) setCatError(res.error)
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-lg animate-fade-up">
+      <div className="relative z-10 w-full max-w-2xl animate-fade-up">
         <div className="card max-h-[90vh] overflow-y-auto p-6">
           <div className="flex items-start justify-between">
             <h3 className="font-serif text-2xl text-cream">{t('tables.manage')}</h3>
@@ -246,60 +230,9 @@ function TablesManageModal({ tables, occupied, canDelete, onAdd, onUpdate, onDel
             </button>
           </div>
 
-          {/* Add / edit form */}
-          <div className="mt-5 rounded-xl border border-ink-line bg-ink-soft/50 p-4">
-            <p className="mb-3 text-[11px] uppercase tracking-wider text-cream-dim">
-              {editingId != null ? `${t('tables.editTable')} ${editingId}` : t('tables.addATable')}
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                type="number"
-                min={1}
-                className="input py-2"
-                placeholder={t('tables.number')}
-                value={number}
-                disabled={editingId != null}
-                onChange={(e) => setNumber(e.target.value)}
-              />
-              <input
-                className="input py-2"
-                placeholder={t('tables.name')}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-              <input
-                type="number"
-                min={1}
-                className="input py-2"
-                placeholder={t('tables.capacity')}
-                value={capacity}
-                onChange={(e) => setCapacity(e.target.value)}
-              />
-              <input
-                className="input py-2"
-                placeholder={t('tables.section')}
-                value={section}
-                onChange={(e) => setSection(e.target.value)}
-              />
-            </div>
-            {numTaken && editingId == null && (
-              <p className="mt-2 text-xs text-rose-300">{t('tables.table')} {number} {t('tables.alreadyExists')}</p>
-            )}
-            <div className="mt-3 flex gap-2">
-              {editingId != null && (
-                <button onClick={reset} className="btn-ghost flex-1 py-2 text-sm">
-                  {t('tables.cancelEdit')}
-                </button>
-              )}
-              <button
-                onClick={submit}
-                disabled={!valid}
-                className="btn-gold flex-1 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <IconPlus size={16} /> {editingId != null ? t('tables.updateTable') : t('tables.addTable')}
-              </button>
-            </div>
-          </div>
+          <button onClick={() => setForm({ mode: 'add' })} className="btn-gold mt-5 w-full py-2.5 text-sm">
+            <IconPlus size={16} /> {t('tables.addTables')}
+          </button>
 
           {catError && (
             <p className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
@@ -307,121 +240,189 @@ function TablesManageModal({ tables, occupied, canDelete, onAdd, onUpdate, onDel
             </p>
           )}
 
-          {/* Existing tables, grouped by category with per-category controls */}
-          <div className="mt-4">
+          {/* Halls — edit opens the same form as adding; delete removes the group */}
+          <p className="mt-6 text-[11px] uppercase tracking-wider text-cream-dim">{t('tables.halls')}</p>
+          <div className="mt-2 divide-y divide-ink-line rounded-xl border border-ink-line">
             {grouped.map(([cat, members]) => {
               const allLocked = members.every((m) => m.locked)
               const groupOccupied = members.some((m) => occupied.has(m.id))
               return (
-                <div key={cat} className="mt-4 first:mt-0">
-                  {/* Category header — rename / delete the whole group */}
-                  <div className="flex items-center justify-between border-b border-ink-line py-2">
-                    {catEditing === cat ? (
-                      <div className="flex flex-1 items-center gap-2">
-                        <input
-                          autoFocus
-                          className="input flex-1 py-1.5 text-sm"
-                          value={catName}
-                          onChange={(e) => setCatName(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && saveCatEdit()}
-                        />
-                        <button onClick={saveCatEdit} className="btn-gold px-3 py-1.5 text-xs">
-                          {t('tables.updateTable')}
-                        </button>
-                        <button onClick={() => setCatEditing(null)} className="btn-ghost px-3 py-1.5 text-xs">
-                          {t('tables.cancelEdit')}
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <p className="text-xs font-bold uppercase tracking-wider text-gold">
-                          {cat} <span className="text-cream-dim">· {members.length}</span>
-                        </p>
-                        {!allLocked && (
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => startCatEdit(cat)}
-                              title={t('tables.renameCategory')}
-                              className="grid h-8 w-8 place-items-center rounded-lg border border-ink-line text-cream-dim transition hover:border-gold/40 hover:text-gold"
-                            >
-                              <IconEdit size={15} />
+                <div key={cat} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                  <p className="text-sm font-semibold text-gold">
+                    {cat} <span className="font-normal text-cream-dim">· {members.length}</span>
+                  </p>
+                  {allLocked ? (
+                    <span className="text-xs text-cream-dim">🔒 {t('tables.locked')}</span>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setForm({ mode: 'edit', hall: cat })}
+                        title={t('tables.editHall')}
+                        className="grid h-8 w-8 place-items-center rounded-lg border border-ink-line text-cream-dim transition hover:border-gold/40 hover:text-gold"
+                      >
+                        <IconEdit size={15} />
+                      </button>
+                      {canDelete &&
+                        (catConfirmDelete === cat ? (
+                          <div className="flex items-center gap-1 text-xs">
+                            <button onClick={() => confirmCatDelete(cat)} className="font-semibold text-rose-300">
+                              {t('tables.deleteAll')}
                             </button>
-                            {canDelete &&
-                              (catConfirmDelete === cat ? (
-                                <div className="flex items-center gap-1 text-xs">
-                                  <button onClick={() => confirmCatDelete(cat)} className="font-semibold text-rose-300">
-                                    {t('tables.deleteAll')}
-                                  </button>
-                                  <button onClick={() => setCatConfirmDelete(null)} className="text-cream-dim hover:text-cream">
-                                    ✕
-                                  </button>
-                                </div>
-                              ) : (
-                                <button
-                                  onClick={() => {
-                                    setCatError('')
-                                    setCatConfirmDelete(cat)
-                                  }}
-                                  disabled={groupOccupied}
-                                  title={groupOccupied ? t('tables.inUse') : t('tables.deleteCategory')}
-                                  className="grid h-8 w-8 place-items-center rounded-lg border border-ink-line text-cream-dim transition hover:border-rose-500/40 hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-30"
-                                >
-                                  <IconTrash size={15} />
-                                </button>
-                              ))}
+                            <button onClick={() => setCatConfirmDelete(null)} className="text-cream-dim hover:text-cream">
+                              ✕
+                            </button>
                           </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-
-                  <div className="divide-y divide-ink-line">
-                    {members.map((tbl) => {
-                      const inUse = occupied.has(tbl.id)
-                      return (
-                        <div key={tbl.id} className="flex items-center justify-between py-2.5">
-                          <div>
-                            <p className="text-sm font-medium text-cream">
-                              {tbl.number || `${t('tables.table')} ${tbl.id}`}
-                              {!tbl.locked && (
-                                <span className="text-cream-dim"> · {tbl.seats} {t('tables.seatsWord')}</span>
-                              )}
-                            </p>
-                            {tbl.section && <p className="text-xs text-cream-dim">{tbl.section}</p>}
-                          </div>
-                          {tbl.locked ? (
-                            <span className="text-xs text-cream-dim">🔒 {t('tables.locked')}</span>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => startEdit(tbl)}
-                                className="grid h-8 w-8 place-items-center rounded-lg border border-ink-line text-cream-dim transition hover:border-gold/40 hover:text-gold"
-                                title={t('common.edit')}
-                              >
-                                <IconEdit size={15} />
-                              </button>
-                              {canDelete && (
-                                <button
-                                  onClick={() => onDelete(tbl.id)}
-                                  disabled={inUse}
-                                  title={inUse ? t('tables.inUse') : t('common.delete')}
-                                  className="grid h-8 w-8 place-items-center rounded-lg border border-ink-line text-cream-dim transition hover:border-rose-500/40 hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-30"
-                                >
-                                  <IconTrash size={15} />
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setCatError('')
+                              setCatConfirmDelete(cat)
+                            }}
+                            disabled={groupOccupied}
+                            title={groupOccupied ? t('tables.inUse') : t('tables.deleteCategory')}
+                            className="grid h-8 w-8 place-items-center rounded-lg border border-ink-line text-cream-dim transition hover:border-rose-500/40 hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-30"
+                          >
+                            <IconTrash size={15} />
+                          </button>
+                        ))}
+                    </div>
+                  )}
                 </div>
               )
             })}
           </div>
+
+          {/* Every table — search + paginate rather than a 300-row scroll */}
+          <p className="mt-6 text-[11px] uppercase tracking-wider text-cream-dim">
+            {t('tables.allTables')} <span className="text-cream-dim">· {filtered.length}</span>
+          </p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
+            <div className="relative">
+              <span className="pointer-events-none absolute inset-y-0 start-3 grid place-items-center text-cream-dim">
+                <IconSearch size={16} />
+              </span>
+              <input
+                className="input ps-9"
+                placeholder={t('tables.searchInManage')}
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value)
+                  setPage(1) // a new search always restarts at the first page
+                }}
+              />
+            </div>
+            <select
+              className="input"
+              value={hallFilter}
+              onChange={(e) => {
+                setHallFilter(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="">{t('tables.allHalls')}</option>
+              {grouped.map(([cat]) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="mt-2 divide-y divide-ink-line">
+            {shown.map((tbl) => {
+              const inUse = occupied.has(tbl.id)
+              return (
+                <div key={tbl.id} className="flex items-center justify-between gap-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-cream">
+                      {tbl.number || `${t('tables.table')} ${tbl.id}`}
+                      {!tbl.locked && (
+                        <span className="text-cream-dim"> · {tbl.seats} {t('tables.seatsWord')}</span>
+                      )}
+                    </p>
+                    <p className="text-xs text-cream-dim">
+                      {tbl.category || 'Other'}
+                      {tbl.section ? ` · ${tbl.section}` : ''}
+                    </p>
+                  </div>
+                  {tbl.locked ? (
+                    <span className="shrink-0 text-xs text-cream-dim">🔒 {t('tables.locked')}</span>
+                  ) : (
+                    <div className="flex shrink-0 items-center gap-2">
+                      {inUse && (
+                        <span className="badge bg-rose-500/12 text-rose-300 ring-1 ring-rose-500/30">
+                          {t('tables.inUse')}
+                        </span>
+                      )}
+                      {canDelete &&
+                        (confirmDeleteId === tbl.id ? (
+                          <div className="flex items-center gap-1 text-xs">
+                            <button onClick={() => removeTable(tbl.id)} className="font-semibold text-rose-300">
+                              {t('tables.confirmDelete')}
+                            </button>
+                            <button onClick={() => setConfirmDeleteId(null)} className="text-cream-dim hover:text-cream">
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setCatError('')
+                              setConfirmDeleteId(tbl.id)
+                            }}
+                            disabled={inUse}
+                            title={inUse ? t('tables.inUse') : t('common.delete')}
+                            className="grid h-8 w-8 place-items-center rounded-lg border border-ink-line text-cream-dim transition hover:border-rose-500/40 hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-30"
+                          >
+                            <IconTrash size={15} />
+                          </button>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+            {filtered.length === 0 && (
+              <p className="py-8 text-center text-sm text-cream-dim">{t('tables.noTablesMatch')}</p>
+            )}
+          </div>
+
+          {pageCount > 1 && (
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5">
+              {pageWindow(safePage, pageCount).map((p, i) =>
+                p === '…' ? (
+                  <span key={`gap-${i}`} className="px-1 text-xs text-cream-dim">
+                    …
+                  </span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    className={`min-w-8 rounded-lg border px-2 py-1 text-xs font-semibold transition ${
+                      p === safePage
+                        ? 'border-gold/50 bg-gold/12 text-gold'
+                        : 'border-ink-line bg-ink-soft text-cream-dim hover:text-cream'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ),
+              )}
+            </div>
+          )}
         </div>
       </div>
+
+      {form && (
+        <TableFormModal
+          mode={form.mode}
+          hall={form.hall}
+          tables={tables}
+          onAdd={onBulkAdd}
+          onUpdateHall={onUpdateCategory}
+          onClose={() => setForm(null)}
+        />
+      )}
     </div>
   )
 }
@@ -433,7 +434,7 @@ const TABS = [
 ]
 
 export default function Tables() {
-  const { orders, orderTotal, tables, addTable, updateTable, deleteTable, renameTableCategory, deleteTableCategory, shiftOrderTable, user } = useApp()
+  const { orders, orderTotal, tables, bulkAddTables, deleteTable, updateTableCategory, deleteTableCategory, shiftOrderTable, user } = useApp()
   const t = useT()
   const navigate = useNavigate()
   const [tab, setTab] = useState('all')
@@ -647,10 +648,9 @@ export default function Tables() {
           tables={tables}
           occupied={occupied}
           canDelete={user?.role === 'Admin'}
-          onAdd={addTable}
-          onUpdate={updateTable}
+          onBulkAdd={bulkAddTables}
+          onUpdateCategory={updateTableCategory}
           onDelete={deleteTable}
-          onRenameCategory={renameTableCategory}
           onDeleteCategory={deleteTableCategory}
           onClose={() => setManage(false)}
         />

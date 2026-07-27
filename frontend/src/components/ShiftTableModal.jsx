@@ -2,25 +2,11 @@ import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { tableLabel } from '../data/mockData.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
+import { pageWindow } from '../utils/pageWindow.js'
 import { IconClose, IconTable, IconCheck, IconSearch } from './Icons.jsx'
 
 const PAGE_SIZE = 12 // 3 rows × 4 cols — a restaurant can have 100+ tables, so
 // the picker searches + paginates rather than rendering every table at once.
-
-// Page numbers to render with … gaps: always first/last + a window around the
-// current page (e.g. 1 … 4 5 6 … 12), so the control stays compact for many pages.
-function pageWindow(current, count) {
-  const pages = new Set([1, count, current, current - 1, current + 1])
-  const sorted = [...pages].filter((p) => p >= 1 && p <= count).sort((a, b) => a - b)
-  const out = []
-  let prev = 0
-  for (const p of sorted) {
-    if (p - prev > 1) out.push('…')
-    out.push(p)
-    prev = p
-  }
-  return out
-}
 
 // Move a running order to another table (the party physically changed seats).
 // A destination is picked from the configured tables; a table that already has

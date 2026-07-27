@@ -17,7 +17,16 @@ export async function tableRoutes(app: FastifyInstance): Promise<void> {
     return await tables.deleteTable(ctx(req), Number(id))
   })
 
-  // Category-level ops: rename relabels the group's tables; delete removes them.
+  // A whole hall in one call — see bulkAddTables for why this isn't a client
+  // loop over POST /api/tables. Same gate: adding 40 tables is not a bigger
+  // power than adding one.
+  app.post('/api/tables/bulk', { preHandler: requirePermission('tableAdd') }, async (req) =>
+    await tables.bulkAddTables(ctx(req), req.body as never))
+
+  // Category-level ops: update covers the hall edit form (rename/merge, seats,
+  // section, grow, relabel); rename stays for older callers; delete removes them.
+  app.post('/api/tables/category/update', { preHandler: requirePermission('tableAdd') }, async (req) =>
+    await tables.updateTableCategory(ctx(req), req.body as never))
   app.post('/api/tables/category/rename', { preHandler: requirePermission('tableAdd') }, async (req) => {
     const { from, name } = (req.body ?? {}) as { from?: string; name?: string }
     return await tables.renameTableCategory(ctx(req), String(from ?? ''), String(name ?? ''))

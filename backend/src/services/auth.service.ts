@@ -68,10 +68,19 @@ export async function listLoginAccounts() {
   return rows
 }
 
-async function writePassword(staffId: string, password: string, actor: Actor, action: string, details: Record<string, unknown>) {
+async function writePassword(
+  staffId: string,
+  password: string,
+  actor: Actor,
+  action: string,
+  details: Record<string, unknown>,
+  // Credentials written alongside the hash when the account is getting its
+  // first login (see setStaffPassword).
+  extra: { username?: string; systemRole?: string } = {},
+) {
   const passwordHash = await hashPassword(password)
   return prisma.$transaction(async (tx) => {
-    const updated = await tx.staff.update({ where: { id: staffId }, data: { passwordHash } })
+    const updated = await tx.staff.update({ where: { id: staffId }, data: { passwordHash, ...extra } })
     await writeAudit(tx, { action, actor, details })
     return updated
   })
@@ -99,20 +108,49 @@ export async function changeOwnPassword(actor: Actor, jti: string, currentPasswo
 // Admin resetting somebody else's password — no current password needed (the
 // point is that the Admin doesn't know it), so this route is Admin-gated and
 // always audited with who changed whose.
-export async function setStaffPassword(actor: Actor, staffId: string, newPassword: unknown) {
+export async function setStaffPassword(
+  actor: Actor,
+  staffId: string,
+  newPassword: unknown,
+  credentials: { username?: unknown; systemRole?: unknown } = {},
+) {
   const next = String(newPassword ?? '')
   if (!next) throw new ServiceError('A new password is required.', 400)
   if (next.length < MIN_PASSWORD) throw new ServiceError(`Password must be at least ${MIN_PASSWORD} characters.`, 400)
 
   const staff = await prisma.staff.findUnique({ where: { id: staffId } })
   if (!staff) throw new ServiceError('Employee not found.', 404)
-  if (!staff.username) throw new ServiceError('This employee has no login account.', 400)
 
-  await writePassword(staff.id, next, actor, 'STAFF_PASSWORD_CHANGED', {
-    staffId: staff.id,
-    staffName: staff.name,
-    username: staff.username,
-  })
+  // Most staff rows are created from the Employees page with no credentials at
+  // all (staff.service.ts never writes them), so the Admin giving such an
+  // employee their first password must also name the login and its system role
+  // — a password on its own could never be used to sign in.
+  const extra: { username?: string; systemRole?: string } = {}
+  if (!staff.username) {
+    const username = String(credentials.username ?? '').trim().toLowerCase()
+    const systemRole = String(credentials.systemRole ?? '')
+    if (!username) throw new ServiceError('This employee has no login yet — choose a username for them.', 400)
+    if (!VALID_ROLES.includes(systemRole as Role)) throw new ServiceError('Choose a system role for this login.', 400)
+    if (await prisma.staff.findUnique({ where: { username } })) {
+      throw new ServiceError('That username is already taken.', 400)
+    }
+    extra.username = username
+    extra.systemRole = systemRole
+  }
+
+  await writePassword(
+    staff.id,
+    next,
+    actor,
+    extra.username ? 'STAFF_LOGIN_CREATED' : 'STAFF_PASSWORD_CHANGED',
+    {
+      staffId: staff.id,
+      staffName: staff.name,
+      username: extra.username ?? staff.username,
+      ...(extra.systemRole ? { systemRole: extra.systemRole } : {}),
+    },
+    extra,
+  )
   // Every device of the changed account must re-login — an Admin resetting a
   // password is often exactly how a lost or unwanted session gets cut off.
   const revoked = revokeSessionsForStaff(staff.id)

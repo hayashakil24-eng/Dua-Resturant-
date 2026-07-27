@@ -128,7 +128,13 @@ export function Receipt({
               )}
               {discount > 0 && (
                 <div className="flex justify-between">
-                  <span>Discount{order.discount?.reason ? ` (${order.discount.reason})` : ''}</span>
+                  {/* Percent first when the discount was given as one — the
+                      customer's question is "kitne percent", not the reason. */}
+                  <span>
+                    Discount
+                    {order.discount?.percent ? ` ${order.discount.percent}%` : ''}
+                    {order.discount?.reason ? ` (${order.discount.reason})` : ''}
+                  </span>
                   <span className="font-bold">- {money(discount)}</span>
                 </div>
               )}
@@ -204,7 +210,8 @@ export function Receipt({
               {order.discount ? (
                 <div className="flex items-center justify-between rounded-xl border border-ink-line bg-ink-soft px-4 py-2.5">
                   <span className="text-xs text-cream-dim">
-                    Discount {money(order.discount.amount)} · by {order.discount.by}
+                    Discount {order.discount.percent ? `${order.discount.percent}% · ` : ''}
+                    {money(order.discount.amount)} · by {order.discount.by}
                   </span>
                   <button
                     onClick={() => onRemoveDiscount(order.id)}
@@ -259,7 +266,7 @@ export function Receipt({
 import { canModify } from '../config/permissions.js'
 
 export default function Billing() {
-  const { orders, orderTotal, markPaid, applyDiscount, removeDiscount, user, menu } = useApp()
+  const { orders, orderTotal, markPaid, applyDiscount, removeDiscount, user, menu, gstEnabled, gstRate } = useApp()
   // Track by id so the open receipt reflects live discount / paid changes.
   const [activeId, setActiveId] = useState(null)
   const [showDiscount, setShowDiscount] = useState(false)
@@ -444,7 +451,9 @@ export default function Billing() {
       {showDiscount && active && (
         <DiscountModal
           order={active}
-          gross={orderTotal(active.items, 0, active.gstRate).total}
+          // Pre-discount breakdown: GST is part of the base a percentage applies to.
+          bill={orderTotal(active.items, 0, active.gstRate)}
+          rate={typeof active.gstRate === 'number' ? active.gstRate : gstEnabled ? gstRate : 0}
           onApply={handleApplyDiscount}
           onClose={() => setShowDiscount(false)}
         />

@@ -31,8 +31,12 @@ export async function staffRoutes(app: FastifyInstance): Promise<void> {
   }))
   app.post('/api/staff/:id/password', { preHandler: requireRole('Admin') }, async (req) => {
     const { id } = req.params as { id: string }
-    const { newPassword } = (req.body ?? {}) as { newPassword?: unknown }
-    return await setStaffPassword(req.actor, id, newPassword)
+    const { newPassword, username, systemRole } = (req.body ?? {}) as {
+      newPassword?: unknown
+      username?: unknown
+      systemRole?: unknown
+    }
+    return await setStaffPassword(req.actor, id, newPassword, { username, systemRole })
   })
 
   // Self-signup approval queue — Admin-only (staffApproval), same

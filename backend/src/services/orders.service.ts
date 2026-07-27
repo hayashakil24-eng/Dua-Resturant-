@@ -132,6 +132,7 @@ export function serializeOrder(o: OrderWithItems) {
       o.discountAmount != null
         ? {
             amount: o.discountAmount,
+            percent: o.discountPercent ?? undefined,
             reason: o.discountReason,
             notes: o.discountNotes,
             by: o.discountBy,
@@ -537,22 +538,44 @@ export async function shiftOrderTable(ctx: Ctx, orderId: string, newTable: numbe
   })
 }
 
-export async function applyDiscount(ctx: Ctx, orderId: string, opts: { amount?: number | string; reason?: string; notes?: string } = {}) {
+export async function applyDiscount(
+  ctx: Ctx,
+  orderId: string,
+  opts: { amount?: number | string; percent?: number | string; reason?: string; notes?: string } = {},
+) {
   return prisma.$transaction(async (tx) => {
     const o = await fetchOrder(tx, orderId)
     if (o.cancelled) throw new ServiceError('Cannot discount a cancelled order.')
     const total = orderGross(o) // gross bill before any discount
-    const amt = Math.min(Math.max(0, Number(opts.amount) || 0), total)
+    const rawPercent = opts.percent != null && String(opts.percent).trim() !== '' ? Number(opts.percent) : null
+
+    let percent: number | null = null
+    let amt: number
+    if (rawPercent != null) {
+      // Whole percents only: discountPercent is an Int and a receipt reading
+      // "Discount (12.5%)" that doesn't reproduce the rupee figure exactly is
+      // worse than not offering it.
+      if (!Number.isInteger(rawPercent) || rawPercent <= 0 || rawPercent > 100) {
+        throw new ServiceError('Discount percent must be a whole number between 1 and 100.')
+      }
+      percent = rawPercent
+      // Recomputed here, never trusted from the client — the same reason every
+      // permission is re-checked server-side.
+      amt = Math.min(Math.round((total * percent) / 100), total)
+    } else {
+      amt = Math.min(Math.max(0, Number(opts.amount) || 0), total)
+    }
     if (amt <= 0) throw new ServiceError('Enter a discount amount greater than zero.')
+
     const reason = opts.reason || 'Manual Discount'
     const notes = opts.notes ?? ''
     const at = new Date()
     const updated = await tx.order.update({
       where: { id: orderId },
-      data: { discountAmount: amt, discountReason: reason, discountNotes: notes, discountBy: ctx.actor.name, discountRole: ctx.actor.role, discountAt: at },
+      data: { discountAmount: amt, discountPercent: percent, discountReason: reason, discountNotes: notes, discountBy: ctx.actor.name, discountRole: ctx.actor.role, discountAt: at },
       include: { items: true },
     })
-    await writeAudit(tx, { action: 'DISCOUNT', actor: ctx.actor, at, details: { orderId, amount: amt, reason, notes } })
+    await writeAudit(tx, { action: 'DISCOUNT', actor: ctx.actor, at, details: { orderId, amount: amt, ...(percent != null ? { percent } : {}), reason, notes } })
     return serializeOrder(updated)
   })
 }
@@ -563,7 +586,7 @@ export async function removeDiscount(ctx: Ctx, orderId: string) {
     if (o.discountAmount == null) throw new ServiceError('This order has no discount to remove.')
     const updated = await tx.order.update({
       where: { id: orderId },
-      data: { discountAmount: null, discountReason: null, discountNotes: null, discountBy: null, discountRole: null, discountAt: null },
+      data: { discountAmount: null, discountPercent: null, discountReason: null, discountNotes: null, discountBy: null, discountRole: null, discountAt: null },
       include: { items: true },
     })
     await writeAudit(tx, { action: 'DISCOUNT_REMOVED', actor: ctx.actor, details: { orderId } })
