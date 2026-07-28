@@ -77,6 +77,9 @@ const ACTION_REFETCH_MAP = {
   GST_DISABLED: ['settings'],
   GST_RATE_CHANGED: ['settings'],
   ATTENDANCE_DEVICE_CONFIG_CHANGED: ['settings'],
+  WHATSAPP_RECIPIENT_ADDED: ['whatsappRecipients'],
+  WHATSAPP_RECIPIENT_RECHECKED: ['whatsappRecipients'],
+  WHATSAPP_RECIPIENT_REMOVED: ['whatsappRecipients'],
   DAY_CLOSED: ['dailyClosings'],
 }
 
@@ -126,6 +129,7 @@ export function AppProvider({ children }) {
   const [whatsappReport, setWhatsappReport] = useState({ enabled: false, hour: 23, recipient: '' })
   const [attendanceDevice, setAttendanceDevice] = useState({ ip: '', port: 4370 })
   const [onlineAccounts, setOnlineAccounts] = useState([])
+  const [whatsappRecipients, setWhatsappRecipients] = useState([])
   const [dailyClosings, setDailyClosings] = useState([])
   const [receivables, setReceivables] = useState([])
   const [departments, setDepartments] = useState([])
@@ -176,6 +180,7 @@ export function AppProvider({ children }) {
         })
       }),
     onlineAccounts: () => apiGet('/api/online-accounts').then((d) => setOnlineAccounts(d.accounts || [])),
+    whatsappRecipients: () => apiGet('/api/whatsapp/recipients').then((d) => setWhatsappRecipients(d.recipients || [])),
     dailyClosings: () => apiGet('/api/closings').then((d) => setDailyClosings(d.closings || [])),
     receivables: () => apiGet('/api/receivables').then((d) => setReceivables((d.receivables || []).map(normalizeReceivable))),
     departments: () => apiGet('/api/departments').then((d) => setDepartments(d.departments || [])),
@@ -402,6 +407,37 @@ export function AppProvider({ children }) {
     try {
       await apiPost(`/api/online-accounts/${id}/toggle`)
       await refresh(['onlineAccounts'])
+    } catch (e) {
+      return toError(e)
+    }
+  }
+
+  // WhatsApp test-mode recipient allowlist — "add" actually attempts a real
+  // send server-side and reports back whether Meta accepted it, since Meta's
+  // API has no way to just list who's already allowed (see the backend
+  // service's own header comment).
+  const addWhatsappRecipient = async ({ phone, label = '' } = {}) => {
+    try {
+      const { recipient } = await apiPost('/api/whatsapp/recipients', { phone, label })
+      await refresh(['whatsappRecipients'])
+      return { recipient }
+    } catch (e) {
+      return toError(e)
+    }
+  }
+  const recheckWhatsappRecipient = async (id) => {
+    try {
+      const { recipient } = await apiPost(`/api/whatsapp/recipients/${id}/recheck`)
+      await refresh(['whatsappRecipients'])
+      return { recipient }
+    } catch (e) {
+      return toError(e)
+    }
+  }
+  const removeWhatsappRecipient = async (id) => {
+    try {
+      await apiDelete(`/api/whatsapp/recipients/${id}`)
+      await refresh(['whatsappRecipients'])
     } catch (e) {
       return toError(e)
     }
@@ -1180,6 +1216,10 @@ export function AppProvider({ children }) {
     addOnlineAccount,
     updateOnlineAccount,
     toggleOnlineAccount,
+    whatsappRecipients,
+    addWhatsappRecipient,
+    recheckWhatsappRecipient,
+    removeWhatsappRecipient,
     dailyClosings,
     lastClosingAt,
     saveDailyClosing,

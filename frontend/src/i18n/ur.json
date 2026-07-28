@@ -736,6 +736,17 @@
     "whatsappHint": "صرف ہندسے، پہلے ملکی کوڈ، + کے بغیر (مثلاً 923001234567)۔ ایڈمن کسی بھی وقت سسٹم کو براہ راست واٹس ایپ پیغام بھیج کر بھی تازہ ترین رپورٹ منگوا سکتا ہے۔",
     "whatsappStatusOn": "خودکار ارسال آن ہے — روزانہ {hour}:00 پر بھیجا جاتا ہے۔",
     "whatsappStatusOff": "خودکار ارسال آف ہے — کچھ بھی خودکار طریقے سے نہیں بھیجا جاتا۔",
+    "whatsappRecipientsTitle": "منظور شدہ نمبرز",
+    "whatsappRecipientsDesc": "میٹا صرف اُن نمبروں کو پیغام بھیجنے کی اجازت دیتا ہے جو پہلے میٹا ایپ ڈیش بورڈ میں شامل اور OTP سے تصدیق شدہ ہوں — ٹیسٹ موڈ میں ایک وقت میں زیادہ سے زیادہ 5 نمبر۔ یہاں نمبر شامل کریں تاکہ معلوم ہو سکے کہ وہ وہاں پہلے سے منظور ہے یا نہیں۔",
+    "whatsappRecipientAdd": "شامل کریں اور چیک کریں",
+    "whatsappRecipientChecking": "چیک ہو رہا ہے…",
+    "whatsappRecipientsLimit": "{count}/5 نمبر استعمال ہوئے — میٹا کی ٹیسٹ موڈ حد۔",
+    "whatsappRecipientsLimitReached": "حد مکمل (5/5) — نیا شامل کرنے کے لیے ایک نیچے سے ہٹائیں۔",
+    "whatsappRecipientsNone": "ابھی تک کوئی نمبر شامل نہیں کیا گیا۔",
+    "whatsappRecipientVerified": "میٹا پر شامل",
+    "whatsappRecipientNotVerified": "ابھی شامل نہیں",
+    "whatsappRecipientHint": "یہ نمبر میٹا ایپ ڈیش بورڈ میں شامل کریں (WhatsApp → API Setup → recipient list)، پھر 'دوبارہ چیک کریں' دبائیں۔",
+    "whatsappRecipientRecheck": "دوبارہ چیک کریں",
     "attendanceSection": "حاضری مشین",
     "attendanceDesc": "اپنی جگہ نصب فنگر پرنٹ/فیس حاضری مشین کو منسلک کریں۔",
     "attendanceIpLabel": "مشین کا آئی پی ایڈریس",
@@ -817,7 +828,7 @@
     "today": "آج"
   },
   "update": {
-    "downloading": "اپڈیٹ v{version} ڈاؤن لوڈ ہو رہی ہے…",
+    "downloading": "اپڈیٹ v{version} ڈاؤن لوڈ ہو رہی ہے… ({percent}%)",
     "ready": "اپڈیٹ v{version} انسٹال کے لیے تیار ہے۔",
     "restartNow": "دوبارہ شروع کریں اور اپڈیٹ کریں",
     "later": "بعد میں"

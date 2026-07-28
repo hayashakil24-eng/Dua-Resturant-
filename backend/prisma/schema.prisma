@@ -661,6 +661,28 @@ model AppSettings {
   updatedAt  DateTime @updatedAt
 }
 
+// Meta's WhatsApp Cloud API test-mode tier (the default until a business goes
+// through Meta's business verification) only delivers to phone numbers the
+// admin has explicitly added + OTP-verified as allowed recipients in the Meta
+// App Dashboard — and Meta's Graph API has no endpoint to *list* that
+// allow-list back, so there's no way to just ask Meta "which numbers are
+// already added." This table is this app's own record of numbers someone has
+// tried to register, each checked by actually attempting a real send and
+// reading Meta's response: success means it's genuinely on the allow-list,
+// error code 131030 means it isn't yet (see whatsappRecipients.service.ts).
+// Capped at 5 rows in the service layer — Meta's own test-mode recipient
+// limit, not a limit this schema enforces itself.
+model WhatsappRecipient {
+  id            String    @id @default(cuid())
+  phone         String    @unique // digits only, no leading + (e.g. "923001234567")
+  label         String?
+  verified      Boolean   @default(false)
+  verifiedAt    DateTime?
+  lastCheckedAt DateTime?
+  lastError     String?
+  createdAt     DateTime  @default(now())
+}
+
 model OnlineAccount {
   id       String  @id @default(cuid())
   name     String  @unique

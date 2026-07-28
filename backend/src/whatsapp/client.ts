@@ -23,6 +23,10 @@ export function isWhatsAppConfigured(): boolean {
   return Boolean(env.whatsapp.phoneNumberId && env.whatsapp.accessToken)
 }
 
+// Meta's fixed error code for "this recipient isn't on the test-mode allow-
+// list" — documented behavior, not something this app's config controls.
+export const META_RECIPIENT_NOT_ALLOWED_CODE = 131030
+
 const MAX_ATTEMPTS = 3
 
 // Meta occasionally answers with a plain-text error ("Service Unavailable",
@@ -39,6 +43,23 @@ function isRetryable(status: number): boolean {
   return status === 401 || status === 408 || status === 429 || status >= 500
 }
 
+// Meta's error `code` (e.g. 131030 — "Recipient phone number not in allowed
+// list", the test-mode recipient-allowlist restriction) is meaningful to
+// callers beyond just a human message — whatsappRecipients.service.ts
+// specifically branches on 131030 to distinguish "not added on Meta's
+// dashboard yet" from any other failure. A plain Error loses that structure,
+// so this preserves it instead of just formatting it into a message string.
+export class WhatsAppApiError extends Error {
+  status: number
+  code?: number
+  constructor(status: number, message: string, code?: number) {
+    super(message)
+    this.name = 'WhatsAppApiError'
+    this.status = status
+    this.code = code
+  }
+}
+
 async function graphRequest<T>(path: string, init: RequestInit, attempt = 0): Promise<T> {
   if (!isWhatsAppConfigured()) throw new Error('WhatsApp Cloud API is not configured (WHATSAPP_PHONE_NUMBER_ID / WHATSAPP_ACCESS_TOKEN).')
   const res = await fetch(apiUrl(path), {
@@ -49,7 +70,7 @@ async function graphRequest<T>(path: string, init: RequestInit, attempt = 0): Pr
   // page) used to crash res.json() outright instead of producing a
   // catchable error.
   const text = await res.text()
-  let body: (T & { error?: { message?: string } }) | undefined
+  let body: (T & { error?: { message?: string; code?: number } }) | undefined
   try {
     body = JSON.parse(text)
   } catch {
@@ -61,7 +82,7 @@ async function graphRequest<T>(path: string, init: RequestInit, attempt = 0): Pr
       await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt))
       return graphRequest<T>(path, init, attempt + 1)
     }
-    throw new Error(`WhatsApp API error (${res.status}): ${body?.error?.message ?? text.slice(0, 300)}`)
+    throw new WhatsAppApiError(res.status, `WhatsApp API error (${res.status}): ${body?.error?.message ?? text.slice(0, 300)}`, body?.error?.code)
   }
   if (!body) throw new Error(`WhatsApp API returned a non-JSON success response: ${text.slice(0, 300)}`)
   return body

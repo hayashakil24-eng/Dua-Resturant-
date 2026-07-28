@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { authenticate, requirePermission } from '../auth/guard.js'
 import * as settings from '../services/settings.service.js'
+import * as whatsappRecipients from '../services/whatsappRecipients.service.js'
 
 export async function settingsRoutes(app: FastifyInstance): Promise<void> {
   const ctx = (req: FastifyRequest) => ({ actor: req.actor })
@@ -20,6 +21,24 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
   })
   app.post('/api/settings/attendance-device', { preHandler: requirePermission('settings') }, async (req) => {
     return { settings: await settings.setAttendanceDeviceConfig(ctx(req), req.body as never) }
+  })
+
+  // WhatsApp test-mode recipient allowlist (see WhatsappRecipient's own
+  // schema.prisma comment for why this exists — Meta's API can't list its
+  // own allowlist back, so "add" here actually attempts a real send to find out).
+  app.get('/api/whatsapp/recipients', { preHandler: authenticate }, async () => ({
+    recipients: await whatsappRecipients.listWhatsappRecipients(),
+  }))
+  app.post('/api/whatsapp/recipients', { preHandler: requirePermission('settings') }, async (req) => ({
+    recipient: await whatsappRecipients.addWhatsappRecipient(ctx(req), req.body as never),
+  }))
+  app.post('/api/whatsapp/recipients/:id/recheck', { preHandler: requirePermission('settings') }, async (req) => {
+    const { id } = req.params as { id: string }
+    return { recipient: await whatsappRecipients.recheckWhatsappRecipient(ctx(req), id) }
+  })
+  app.delete('/api/whatsapp/recipients/:id', { preHandler: requirePermission('settings') }, async (req) => {
+    const { id } = req.params as { id: string }
+    return whatsappRecipients.removeWhatsappRecipient(ctx(req), id)
   })
 
   // Online payment accounts

@@ -689,6 +689,10 @@ export default function Settings() {
     addOnlineAccount,
     updateOnlineAccount,
     toggleOnlineAccount,
+    whatsappRecipients,
+    addWhatsappRecipient,
+    recheckWhatsappRecipient,
+    removeWhatsappRecipient,
     user,
   } = useApp()
   const t = useT()
@@ -696,6 +700,36 @@ export default function Settings() {
   const ratePct = Math.round(gstRate * 100)
   const fill = (s) => s.replace('{rate}', ratePct)
   const [formFor, setFormFor] = useState(null) // 'new' | account object | null
+
+  // WhatsApp recipient allowlist — "add" round-trips to Meta (see
+  // AppContext.jsx's addWhatsappRecipient), so it needs its own busy/error
+  // state rather than the instant local-only toggles elsewhere on this page.
+  const [newRecipientPhone, setNewRecipientPhone] = useState('')
+  const [recipientBusy, setRecipientBusy] = useState(false) // true | id being rechecked/removed | false
+  const [recipientError, setRecipientError] = useState('')
+
+  const submitNewRecipient = async () => {
+    setRecipientError('')
+    setRecipientBusy(true)
+    const res = await addWhatsappRecipient({ phone: newRecipientPhone })
+    setRecipientBusy(false)
+    if (res?.error) return setRecipientError(res.error)
+    setNewRecipientPhone('')
+  }
+  const runRecheck = async (id) => {
+    setRecipientError('')
+    setRecipientBusy(id)
+    const res = await recheckWhatsappRecipient(id)
+    setRecipientBusy(false)
+    if (res?.error) setRecipientError(res.error)
+  }
+  const runRemove = async (id) => {
+    setRecipientError('')
+    setRecipientBusy(id)
+    const res = await removeWhatsappRecipient(id)
+    setRecipientBusy(false)
+    if (res?.error) setRecipientError(res.error)
+  }
 
   // Left-nav sections — was one long stack of cards, which read as cluttered
   // once Server Health / Passwords were added on top of Tax/WhatsApp/Accounts.
@@ -993,6 +1027,111 @@ export default function Settings() {
             'Digits only, country code first, no leading + (e.g. 923001234567). The admin can also request the latest report any time by messaging the system directly on WhatsApp.',
           )}
         </p>
+
+        {/* Recipient allowlist — Meta's test-mode API has no way to list which
+            numbers are already approved, so "Add" here actually attempts a real
+            send and reports back what Meta says. */}
+        <div className="mt-6 border-t border-ink-line pt-5">
+          <h4 className="font-serif text-lg text-cream">
+            {t('settings.whatsappRecipientsTitle', 'Approved Recipients')}
+          </h4>
+          <p className="mt-1 text-xs leading-relaxed text-cream-dim">
+            {t(
+              'settings.whatsappRecipientsDesc',
+              'Meta only allows this WhatsApp number to message numbers explicitly added and OTP-verified in the Meta App Dashboard first — up to 5 at a time in test mode. Add a number here to check whether it has already been approved there.',
+            )}
+          </p>
+
+          {canEdit && (
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="923001234567"
+                className="input w-56"
+                value={newRecipientPhone}
+                onChange={(e) => setNewRecipientPhone(e.target.value)}
+                disabled={recipientBusy === true || whatsappRecipients.length >= 5}
+              />
+              <button
+                onClick={submitNewRecipient}
+                disabled={recipientBusy === true || !newRecipientPhone.trim() || whatsappRecipients.length >= 5}
+                className="btn-gold px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <IconPlus size={16} />
+                {recipientBusy === true ? t('settings.whatsappRecipientChecking', 'Checking…') : t('settings.whatsappRecipientAdd', 'Add & Check')}
+              </button>
+              {recipientError && <span className="text-xs text-rose-300">{recipientError}</span>}
+            </div>
+          )}
+
+          <p className="mt-2 text-[11px] text-cream-dim">
+            {whatsappRecipients.length >= 5
+              ? t('settings.whatsappRecipientsLimitReached', 'Limit reached (5/5) — remove one below to add another.')
+              : t('settings.whatsappRecipientsLimit', '{count}/5 numbers used — Meta’s test-mode maximum.').replace(
+                  '{count}',
+                  whatsappRecipients.length,
+                )}
+          </p>
+
+          {whatsappRecipients.length === 0 ? (
+            <p className="mt-4 rounded-xl border border-ink-line bg-ink-soft/50 px-4 py-5 text-center text-xs text-cream-dim">
+              {t('settings.whatsappRecipientsNone', 'No numbers added yet.')}
+            </p>
+          ) : (
+            <ul className="mt-4 divide-y divide-ink-line">
+              {whatsappRecipients.map((r) => (
+                <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-2 font-semibold text-cream">
+                      {r.phone}
+                      <span
+                        className={`badge ring-1 ${
+                          r.verified
+                            ? 'bg-emerald-500/12 text-emerald-300 ring-emerald-500/30'
+                            : 'bg-amber-500/12 text-amber-300 ring-amber-500/30'
+                        }`}
+                      >
+                        {r.verified
+                          ? t('settings.whatsappRecipientVerified', 'Added on Meta')
+                          : t('settings.whatsappRecipientNotVerified', 'Not added yet')}
+                      </span>
+                    </p>
+                    {!r.verified && (
+                      <p className="mt-0.5 text-xs text-cream-dim">
+                        {t(
+                          'settings.whatsappRecipientHint',
+                          'Add this number in the Meta App Dashboard (WhatsApp → API Setup → recipient list), then click Recheck.',
+                        )}
+                      </p>
+                    )}
+                  </div>
+                  {canEdit && (
+                    <div className="flex items-center gap-2">
+                      {!r.verified && (
+                        <button
+                          onClick={() => runRecheck(r.id)}
+                          disabled={recipientBusy === r.id}
+                          className="flex items-center gap-1.5 rounded-lg border border-gold/40 bg-gold/10 px-3 py-1.5 text-xs font-semibold text-gold transition hover:bg-gold/20 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          <IconRefresh size={13} className={recipientBusy === r.id ? 'animate-spin' : ''} />
+                          {t('settings.whatsappRecipientRecheck', 'Recheck')}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => runRemove(r.id)}
+                        disabled={recipientBusy === r.id}
+                        className="rounded-lg border border-ink-line bg-ink-soft px-3 py-1.5 text-xs font-semibold text-cream-dim transition hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {t('common.delete', 'Delete')}
+                      </button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
       )}
 

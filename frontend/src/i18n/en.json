@@ -736,6 +736,17 @@
     "whatsappHint": "Digits only, country code first, no leading + (e.g. 923001234567). The admin can also request the latest report any time by messaging the system directly on WhatsApp.",
     "whatsappStatusOn": "Automated send is ON — sends daily at {hour}:00.",
     "whatsappStatusOff": "Automated send is OFF — nothing sends automatically.",
+    "whatsappRecipientsTitle": "Approved Recipients",
+    "whatsappRecipientsDesc": "Meta only allows this WhatsApp number to message numbers explicitly added and OTP-verified in the Meta App Dashboard first — up to 5 at a time in test mode. Add a number here to check whether it has already been approved there.",
+    "whatsappRecipientAdd": "Add & Check",
+    "whatsappRecipientChecking": "Checking…",
+    "whatsappRecipientsLimit": "{count}/5 numbers used — Meta’s test-mode maximum.",
+    "whatsappRecipientsLimitReached": "Limit reached (5/5) — remove one below to add another.",
+    "whatsappRecipientsNone": "No numbers added yet.",
+    "whatsappRecipientVerified": "Added on Meta",
+    "whatsappRecipientNotVerified": "Not added yet",
+    "whatsappRecipientHint": "Add this number in the Meta App Dashboard (WhatsApp → API Setup → recipient list), then click Recheck.",
+    "whatsappRecipientRecheck": "Recheck",
     "attendanceSection": "Attendance Machine",
     "attendanceDesc": "Connect the on-site fingerprint/face attendance terminal.",
     "attendanceIpLabel": "Machine IP address",
@@ -817,7 +828,7 @@
     "today": "today"
   },
   "update": {
-    "downloading": "Downloading update v{version}…",
+    "downloading": "Downloading update v{version}… ({percent}%)",
     "ready": "Update v{version} is ready to install.",
     "restartNow": "Restart & Update",
     "later": "Later"
