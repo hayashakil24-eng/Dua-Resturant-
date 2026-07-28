@@ -672,6 +672,15 @@ function CashOnHandPanel() {
     roles.find((r) => r.role === user?.role)?.people.find((p) => p.name === user?.name)?.amount ?? 0
   const canForward = user && canModify(user.role, 'handoverForward')
 
+  // A forward this user already sent that the Admin hasn't signed for yet.
+  // myHolding still includes that cash (cashPositions counts only ACCEPTED
+  // legs, and the notes really are still in their hands until the Admin takes
+  // them), so without this the button stays live and the same money can be
+  // handed over again and again — one pile of cash, several pending records.
+  const myPendingForward = pendingHandovers.find(
+    (h) => h.status === 'pending' && h.kind === 'forward' && h.fromName === user?.name,
+  )
+
   // Only the Admin sees the whole picture. A Manager sees their own position
   // and nothing else — not what the owner is holding, and not what another
   // manager is holding. The overall total is Admin-only for the same reason:
@@ -764,16 +773,25 @@ function CashOnHandPanel() {
       {/* Manager forwards their collected cash up to the Admin, so the whole
           day's takings end in one pair of hands. */}
       {canForward && (
-        <button
-          onClick={() => setForwardOpen(true)}
-          disabled={myHolding <= 0}
-          className="btn-gold mt-4 w-full py-3 text-sm disabled:opacity-50"
-        >
-          <IconWallet size={16} />{' '}
-          {myHolding > 0
-            ? `${t('handover.forwardCta')} · ${money(myHolding)}`
-            : t('handover.forwardNothing')}
-        </button>
+        <>
+          <button
+            onClick={() => setForwardOpen(true)}
+            disabled={myHolding <= 0 || Boolean(myPendingForward)}
+            className="btn-gold mt-4 w-full py-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <IconWallet size={16} />{' '}
+            {myPendingForward
+              ? t('handover.forwardPending')
+              : myHolding > 0
+                ? `${t('handover.forwardCta')} · ${money(myHolding)}`
+                : t('handover.forwardNothing')}
+          </button>
+          {myPendingForward && (
+            <p className="mt-2 flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2 text-[11px] text-amber-300">
+              ⏳ {money(myPendingForward.amount)} · {t('handover.forwardPendingHint')}
+            </p>
+          )}
+        </>
       )}
 
       {byCashier.length > 0 && (

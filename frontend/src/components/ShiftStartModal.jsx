@@ -16,7 +16,7 @@ export default function ShiftStartModal({ onStart }) {
 
   const submit = () => {
     if (!opening || Number.isNaN(amount) || amount < 0) {
-      return setError('Drawer ka cash likhein · Enter the opening cash amount.')
+      return setError('Drawer ka cash likhein.')
     }
     setError('')
     onStart(amount)
@@ -34,14 +34,14 @@ export default function ShiftStartModal({ onStart }) {
             <div>
               <h3 className="font-serif text-2xl text-cream">Drawer kholein</h3>
               <p className="text-xs text-cream-dim">
-                Shuru mein drawer ka cash gin kar likhein · Count the cash in the drawer to open the till.
+                Shuru mein drawer ka cash gin kar likhein.
               </p>
             </div>
           </div>
 
           <div className="mt-6">
             <label className="mb-2 block text-[11px] uppercase tracking-wider text-cream-dim">
-              Shuruati cash (Rs.) · Opening cash amount
+              Shuruati cash (Rs.)
             </label>
             <input
               type="number"
@@ -49,14 +49,14 @@ export default function ShiftStartModal({ onStart }) {
               min={0}
               autoFocus
               className="input"
-              placeholder="e.g. 5000"
+              placeholder="misal: 5000"
               value={opening}
               onChange={(e) => setOpening(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && submit()}
             />
             {opening && !Number.isNaN(amount) && amount >= 0 && (
               <p className="mt-2 text-[11px] text-cream-dim">
-                Opening balance: <span className="text-gold">{money(amount)}</span>
+                Shuruati raqam: <span className="text-gold">{money(amount)}</span>
               </p>
             )}
           </div>
@@ -67,10 +67,10 @@ export default function ShiftStartModal({ onStart }) {
 
           <div className="mt-6 flex gap-3">
             <button onClick={logout} className="btn-ghost px-4 py-3 text-sm">
-              <IconLogout size={16} /> <BiLabel ur="Log out" en="Not me" />
+              <IconLogout size={16} /> <BiLabel ur="Log out" />
             </button>
             <button onClick={submit} className="btn-gold flex-1 py-3">
-              <IconCash size={18} /> <BiLabel ur="Drawer kholein" en="Start shift" />
+              <IconCash size={18} /> <BiLabel ur="Drawer kholein" />
             </button>
           </div>
         </div>

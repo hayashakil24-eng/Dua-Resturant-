@@ -243,9 +243,9 @@ export default function TableFormModal({ mode = 'add', hall = null, tables, onAd
             <button onClick={submit} disabled={busy} className="btn-gold flex-1 py-2.5 text-sm disabled:opacity-60">
               {editing ? <IconCheck size={16} /> : <IconPlus size={16} />}{' '}
               {editing ? (
-                <BiLabel ur="Hall save karein" en="Save hall" />
+                <BiLabel ur="Hall save karein" />
               ) : (
-                <BiLabel ur="Tables banayein" en="Create tables" />
+                <BiLabel ur="Tables banayein" />
               )}
             </button>
           </div>

@@ -274,6 +274,19 @@ export async function initiateHandover(ctx: Ctx, input: { amount?: number; toNam
 export async function forwardHandover(ctx: Ctx, input: { amount?: number; reason?: string }) {
   const sinceIso = await getBoundaryIso()
   return prisma.$transaction(async (tx) => {
+    // One forward at a time. cashHeldBy only counts ACCEPTED rows, so a forward
+    // the Admin hasn't signed for yet leaves the money still showing as held —
+    // without this guard the same cash could be forwarded again and again,
+    // creating several pending handovers for one physical pile of notes.
+    const outstanding = await tx.pendingHandover.findFirst({
+      where: { status: 'pending', kind: 'forward', fromName: ctx.actor.name },
+    })
+    if (outstanding) {
+      throw new ServiceError(
+        `You already have Rs. ${outstanding.amount} awaiting the Admin's approval. Wait for it to be accepted or rejected before handing over more.`,
+      )
+    }
+
     const amt = Math.max(0, Number(input.amount) || 0)
     const held = await cashHeldBy(tx, ctx.actor.name, ctx.actor.role, sinceIso)
     if (amt <= 0 || amt > held) {
