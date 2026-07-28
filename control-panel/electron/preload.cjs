@@ -19,4 +19,7 @@ contextBridge.exposeInMainWorld('controlPanel', {
   getDevices: () => ipcRenderer.invoke('get-devices'),
   disconnectDevice: (socketId) => ipcRenderer.invoke('disconnect-device', socketId),
   onStatusChanged: (callback) => ipcRenderer.on('status-changed', (_e, data) => callback(data)),
+  getUpdateStatus: () => ipcRenderer.invoke('get-update-status'),
+  installUpdate: () => ipcRenderer.invoke('install-update'),
+  onUpdateChanged: (callback) => ipcRenderer.on('update-changed', (_e, data) => callback(data)),
 })

@@ -12,3 +12,11 @@ prisma/postgres/schema.prisma
 # Local secrets. .env holds a dev-only JWT secret + DATABASE_URL; keep it out
 # of version control so a real secret is never committed by accident.
 .env
+
+# electron-updater release artifacts (src/vps/app.ts serves this directory
+# on the VPS) — installers/blockmaps are large binaries uploaded straight to
+# the VPS at release time, never committed. Keep the folder structure itself
+# tracked via .gitkeep.
+updates/*
+!updates/*/
+!updates/**/.gitkeep

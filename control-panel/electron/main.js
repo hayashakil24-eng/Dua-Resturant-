@@ -16,17 +16,38 @@
 // just cosmetic.
 
 import { app, BrowserWindow, Tray, Menu, dialog, ipcMain, nativeImage } from 'electron'
-import { fileURLToPath } from 'node:url'
-import { createRequire } from 'node:module'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import crypto from 'node:crypto'
+// See frontend/electron/main.js's identical comment: electron-updater is
+// CommonJS with `autoUpdater` as a lazy getter, which crashed on real Windows
+// under a plain named import ("Named export 'autoUpdater' not found").
+import electronUpdaterPkg from 'electron-updater'
+const { autoUpdater } = electronUpdaterPkg
 
 const execFileAsync = promisify(execFile)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const require = createRequire(import.meta.url)
+
+// @cafe-ali/backend is deliberately NOT an npm dependency of this package
+// (see package.json) — resolved by explicit filesystem path instead of a
+// bare specifier. electron-builder's own node-modules collector walks the
+// full npm dependency graph of every *declared* dependency before any
+// `files` pattern filtering runs, and doing that through this file:../backend
+// link reliably ran a build machine with ~7GB RAM out of heap (electron-
+// builder 26.15.3 *and* 26.15.7, confirmed against both) — backend/'s own
+// node_modules is large and deep (puppeteer, prisma, embedded-postgres...)
+// and the collector doesn't memoize shared subtrees the way its newer pnpm
+// collector explicitly does (see that collector's own source comments).
+// Undeclaring the dependency removes it from the graph entirely; the actual
+// files still ship via extraResources (package.json) exactly as before.
+const BACKEND_DIR = app.isPackaged ? path.join(process.resourcesPath, 'app-backend') : path.join(__dirname, '../../backend')
+
+function importBackend() {
+  return import(pathToFileURL(path.join(BACKEND_DIR, 'dist/src/index.js')).href)
+}
 
 // All writable runtime state (db file, backups, config) lives under Electron's
 // per-user app-data directory — the install location itself (Program Files on
@@ -40,6 +61,7 @@ let tray = null
 let backend = null // { app: FastifyInstance, io, discoverySocket, backupTimer, syncTimer, whatsappTimer } once started
 let serverStatus = 'stopped' // 'stopped' | 'starting' | 'online' | 'error'
 let lastError = null
+let updateInfo = null // { version, ready } once electron-updater finds/downloads one, else null
 
 function readConfig() {
   try {
@@ -68,7 +90,7 @@ function isSetupComplete() {
 let panelUnlocked = false
 
 async function verifyPanelPassword(password) {
-  const { verifyPassword } = await import('@cafe-ali/backend')
+  const { verifyPassword } = await importBackend()
   const config = readConfig()
   return verifyPassword(password, config?.panelPasswordHash)
 }
@@ -125,12 +147,24 @@ async function verifyPanelPassword(password) {
 //    install never gets a .cmd shim, and even a POSIX symlink doesn't
 //    survive being packaged/copied onto NTFS intact. Calling the JS entry
 //    directly sidesteps shim generation entirely.
+// 4. @cafe-ali/backend is NOT a declared npm dependency of this package (see
+//    BACKEND_DIR/importBackend above, and package.json) — resolved by an
+//    explicit filesystem path instead. electron-builder's own node-modules
+//    collector walks the *entire* npm dependency graph of every declared
+//    dependency before any `files` pattern even runs — doing that through
+//    this file:../backend link (following it into backend's own large, deep
+//    node_modules: puppeteer, prisma, embedded-postgres...) reliably ran a
+//    build machine with 7GB of heap out of memory, on both electron-builder
+//    26.15.3 and 26.15.7 — its collector doesn't memoize shared subtrees the
+//    way its newer pnpm collector explicitly does (see that collector's own
+//    source comments). The actual files backend needs at runtime still ship
+//    via the extraResources copy below (point 2), just under `app-backend/`
+//    instead of a node_modules path electron-builder itself has to discover.
 async function runMigrations(env) {
-  const backendDir = path.dirname(require.resolve('@cafe-ali/backend/package.json'))
   const nodeModulesDir = app.isPackaged
-    ? path.join(process.resourcesPath, 'backend-full-modules', 'node_modules')
-    : path.join(backendDir, 'node_modules')
-  const unpackedBackendDir = backendDir
+    ? path.join(process.resourcesPath, 'app-backend', 'node_modules')
+    : path.join(BACKEND_DIR, 'node_modules')
+  const unpackedBackendDir = BACKEND_DIR
 
   const prismaEntry = path.join(nodeModulesDir, 'prisma/build/index.js')
   const schemaPath = path.join(unpackedBackendDir, 'prisma/schema.prisma')
@@ -164,7 +198,7 @@ async function runFirstTimeSetup(backupDir, panelPassword) {
   // username "admin", same password just entered for this panel — that
   // whoever set this up can use to sign in and add real staff accounts.
   process.env.DATABASE_URL = env.DATABASE_URL
-  const { hashPassword, ensureAdminAccount } = await import('@cafe-ali/backend')
+  const { hashPassword, ensureAdminAccount } = await importBackend()
   await ensureAdminAccount('admin', panelPassword, 'Admin')
   writeConfig({
     jwtSecret,
@@ -207,7 +241,7 @@ async function startBackend() {
       startAttendanceDevicePolling,
       seedBaseline,
       env,
-    } = await import('@cafe-ali/backend')
+    } = await importBackend()
 
     // `migrate deploy` only creates empty tables (no prisma/seed.ts, unlike dev)
     // — so without this a fresh install has a working login but an empty menu
@@ -256,6 +290,41 @@ function broadcastStatus() {
     win.webContents.send('status-changed', { status: serverStatus, error: lastError })
   }
 }
+
+// Auto-update (electron-updater, generic provider pointed at the VPS — see
+// package.json's build.publish and backend/src/vps/app.ts's static /updates/
+// route). Same reasoning as the main POS app's electron/main.js: a failed/
+// offline check must stay silent (this panel is meant to run unattended in
+// the tray all day on an unreliable connection), only a found update is
+// surfaced, here via the dashboard's own update row rather than a popup —
+// whoever's at the machine sees it next time they open the panel.
+autoUpdater.installDirectory = path.dirname(process.execPath)
+autoUpdater.autoDownload = true
+autoUpdater.autoInstallOnAppQuit = true
+
+function broadcastUpdate() {
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('update-changed', updateInfo)
+  }
+}
+
+autoUpdater.on('update-available', (info) => {
+  updateInfo = { version: info.version, ready: false }
+  broadcastUpdate()
+})
+autoUpdater.on('update-downloaded', (info) => {
+  updateInfo = { version: info.version, ready: true }
+  broadcastUpdate()
+})
+autoUpdater.on('error', (err) => {
+  console.error('[control-panel] update check failed (likely offline):', err.message)
+})
+
+function checkForUpdates() {
+  if (app.isPackaged) autoUpdater.checkForUpdates().catch(() => {})
+}
+
+const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000
 
 function createWindow() {
   win = new BrowserWindow({
@@ -353,11 +422,19 @@ function requireUnlocked(fn) {
   }
 }
 
+// Not gated by requireUnlocked — knowing "an update exists" isn't sensitive,
+// and the setup/lock screens (before panelUnlocked) should be able to show
+// it too rather than only after unlocking.
+ipcMain.handle('get-update-status', () => updateInfo)
+ipcMain.handle('install-update', requireUnlocked(() => {
+  autoUpdater.quitAndInstall(true, true)
+}))
+
 ipcMain.handle('get-status', requireUnlocked(async () => {
   const config = readConfig()
   let health = null
   if (backend) {
-    const { lastBackupInfo } = await import('@cafe-ali/backend')
+    const { lastBackupInfo } = await importBackend()
     health = { lastBackupAt: lastBackupInfo()?.at ?? null }
   }
   return { status: serverStatus, error: lastError, backupDir: config?.backupDir, health }
@@ -372,7 +449,7 @@ ipcMain.handle('stop-server', requireUnlocked(() => stopBackend()))
 // log, just "who's live right now."
 ipcMain.handle('get-devices', requireUnlocked(async () => {
   if (!backend) return []
-  const { listConnections } = await import('@cafe-ali/backend')
+  const { listConnections } = await importBackend()
   return listConnections()
 }))
 
@@ -382,7 +459,7 @@ ipcMain.handle('get-devices', requireUnlocked(async () => {
 // log in again.
 ipcMain.handle('disconnect-device', requireUnlocked(async (_e, socketId) => {
   if (!backend) return { ok: false }
-  const { disconnectDevice } = await import('@cafe-ali/backend')
+  const { disconnectDevice } = await importBackend()
   return { ok: disconnectDevice(socketId) }
 }))
 
@@ -400,6 +477,9 @@ app.whenReady().then(async () => {
   if (isSetupComplete()) {
     await startBackend()
   }
+
+  checkForUpdates()
+  setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL_MS)
 })
 
 app.on('window-all-closed', () => {

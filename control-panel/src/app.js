@@ -21,6 +21,10 @@ const toggleServerBtn = document.getElementById('toggle-server-btn')
 const deviceCountEl = document.getElementById('device-count')
 const devicesListEl = document.getElementById('devices-list')
 
+const updateBanner = document.getElementById('update-banner')
+const updateTextEl = document.getElementById('update-text')
+const updateInstallBtn = document.getElementById('update-install-btn')
+
 let chosenBackupDir = null
 let currentStatus = 'stopped'
 let devicePollTimer = null
@@ -88,6 +92,21 @@ function renderDevices(devices) {
   }
 }
 
+function renderUpdate(info) {
+  if (!info) {
+    updateBanner.classList.add('hidden')
+    return
+  }
+  updateBanner.classList.remove('hidden')
+  updateTextEl.textContent = info.ready
+    ? `Update v${info.version} is ready to install.`
+    : `Downloading update v${info.version}…`
+  updateInstallBtn.classList.toggle('hidden', !info.ready)
+}
+
+updateInstallBtn.addEventListener('click', () => window.controlPanel.installUpdate())
+window.controlPanel.onUpdateChanged(renderUpdate)
+
 function escapeHtml(str) {
   const div = document.createElement('div')
   div.textContent = str ?? ''
@@ -109,6 +128,7 @@ async function refreshDevices() {
 function startPolling() {
   refreshStatus()
   refreshDevices()
+  window.controlPanel.getUpdateStatus().then(renderUpdate)
   clearInterval(devicePollTimer)
   devicePollTimer = setInterval(() => {
     refreshStatus()

@@ -9,4 +9,10 @@ import { contextBridge, ipcRenderer } from 'electron'
 contextBridge.exposeInMainWorld('electron', {
   platform: process.platform,
   discoverServer: () => ipcRenderer.invoke('discover-server'),
+  // Auto-update (main.js's autoUpdater) — the renderer only ever hears about
+  // an update that's already found/downloaded, never a failed/offline check,
+  // so there's nothing here for a "no update" or "check failed" case.
+  onUpdateAvailable: (callback) => ipcRenderer.on('update-available', (_e, data) => callback(data)),
+  onUpdateDownloaded: (callback) => ipcRenderer.on('update-downloaded', (_e, data) => callback(data)),
+  installUpdate: () => ipcRenderer.invoke('install-update'),
 })

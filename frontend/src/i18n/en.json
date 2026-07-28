@@ -814,6 +814,12 @@
     "now": "now",
     "today": "today"
   },
+  "update": {
+    "downloading": "Downloading update v{version}…",
+    "ready": "Update v{version} is ready to install.",
+    "restartNow": "Restart & Update",
+    "later": "Later"
+  },
   "status": {
     "matched": "✓ Matched",
     "shortage": "Shortage",

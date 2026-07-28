@@ -99,4 +99,11 @@ export const env = {
       .map((s) => s.trim().replace(/\D/g, ''))
       .filter(Boolean),
   },
+  // Where the VPS instance (src/vps/app.ts) serves electron-updater release
+  // artifacts from, under /updates/<app>/ — e.g. updates/frontend/latest.yml,
+  // updates/frontend/Cafe Ali Setup 1.0.1.exe. Not read by the local server at
+  // all (updates are pulled by each Electron app straight from the VPS, same
+  // as the WhatsApp webhook is VPS-only). Defaults to a sibling folder so
+  // `npm run dev`/tests never need it configured.
+  updatesDir: process.env.UPDATES_DIR ?? 'updates',
 }

@@ -3,6 +3,14 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import dgram from 'node:dgram'
 import serve from 'electron-serve'
+// electron-updater is CommonJS, and `autoUpdater` is a lazy getter on its
+// exports object (instantiates the platform updater on first access) — that
+// pattern isn't reliably picked up by Node's CJS->ESM named-export interop,
+// which crashed on real Windows with "Named export 'autoUpdater' not found"
+// even though the property genuinely exists. Default-import + destructure
+// avoids relying on that static analysis entirely.
+import electronUpdaterPkg from 'electron-updater'
+const { autoUpdater } = electronUpdaterPkg
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -21,6 +29,8 @@ const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL
 // from the .exe/installer icon, which electron-builder embeds at build/
 // icons/win/icon.ico (see the "win.icon" field in package.json).
 const iconPath = path.join(__dirname, VITE_DEV_SERVER_URL ? '../public/icon.png' : '../dist/icon.png')
+
+let mainWindow = null
 
 async function createWindow() {
   const win = new BrowserWindow({
@@ -56,6 +66,8 @@ async function createWindow() {
   // (bad electron-serve path, etc.) this shows up in the main process log
   // instead of a silent blank window.
   win.webContents.on('did-fail-load', (_e, code, desc) => console.error('[electron] load failed:', code, desc))
+
+  mainWindow = win
 
   if (VITE_DEV_SERVER_URL) {
     // Dev keeps a menu (reload, DevTools, copy/paste) — but Electron's default
@@ -132,7 +144,52 @@ ipcMain.handle('discover-server', () => {
   })
 })
 
-app.whenReady().then(createWindow)
+// Auto-update (electron-updater, generic provider pointed at the VPS —
+// see frontend/package.json's build.publish and backend/src/vps/app.ts's
+// static /updates/ route). Deliberately quiet by default: this restaurant's
+// internet is unreliable, so a failed/offline check must never surface as an
+// error to a cashier mid-shift — only a *found* update is reported to the
+// renderer, via the banner in App.jsx.
+//
+// installDirectory is pinned to wherever this exe is actually running from
+// (not electron-builder's own default per-user path) because the combined
+// installer (installer/installer.nsi) installs to a fixed Program Files
+// location the individual per-app installer wouldn't know about on its own —
+// this makes the downloaded update's silent reinstall (`/D=<dir>`) land
+// back in the same place instead of a fresh default location.
+autoUpdater.installDirectory = path.dirname(process.execPath)
+autoUpdater.autoDownload = true
+autoUpdater.autoInstallOnAppQuit = true
+
+autoUpdater.on('update-available', (info) => {
+  mainWindow?.webContents.send('update-available', { version: info.version })
+})
+autoUpdater.on('update-downloaded', (info) => {
+  mainWindow?.webContents.send('update-downloaded', { version: info.version })
+})
+autoUpdater.on('error', (err) => {
+  console.error('[electron] update check failed (likely offline):', err.message)
+})
+
+ipcMain.handle('install-update', () => {
+  // isSilent, isForceRunAfter — no confirmation dialog (already confirmed in
+  // the renderer's banner), and relaunch once the silent reinstall finishes.
+  autoUpdater.quitAndInstall(true, true)
+})
+
+function checkForUpdates() {
+  // Dev has no packaged app-update.yml to read a feed URL from — would just
+  // throw "Cannot find latest.yml" noise on every dev run.
+  if (app.isPackaged) autoUpdater.checkForUpdates().catch(() => {})
+}
+
+const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000
+
+app.whenReady().then(async () => {
+  await createWindow()
+  checkForUpdates()
+  setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL_MS)
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

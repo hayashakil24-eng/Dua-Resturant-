@@ -25,6 +25,7 @@ import KitchenDisplay from './pages/KitchenDisplay.jsx'
 import Kitchen from './pages/Kitchen.jsx'
 import Billing from './pages/Billing.jsx'
 import Settings from './pages/Settings.jsx'
+import UpdateBanner from './components/UpdateBanner.jsx'
 
 // Guards a route: must be logged in and role must allow the path.
 // `fullscreen` renders the page without the sidebar/header Layout (used by KDS).
@@ -57,8 +58,10 @@ function Protected({ path, children, fullscreen }) {
 export default function App() {
   const { user } = useApp()
   return (
-    <Routes>
-      <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
+    <>
+      <UpdateBanner />
+      <Routes>
+        <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/signup" element={user ? <Navigate to="/" replace /> : <Signup />} />
       <Route
         path="/pending-approval"
@@ -88,6 +91,7 @@ export default function App() {
       <Route path="/billing" element={<Protected path="/billing"><Billing /></Protected>} />
       <Route path="/settings" element={<Protected path="/settings"><Settings /></Protected>} />
       <Route path="*" element={<Navigate to={user ? '/' : '/login'} replace />} />
-    </Routes>
+      </Routes>
+    </>
   )
 }

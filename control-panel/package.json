@@ -10,11 +10,11 @@
     "dist": "electron-builder"
   },
   "dependencies": {
-    "@cafe-ali/backend": "file:../backend"
+    "electron-updater": "^6.8.9"
   },
   "devDependencies": {
     "electron": "^43.1.1",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.7"
   },
   "build": {
     "appId": "com.cafeali.controlpanel",
@@ -28,12 +28,32 @@
     "asar": false,
     "extraResources": [
       {
+        "from": "../backend/dist",
+        "to": "app-backend/dist"
+      },
+      {
+        "from": "../backend/package.json",
+        "to": "app-backend/package.json"
+      },
+      {
+        "from": "../backend/prisma/schema.prisma",
+        "to": "app-backend/prisma/schema.prisma"
+      },
+      {
+        "from": "../backend/prisma/migrations",
+        "to": "app-backend/prisma/migrations"
+      },
+      {
+        "from": "../backend/prisma/menu-data.json",
+        "to": "app-backend/prisma/menu-data.json"
+      },
+      {
         "from": "../backend/node_modules/.prisma",
-        "to": "app/node_modules/.prisma"
+        "to": "app-backend/node_modules/.prisma"
       },
       {
         "from": "../backend/node_modules",
-        "to": "backend-full-modules/node_modules",
+        "to": "app-backend/node_modules",
         "filter": [
           "**/*",
           "!.bin/**",
@@ -55,11 +75,19 @@
       "output": "release"
     },
     "win": {
-      "target": ["nsis", "portable"],
+      "target": [
+        "nsis",
+        "portable"
+      ],
       "icon": "assets/icon.ico"
     },
     "nsis": {
       "perMachine": true
+    },
+    "publish": {
+      "provider": "generic",
+      "url": "https://169-58-53-109.sslip.io/updates/control-panel",
+      "channel": "latest"
     }
   }
 }

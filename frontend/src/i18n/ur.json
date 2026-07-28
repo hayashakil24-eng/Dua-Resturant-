@@ -814,6 +814,12 @@
     "now": "ابھی",
     "today": "آج"
   },
+  "update": {
+    "downloading": "اپڈیٹ v{version} ڈاؤن لوڈ ہو رہی ہے…",
+    "ready": "اپڈیٹ v{version} انسٹال کے لیے تیار ہے۔",
+    "restartNow": "دوبارہ شروع کریں اور اپڈیٹ کریں",
+    "later": "بعد میں"
+  },
   "status": {
     "matched": "✓ مطابقت",
     "shortage": "کمی",

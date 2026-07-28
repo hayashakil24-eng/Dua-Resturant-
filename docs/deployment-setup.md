@@ -226,6 +226,44 @@ OTP-verified as allowed recipients in the same dashboard section — a real
 constraint independent of anything above, since it governs what Meta's test
 number is willing to send to at all, not whether the webhook works.
 
+### 7. Publishing an app update (`docs/08-auto-update.md`)
+
+Both Electron apps (`frontend/`, `control-panel/`) check this VPS for new
+releases via `electron-updater`'s "generic" provider — see
+`docs/08-auto-update.md` for how the client side works. This VPS's only job
+is serving whatever's in `env.updatesDir` (default `backend/updates/`,
+override via `UPDATES_DIR`) as static files under `/updates/` — no route
+redeploy needed per release, just new files on disk.
+
+One-time: create the two subfolders the two apps' `build.publish.url`s point
+at (already present as empty, gitignored dirs in a fresh checkout —
+`backend/updates/frontend/`, `backend/updates/control-panel/` — create them
+on the VPS the same way if they don't exist):
+
+```bash
+mkdir -p /opt/cafeali/app/updates/frontend /opt/cafeali/app/updates/control-panel
+```
+
+Per release, for whichever app changed:
+
+```bash
+# In the app's own directory (frontend/ or control-panel/):
+npm version patch   # or minor/major — bumps package.json's "version"
+npm run dist        # electron-builder writes release/latest.yml + the
+                     # installer .exe + its .blockmap
+
+# Copy exactly those three files to the matching VPS subfolder, replacing
+# whatever was there — e.g. via scp:
+scp release/latest.yml "release/Cafe Ali Setup <version>.exe" "release/Cafe Ali Setup <version>.exe.blockmap" \
+  user@vps:/opt/cafeali/app/updates/frontend/
+```
+
+Nothing on the VPS's running process needs restarting — the static route
+just serves whatever's on disk at request time. Already-installed clients
+pick up the new version on their next check (on launch, then every 4 hours)
+with no further action; a client that's offline simply checks later, same as
+any other sync in this system.
+
 ### Verifying the Postgres path without a live Supabase project
 
 `npm run verify:postgres` boots a real, disposable Postgres engine locally

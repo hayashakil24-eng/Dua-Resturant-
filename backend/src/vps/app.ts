@@ -11,11 +11,14 @@
 // (Order, Transaction, InventoryItem) upserts the same way — add to
 // ENTITY_MODELS below if a new entity starts getting synced, not a new route.
 
+import path from 'node:path'
 import Fastify, { type FastifyInstance } from 'fastify'
+import fastifyStatic from '@fastify/static'
 import { Prisma } from '@prisma/client'
 import { prisma } from '../db/client.js'
 import { verifyServiceToken } from './serviceAuth.js'
 import { registerWhatsappWebhook } from '../whatsapp/webhook.js'
+import { env } from '../env.js'
 
 export interface VpsAppOptions {
   // Present only when env.vps.tlsCertPath/tlsKeyPath are configured — see
@@ -71,6 +74,20 @@ export function buildVpsApp(options: VpsAppOptions = {}): FastifyInstance {
   app.get('/api/health', async () => ({ ok: true }))
 
   registerWhatsappWebhook(app)
+
+  // electron-updater's "generic" provider on each packaged app (frontend/,
+  // control-panel/) fetches <build.publish.url>/latest.yml + the installer
+  // .exe/.blockmap straight from here — a plain static file tree, not a
+  // route per file. Subfolders (env.updatesDir/frontend, .../control-panel)
+  // are served automatically since @fastify/static walks the whole root.
+  // Releasing a new version is just: build, then drop the new files into the
+  // matching subfolder on the VPS (see docs/deployment-setup.md's release
+  // workflow) — nothing here needs redeploying for that.
+  app.register(fastifyStatic, {
+    root: path.resolve(env.updatesDir),
+    prefix: '/updates/',
+    decorateReply: false,
+  })
 
   app.post('/api/sync/push', async (req, reply) => {
     const auth = req.headers.authorization

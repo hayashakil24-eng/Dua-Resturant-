@@ -56,6 +56,7 @@ The ID strategy question below was resolved in Phase 0 and hasn't changed since:
 4. [VPS + sync](05-phase-4-vps-sync.md) — central store, offline-resilient sync. ✅ built; verified against both a local SQLite stand-in and (since, as production hardening) a real disposable Postgres engine. Still needs a real Supabase project to be fully proven.
 5. [Cloud-facing features](06-phase-5-cloud-features.md) — only possible once Phase 4 exists. Not started — candidate list only, not yet scoped.
 6. [Post-Phase-1 feature log](07-post-phase1-features.md) — real product features (self-signup/approval, recipe edit/delete, table shift, full business-day close, real menu seed) built after Phase 1 shipped, driven by direct client feedback (`../demand.md`) rather than the phase plan. Not numbered as a "phase" because it isn't backend-infrastructure work like 0–5 — it's ordinary feature development on top of an already-live Phase 1/2 system.
+7. [Auto-update](08-auto-update.md) — `electron-updater` wired to both Electron apps, pointed at a new static `/updates/` route on the VPS, so a new build can be pushed to every already-installed client without an on-site visit. ✅ built, per `requirements.md` §14's "built-in auto-update feature" ask.
 
 Each phase ships something usable on its own — stopping after Phase 1 or 2 is already a strict improvement over the original `localStorage`-only app, not a half-finished feature.
 
