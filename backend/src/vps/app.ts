@@ -46,6 +46,13 @@ const ENTITY_MODELS: Record<string, () => ModelDelegate> = {
   // WhatsApp webhook (below) has real data to reply with; the VPS only ever
   // replays the local server's own saved closings, never computes its own.
   DailyClosing: () => prisma.dailyClosing as unknown as ModelDelegate,
+  // Was enqueued by services/inventory.service.ts's stock-purchase flow
+  // from the start but never registered here — every push for it
+  // permanently failed with "Unknown entity: StockPurchase" (the outbox
+  // row itself was fine; this map just never learned the name). Has an FK
+  // to InventoryItem, already synced before it in practice since a
+  // purchase always updates the inventory item's stock first.
+  StockPurchase: () => prisma.stockPurchase as unknown as ModelDelegate,
 }
 
 interface PushEntry {
