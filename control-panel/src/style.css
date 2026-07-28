@@ -244,10 +244,6 @@ button.secondary:hover:not(:disabled) {
 }
 
 .update-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
   background: var(--cafe-light-gray);
   border: 1px solid rgba(201, 169, 97, 0.35);
   border-radius: 10px;
@@ -256,8 +252,28 @@ button.secondary:hover:not(:disabled) {
   font-size: 12px;
   color: var(--cafe-chocolate);
 }
+.update-banner-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
 .update-banner button {
   flex-shrink: 0;
   padding: 6px 12px;
   font-size: 12px;
+}
+.update-progress-track {
+  margin-top: 8px;
+  height: 4px;
+  width: 100%;
+  border-radius: 999px;
+  background: var(--cafe-soft-beige);
+  overflow: hidden;
+}
+.update-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--gold-grad);
+  transition: width 0.3s ease;
 }

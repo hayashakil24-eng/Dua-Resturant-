@@ -15,8 +15,9 @@ export default function UpdateBanner() {
 
   useEffect(() => {
     if (!window.electron?.onUpdateAvailable) return
-    window.electron.onUpdateAvailable(({ version }) => setUpdate((u) => u ?? { version, ready: false }))
-    window.electron.onUpdateDownloaded(({ version }) => setUpdate({ version, ready: true }))
+    window.electron.onUpdateAvailable(({ version }) => setUpdate((u) => u ?? { version, ready: false, percent: 0 }))
+    window.electron.onUpdateDownloadProgress(({ percent }) => setUpdate((u) => (u ? { ...u, percent } : u)))
+    window.electron.onUpdateDownloaded(({ version }) => setUpdate((u) => ({ ...u, version, ready: true, percent: 100 })))
   }, [])
 
   if (!update || dismissed) return null
@@ -27,11 +28,21 @@ export default function UpdateBanner() {
         <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gold/10 text-gold ring-1 ring-gold/25">
           <IconRefresh size={18} className={update.ready ? '' : 'animate-spin'} />
         </div>
-        <p className="text-sm text-cream">
-          {update.ready
-            ? t('update.ready').replace('{version}', update.version)
-            : t('update.downloading').replace('{version}', update.version)}
-        </p>
+        <div className="min-w-[220px]">
+          <p className="text-sm text-cream">
+            {update.ready
+              ? t('update.ready').replace('{version}', update.version)
+              : t('update.downloading').replace('{version}', update.version).replace('{percent}', update.percent ?? 0)}
+          </p>
+          {!update.ready && (
+            <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-ink-soft">
+              <div
+                className="h-full rounded-full bg-gold-grad transition-[width] duration-300"
+                style={{ width: `${update.percent ?? 0}%` }}
+              />
+            </div>
+          )}
+        </div>
         {update.ready && (
           <button className="btn-gold shrink-0 px-3 py-1.5 text-sm" onClick={() => window.electron.installUpdate()}>
             {t('update.restartNow')}

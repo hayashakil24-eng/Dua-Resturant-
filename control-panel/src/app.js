@@ -24,6 +24,8 @@ const devicesListEl = document.getElementById('devices-list')
 const updateBanner = document.getElementById('update-banner')
 const updateTextEl = document.getElementById('update-text')
 const updateInstallBtn = document.getElementById('update-install-btn')
+const updateProgressTrack = document.getElementById('update-progress-track')
+const updateProgressFill = document.getElementById('update-progress-fill')
 
 let chosenBackupDir = null
 let currentStatus = 'stopped'
@@ -98,10 +100,13 @@ function renderUpdate(info) {
     return
   }
   updateBanner.classList.remove('hidden')
+  const percent = info.percent ?? 0
   updateTextEl.textContent = info.ready
     ? `Update v${info.version} is ready to install.`
-    : `Downloading update v${info.version}…`
+    : `Downloading update v${info.version}… (${percent}%)`
   updateInstallBtn.classList.toggle('hidden', !info.ready)
+  updateProgressTrack.classList.toggle('hidden', info.ready)
+  updateProgressFill.style.width = `${percent}%`
 }
 
 updateInstallBtn.addEventListener('click', () => window.controlPanel.installUpdate())

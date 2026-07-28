@@ -82,8 +82,13 @@
     <!-- Dashboard — the normal, day-to-day view -->
     <section id="dashboard" class="card hidden">
       <div id="update-banner" class="update-banner hidden">
-        <span id="update-text"></span>
-        <button id="update-install-btn" class="secondary">Restart &amp; Update</button>
+        <div class="update-banner-row">
+          <span id="update-text"></span>
+          <button id="update-install-btn" class="secondary">Restart &amp; Update</button>
+        </div>
+        <div id="update-progress-track" class="update-progress-track hidden">
+          <div id="update-progress-fill" class="update-progress-fill"></div>
+        </div>
       </div>
 
       <div class="status-row">

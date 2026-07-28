@@ -61,7 +61,7 @@ let tray = null
 let backend = null // { app: FastifyInstance, io, discoverySocket, backupTimer, syncTimer, whatsappTimer } once started
 let serverStatus = 'stopped' // 'stopped' | 'starting' | 'online' | 'error'
 let lastError = null
-let updateInfo = null // { version, ready } once electron-updater finds/downloads one, else null
+let updateInfo = null // { version, ready, percent } once electron-updater finds/downloads one, else null
 
 function readConfig() {
   try {
@@ -160,6 +160,20 @@ async function verifyPanelPassword(password) {
 //    source comments). The actual files backend needs at runtime still ship
 //    via the extraResources copy below (point 2), just under `app-backend/`
 //    instead of a node_modules path electron-builder itself has to discover.
+// 5. `migrate deploy` (below) needs a "schema-engine" binary matching the OS
+//    it runs on — a *different* binary than the query-engine point 1 already
+//    works around. @prisma/engines only ever downloads the binary for
+//    whatever OS ran `npm install` (this Linux build machine), so a fresh
+//    Windows install had none, and the CLI's own fix-up-on-first-run tried to
+//    download one straight into Program Files — which fails there without
+//    elevation ("EPERM: operation not permitted, copyfile ...schema-engine-
+//    windows.exe.tmp...", caught on a real client machine's first launch).
+//    Fixed at the source, not here: `backend/scripts/fetch-windows-schema-
+//    engine.mjs` runs as backend's own `postinstall`, pre-fetching the
+//    Windows binary into node_modules/@prisma/engines/ — exactly where the
+//    CLI already checks before deciding to download, so it finds it already
+//    there and never tries. Ships to app-backend/node_modules/ via the same
+//    extraResources copy as everything else; no code here needed to change.
 async function runMigrations(env) {
   const nodeModulesDir = app.isPackaged
     ? path.join(process.resourcesPath, 'app-backend', 'node_modules')
@@ -309,11 +323,16 @@ function broadcastUpdate() {
 }
 
 autoUpdater.on('update-available', (info) => {
-  updateInfo = { version: info.version, ready: false }
+  updateInfo = { version: info.version, ready: false, percent: 0 }
+  broadcastUpdate()
+})
+autoUpdater.on('download-progress', (progress) => {
+  if (!updateInfo) return
+  updateInfo = { ...updateInfo, percent: Math.round(progress.percent) }
   broadcastUpdate()
 })
 autoUpdater.on('update-downloaded', (info) => {
-  updateInfo = { version: info.version, ready: true }
+  updateInfo = { ...updateInfo, version: info.version, ready: true, percent: 100 }
   broadcastUpdate()
 })
 autoUpdater.on('error', (err) => {

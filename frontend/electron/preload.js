@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('electron', {
   // an update that's already found/downloaded, never a failed/offline check,
   // so there's nothing here for a "no update" or "check failed" case.
   onUpdateAvailable: (callback) => ipcRenderer.on('update-available', (_e, data) => callback(data)),
+  onUpdateDownloadProgress: (callback) => ipcRenderer.on('update-download-progress', (_e, data) => callback(data)),
   onUpdateDownloaded: (callback) => ipcRenderer.on('update-downloaded', (_e, data) => callback(data)),
   installUpdate: () => ipcRenderer.invoke('install-update'),
 })

@@ -164,6 +164,9 @@ autoUpdater.autoInstallOnAppQuit = true
 autoUpdater.on('update-available', (info) => {
   mainWindow?.webContents.send('update-available', { version: info.version })
 })
+autoUpdater.on('download-progress', (progress) => {
+  mainWindow?.webContents.send('update-download-progress', { percent: Math.round(progress.percent) })
+})
 autoUpdater.on('update-downloaded', (info) => {
   mainWindow?.webContents.send('update-downloaded', { version: info.version })
 })
