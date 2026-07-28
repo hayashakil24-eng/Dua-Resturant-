@@ -11,6 +11,22 @@ import { buildSessions, sessionLabel } from '../utils/sessions.js'
 import { safePrint } from '../utils/print.js'
 import { calculateDeductions } from '../utils/inventoryFlow.js'
 import { IconPrint, IconWhatsApp } from '../components/Icons.jsx'
+import { CURRENCY } from '../data/mockData.js'
+import urDict from '../i18n/ur.json'
+import enDict from '../i18n/en.json'
+
+const resolvePath = (dict, path) => path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), dict)
+// The WhatsApp share always renders fully in Urdu, independent of the app's
+// current display language — matching the backend's automated daily WhatsApp
+// report (backend/src/reports/whatsappReport.ts), built per direct client
+// feedback that the report must be entirely in Urdu. Numbers stay Latin
+// digits throughout (same file's convention), so amounts/dates below are
+// formatted with 'en-PK'/'en-US', not the Eastern-Arabic numbering the app's
+// own Urdu mode otherwise uses.
+const tUr = (key) => resolvePath(urDict, key) ?? resolvePath(enDict, key) ?? key
+const rsUr = (n) => `${CURRENCY} ${Number(n || 0).toLocaleString('en-US')}`
+const stampUr = (iso) =>
+  `${new Date(iso).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })}, ${new Date(iso).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit', hour12: true })}`
 
 function topSelling(orderList, n = 5) {
   const map = {}
@@ -218,24 +234,66 @@ export default function Reports() {
   }, [scopeOrders, type, monthKey, selected, transactions, today, orderTotal, monthOptions, staff, inventory, recipes, t])
 
   const shareWhatsApp = () => {
+    // Range label is re-derived here (forced Urdu, Latin digits) rather than
+    // reused from `report.rangeLabel`, which was built with the app's
+    // currently-active language/digit locale — the two can disagree when the
+    // cashier's screen is in English.
+    let rangeLabel
+    if (type === 'monthly') {
+      const [y, m] = monthKey.split('-').map(Number)
+      rangeLabel = `${new Date(y, m - 1, 1).toLocaleDateString('ur-PK', { month: 'long' })} ${y}`
+    } else if (!selected.from) {
+      rangeLabel = selected.open ? tUr('reports.noClosingYet') : `${tUr('reports.upTo')} ${stampUr(selected.to)}`
+    } else {
+      rangeLabel = `${stampUr(selected.from)} → ${selected.open ? tUr('reports.now') : stampUr(selected.to)}`
+    }
+
     const lines = [
-      `*Cafe Ali — ${t(report.titleKey)}*`,
-      report.rangeLabel,
+      `*Cafe Ali — ${tUr(report.titleKey)}*`,
+      rangeLabel,
       '',
-      `${t('reports.totalOrders')}: ${report.totalOrders}`,
-      `${t(report.revenueLabelKey)}: ${money(report.revenue)}`,
-      `${t('reports.expenses')}: ${money(report.expenses)}`,
-      `${t('reports.maintenance')}: ${money(report.maintenance || 0)}`,
-      `${t('reports.netProfit')}: ${money(report.netProfit)}`,
+      `${tUr('reports.totalOrders')}: ${report.totalOrders}`,
+      `${tUr(report.revenueLabelKey)}: ${rsUr(report.revenue)}`,
     ]
-    if (report.discounts.total > 0) {
+    if (type === 'session') {
       lines.push(
-        `${t('reports.discountsGiven')}: ${money(report.discounts.total)} (${report.discounts.count})`,
+        `${tUr('reports.cash')}: ${rsUr(report.cash)}`,
+        `${tUr('reports.card')}: ${rsUr(report.card)}`,
+        `${tUr('reports.online')}: ${rsUr(report.online)}`,
       )
+      if (report.onlineByAccount?.length) {
+        lines.push(`   ${tUr('reports.onlineByAccount')}:`)
+        // Account names are free text typed by staff, not translated — same
+        // rule the backend report follows (see whatsappReport.ts).
+        report.onlineByAccount.forEach(([name, amount]) => lines.push(`   · ${name}: ${rsUr(amount)}`))
+      }
+    }
+    lines.push(
+      `${tUr('reports.expenses')}: ${rsUr(report.expenses)}`,
+      `${tUr('reports.maintenance')}: ${rsUr(report.maintenance || 0)}`,
+      `${tUr('reports.netProfit')}: ${rsUr(report.netProfit)}`,
+    )
+    if (report.discounts.total > 0) {
+      lines.push(`${tUr('reports.discountsGiven')}: ${rsUr(report.discounts.total)} (${report.discounts.count})`)
+      if (report.discounts.byReason.length) {
+        report.discounts.byReason.forEach(([reason, amount]) => lines.push(`   · ${reason}: ${rsUr(amount)}`))
+      }
     }
     if (report.top.length) {
-      lines.push('', `${t('reports.topSelling')}:`)
-      report.top.forEach(([name, qty], i) => lines.push(`${i + 1}. ${name} ×${qty}`))
+      lines.push('', `${tUr('reports.topSelling')}:`)
+      report.top.forEach(([name, qty], i) => lines.push(`${i + 1}. ${itemNameLabel(name, 'ur')} ×${qty}`))
+    }
+    if (report.items.length) {
+      lines.push('', `${tUr('reports.itemWiseSales')}:`)
+      report.items.forEach((it) =>
+        lines.push(`• ${itemNameLabel(it.name, 'ur')} ×${it.qty} — ${rsUr(it.total)}`),
+      )
+    }
+    if (report.stock.length) {
+      lines.push('', `${tUr('reports.estStockUsed')}:`)
+      report.stock.forEach((s) =>
+        lines.push(`• ${itemNameLabel(s.name, 'ur')}: ${s.qty} ${unitLabel(s.unit, 'ur')}`),
+      )
     }
     window.open(`https://wa.me/?text=${encodeURIComponent(lines.join('\n'))}`, '_blank')
   }
