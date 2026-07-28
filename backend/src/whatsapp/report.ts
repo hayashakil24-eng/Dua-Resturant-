@@ -13,8 +13,10 @@ import {
   renderLedgersSection,
   renderCancelledSection,
   renderComplimentarySection,
+  renderItemsSection,
 } from '../reports/whatsappReport.js'
 import { sendReportImage } from './client.js'
+import { karachiHourMinute } from './karachiTime.js'
 import type { ClosingReport } from '../core/closing.js'
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -68,14 +70,29 @@ export function dateLabelUr(dateStr: string): string {
   return `${isolateNum(d.getDate())} ${MONTHS_UR[d.getMonth()]} ${isolateNum(d.getFullYear())}`
 }
 
-// "6:05 شام" — same صبح/شام (morning/evening) 12-hour convention as the
-// frontend's format.js `time()`, Latin digits (see dateLabelUr above for why).
+// Unwrapped 12-hour clock + صبح/شام (morning/evening) period, Latin digits
+// (see dateLabelUr above for why), Pakistan time explicitly (karachiTime.ts
+// — the VPS process itself is not necessarily hosted there). Exported
+// separately from timeLabelUr (below) so a caller that also has a leading
+// digit run of its own (webhook.ts's list-index number) can combine both
+// into a single isolate instead of two adjacent ones — two separate
+// LRI/PDI-wrapped runs with only a bare "." between them ("1⁩. ⁦7:18") left
+// the boundary between the list number and the time visually ambiguous,
+// confirmed live; one isolate spanning "1. 7:18" together as a single
+// atomic run reads unambiguously instead.
+export function timeClockAndPeriodUr(iso: string | Date): { clock: string; period: string } {
+  const { hour, minute } = karachiHourMinute(new Date(iso))
+  const period = hour >= 12 ? 'شام' : 'صبح'
+  const h12 = hour % 12 || 12
+  const mm = String(minute).padStart(2, '0')
+  return { clock: `${h12}:${mm}`, period }
+}
+
+// "6:05 شام" — single-isolate convenience wrapper for callers with no
+// competing digit run of their own.
 export function timeLabelUr(iso: string | Date): string {
-  const d = new Date(iso)
-  const period = d.getHours() >= 12 ? 'شام' : 'صبح'
-  const h12 = d.getHours() % 12 || 12
-  const mm = String(d.getMinutes()).padStart(2, '0')
-  return `${isolateNum(`${h12}:${mm}`)} ${period}`
+  const { clock, period } = timeClockAndPeriodUr(iso)
+  return `${isolateNum(clock)} ${period}`
 }
 
 export interface LoadedClosing {
@@ -145,6 +162,7 @@ function normalizeReport(raw: Partial<ClosingReport>): ClosingReport {
     cancelledTotal: raw.cancelledTotal ?? 0,
     complimentaryItems: raw.complimentaryItems ?? [],
     complimentaryTotal: raw.complimentaryTotal ?? 0,
+    itemsSold: raw.itemsSold ?? [],
   }
 }
 
@@ -220,13 +238,14 @@ export async function listRecentClosingDays(): Promise<ClosingDayGroup[]> {
 // whatsappReport.ts can render independently. 'all' sends every non-empty
 // section as its own image (an album), same as the client's own habit of
 // sending several separate photos for one day's closing.
-export type ReportSection = 'summary' | 'ledgers' | 'cancelled' | 'complimentary' | 'all'
+export type ReportSection = 'summary' | 'ledgers' | 'cancelled' | 'complimentary' | 'items' | 'all'
 
 const SECTION_RENDERERS: Record<Exclude<ReportSection, 'all'>, (report: ClosingReport, dayNameUr: string) => Promise<Buffer | null>> = {
   summary: renderSummarySection,
   ledgers: renderLedgersSection,
   cancelled: renderCancelledSection,
   complimentary: renderComplimentarySection,
+  items: renderItemsSection,
 }
 
 const SECTION_CAPTION: Record<Exclude<ReportSection, 'all'>, string> = {
@@ -234,6 +253,7 @@ const SECTION_CAPTION: Record<Exclude<ReportSection, 'all'>, string> = {
   ledgers: 'اکاؤنٹ لیجرز',
   cancelled: 'کینسل بل',
   complimentary: 'آفشل بل',
+  items: 'چیز کی بنیاد پر فروخت',
 }
 
 async function sendSection(recipient: string, loaded: LoadedClosing, section: Exclude<ReportSection, 'all'>): Promise<boolean> {

@@ -67,6 +67,19 @@ export interface InventoryUsedLine {
   unit: string
 }
 
+// One menu item's sales across the session — qty punched + revenue, same
+// shape as the frontend Reports.jsx dashboard's Item-Wise tab (itemMap) and
+// Top Selling list (same array, just re-sorted by qty instead of revenue by
+// the render layer) — counts every non-cancelled order regardless of
+// payment status (Paid/Unpaid/Udhaar/Complimentary), matching `active`
+// below and the frontend's own `scopeOrders`, since this is "what did we
+// serve", not a revenue-collected figure.
+export interface ItemSoldLine {
+  name: string
+  qty: number
+  total: number
+}
+
 export interface DiscountBreakdownLine {
   table: number | null
   amount: number
@@ -156,6 +169,7 @@ export interface ClosingReport {
   cancelledTotal: number
   complimentaryItems: ComplimentaryOrderLine[]
   complimentaryTotal: number
+  itemsSold: ItemSoldLine[]
 }
 
 // 'YYYY-MM-DD' local-day key — matches the Reports page's day bucketing so the
@@ -298,6 +312,24 @@ export function buildClosingReport(
     .map((d) => ({ name: d.itemName, qty: Math.round(d.amount * 10) / 10, unit: d.unit }))
     .sort((a, b) => b.qty - a.qty)
 
+  // Item-wise sales — every line across every non-cancelled order this
+  // session, aggregated by menu item name. Mirrors the frontend Reports.jsx
+  // dashboard's Item-Wise tab exactly (same `active`/qty*price shape); the
+  // WhatsApp render layer re-sorts a copy of this same array by qty for its
+  // own Top Selling block instead of computing a second aggregate.
+  const itemSales = new Map<string, { qty: number; total: number }>()
+  for (const o of active) {
+    for (const it of o.items) {
+      const cur = itemSales.get(it.name) ?? { qty: 0, total: 0 }
+      cur.qty += it.qty
+      cur.total += it.price * it.qty
+      itemSales.set(it.name, cur)
+    }
+  }
+  const itemsSold: ItemSoldLine[] = Array.from(itemSales, ([name, v]) => ({ name, ...v })).sort(
+    (a, b) => b.total - a.total,
+  )
+
   return {
     date: dateStr,
     periodStart: sinceIso,
@@ -327,5 +359,6 @@ export function buildClosingReport(
     cancelledTotal,
     complimentaryItems,
     complimentaryTotal,
+    itemsSold,
   }
 }

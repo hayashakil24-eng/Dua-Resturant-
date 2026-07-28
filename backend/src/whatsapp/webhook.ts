@@ -35,7 +35,7 @@ import {
   loadClosingById,
   sendClosingSection,
   dateLabelUr,
-  timeLabelUr,
+  timeClockAndPeriodUr,
   isolateNum,
   type ClosingDayGroup,
   type ReportSection,
@@ -55,21 +55,30 @@ function rtlLine(s: string): string {
   return `${RLM}${s}`
 }
 
-// U+200E — Left-to-Right Mark. RLM + isolates (report.ts's isolateNum) fixed
-// every pure-Urdu-label line (e.g. "1. خلاصہ") and the day headings, but the
-// closing-picker's per-entry lines mix TWO digit runs (the list number AND
-// the time) plus a trailing Urdu period word ("1. 4:57 صبح") in one line —
-// confirmed still jumbled live even with RLM+isolates (client screenshot:
-// "4:57 صبح .1", the number end up on the wrong side). Forcing those
-// specific lines LTR instead sidesteps the ambiguity entirely: under an
-// unambiguous LTR paragraph, visual order is *guaranteed* to match source
-// order exactly, with the Urdu word simply appearing wherever it's typed —
-// no bidi reordering judgement call left to make. Headings/pure-Urdu-label
-// lines keep rtlLine; only lines built from `${n}. ${timeLabelUr(...)}` use this.
-const LRM = '‎'
-function ltrLine(s: string): string {
-  return `${LRM}${s}`
-}
+// Three things were tried in turn for the closing-picker's per-entry lines
+// ("N. H:MM صبح/شام") before landing on the real cause: plain RLM (still
+// jumbled live — client screenshot: "4:57 صبح .1", the number on the wrong
+// side), then forcing the line fully LTR via U+200E (fixed the jumbling but
+// left it flush-left while every other line in the bubble stayed
+// flush-right), then U+2067/U+2069 Right-to-Left Isolate around the whole
+// line (still flush-left — confirmed live). None of these are text-bidi
+// fixes at all: WhatsApp auto-detects a line starting with "digit + period"
+// as an ordered-list item and applies its *own* left-aligned list styling,
+// a UI layout feature that sits above text bidi rendering and isn't
+// affected by bidi control characters no matter which ones are used — the
+// same root cause already suspected once before for the section menu's old
+// "0. واپس جائیں" line (see buildSectionMenuText). The actual fix is
+// avoiding that "digit + period" pattern entirely — em-dash instead of
+// period, matching the day heading's already-correctly-rendering
+// "date — date" style — not more bidi wrangling.
+
+// The *last* line of a multi-line message rendered differently from the
+// lines above it in earlier live tests. Root cause unclear (WhatsApp's own
+// timestamp+checkmark badge sharing that line's space is one candidate) and
+// possibly moot now that the list-styling cause above is fixed, but ending
+// every multi-line reply on a short, unambiguous, plain-English branding
+// line is harmless either way, so it stays in as cheap insurance.
+const BRAND_FOOTER = 'Cafe Ali'
 
 interface InboundMessage {
   from: string
@@ -136,12 +145,23 @@ function buildClosingMenuText(days: ClosingDayGroup[]): string {
     const block = [rtlLine(`*${day.dayNameUr} — ${dateLabelUr(day.date)}*`)]
     for (const c of day.closings) {
       n += 1
-      block.push(ltrLine(`${n}. ${timeLabelUr(c.closingTime)}`))
+      const { clock, period } = timeClockAndPeriodUr(c.closingTime)
+      // "N — H:MM period", not "N. H:MM" — a leading "digit + period" is
+      // exactly the pattern WhatsApp auto-detects as an ordered-list item
+      // and gives its own left-aligned list styling to, which no amount of
+      // bidi control character (RLM, then RLI — both tried, both failed
+      // live) can override, since that's WhatsApp's own UI layout feature
+      // sitting above text bidi rendering, not a text-direction problem.
+      // Confirms the same root cause already inferred once before, for the
+      // section menu's "0. واپس جائیں" line below. Em-dash instead of
+      // period sidesteps the pattern entirely, matching the day heading's
+      // already-correctly-rendering "date — date" style.
+      block.push(rtlLine(`${isolateNum(n)} — ${isolateNum(clock)} ${period}`))
     }
     blocks.push(block.join('\n'))
   }
   const intro = `${rtlLine('سلام! 👋')}\n${rtlLine('کون سی کلوزنگ دیکھنی ہے؟ نمبر لکھ کر بھیجیں:')}`
-  return `${intro}\n\n${blocks.join('\n\n')}`
+  return `${intro}\n\n${blocks.join('\n\n')}\n\n${BRAND_FOOTER}`
 }
 
 const REPORT_SECTIONS: { key: Exclude<ReportSection, 'all'>; label: string }[] = [
@@ -149,24 +169,25 @@ const REPORT_SECTIONS: { key: Exclude<ReportSection, 'all'>; label: string }[] =
   { key: 'ledgers', label: 'اکاؤنٹ لیجرز' },
   { key: 'cancelled', label: 'کینسل بل' },
   { key: 'complimentary', label: 'آفشل بل' },
+  { key: 'items', label: 'چیز کی بنیاد پر فروخت' },
 ]
-const ALL_SECTIONS_OPTION = REPORT_SECTIONS.length + 1 // 5
+const ALL_SECTIONS_OPTION = REPORT_SECTIONS.length + 1 // 6 now — stays derived, not hardcoded
 const BACK_OPTION = 0
 
 function buildSectionMenuText(): string {
-  const lines = REPORT_SECTIONS.map((s, i) => rtlLine(`${isolateNum(i + 1)}. ${s.label}`))
-  lines.push(rtlLine(`${isolateNum(ALL_SECTIONS_OPTION)}. تمام رپورٹس بھیجیں`))
-  // Deliberately NOT "0. واپس جائیں" as a 6th numbered line — client
-  // screenshot showed exactly that line rendering visibly less indented
-  // than 1–5. WhatsApp appears to auto-format a leading "digit + period"
-  // run as an ordered-list marker, and a list restarting at 0 (instead of
-  // continuing the 1–5 sequence) evidently isn't recognized as the same
-  // list, so it falls back to different alignment. Phrased as a standalone
-  // sentence instead, separated by a blank line, sidesteps that pattern
-  // entirely rather than fighting WhatsApp's own auto-formatting.
+  // "N — label", not "N. label" — see buildClosingMenuText's comment: a
+  // leading "digit + period" gets WhatsApp's own ordered-list styling
+  // (left-aligned) applied to it regardless of bidi marks, which is what
+  // made the old "0. واپس جائیں" line below render inconsistently too.
+  const lines = REPORT_SECTIONS.map((s, i) => rtlLine(`${isolateNum(i + 1)} — ${s.label}`))
+  lines.push(rtlLine(`${isolateNum(ALL_SECTIONS_OPTION)} — تمام رپورٹس بھیجیں`))
+  // Still deliberately NOT folded into the numbered list above as a 6th
+  // entry — it's semantically a different action (exit), not another
+  // report choice, so keeping it a standalone sentence stays correct even
+  // now that the numbering itself no longer risks list auto-detection.
   const menu = `${rtlLine('کون سی رپورٹ دیکھنی ہے؟ نمبر لکھ کر بھیجیں:')}\n\n${lines.join('\n')}`
   const back = rtlLine(`پیچھے جانے کے لیے ${isolateNum(BACK_OPTION)} لکھیں۔`)
-  return `${menu}\n\n${back}`
+  return `${menu}\n\n${back}\n\n${BRAND_FOOTER}`
 }
 
 async function handleInboundMessage(msg: InboundMessage): Promise<void> {

@@ -22,6 +22,7 @@
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import puppeteer from 'puppeteer'
+import { karachiDateParts } from '../whatsapp/karachiTime.js'
 import type { ClosingReport } from '../core/closing.js'
 
 const require = createRequire(import.meta.url)
@@ -188,6 +189,40 @@ function complimentaryItemsTable(rows: { name: string; description: string; amou
     </table>`
 }
 
+// Item-wise sales — a dashboard-only gap until now (frontend Reports.jsx's
+// Item-Wise tab and Top Selling list had no bot-image equivalent). Item
+// names stay untranslated, unlike the seeded InventoryItem catalog
+// (INVENTORY_NAME_UR above) — the menu is user-editable via the Menu admin
+// page, not a fixed set known in advance, so the same "don't guess a
+// translation of data we don't control" rule applies here too.
+function topSellingTable(items: { name: string; qty: number }[]): string {
+  const top = [...items].sort((a, b) => b.qty - a.qty).slice(0, 5)
+  if (top.length === 0) return ''
+  return `
+    <table class="breakdown">
+      <thead><tr><th colspan="2">سب سے زیادہ بکنے والی چیزیں</th></tr></thead>
+      <tbody>
+        ${top.map((it, i) => `<tr><td>${i + 1}. ${escapeHtml(it.name)}</td><td class="amount">${it.qty} فروخت</td></tr>`).join('')}
+      </tbody>
+    </table>`
+}
+
+function itemsSoldTable(items: { name: string; qty: number; total: number }[]): string {
+  if (items.length === 0) return ''
+  const totalQty = items.reduce((s, i) => s + i.qty, 0)
+  const totalRevenue = items.reduce((s, i) => s + i.total, 0)
+  return `
+    <table class="breakdown">
+      <thead><tr><th>چیز</th><th>مقدار</th><th>آمدنی</th></tr></thead>
+      <tbody>
+        ${items
+          .map((it) => `<tr><td>${escapeHtml(it.name)}</td><td class="amount">${it.qty}</td><td class="amount">${money(it.total)}</td></tr>`)
+          .join('')}
+        <tr class="total"><td>ٹوٹل</td><td class="amount">${totalQty}</td><td class="amount">${money(totalRevenue)}</td></tr>
+      </tbody>
+    </table>`
+}
+
 function inventoryTable(rows: { name: string; qty: number; unit: string }[]): string {
   if (rows.length === 0) return ''
   return `
@@ -236,11 +271,14 @@ function discountBreakdownTable(rows: { table: number | null; amount: number; re
 // `report.date` subtitle under-states the period; this line sits beneath it.
 // Null for reports saved before periodStart existed (nothing to add).
 const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+// Pakistan time explicitly (karachiTime.ts) — the VPS process itself is not
+// necessarily hosted there, so Date's own getHours()/getDate() etc. (host
+// process local time) would silently drift this stamp by the VPS's UTC
+// offset, same bug fixed in whatsapp/report.ts's timeLabelUr.
 function stampEn(iso: string): string {
-  const d = new Date(iso)
-  const h = d.getHours()
-  const h12 = h % 12 === 0 ? 12 : h % 12
-  return `${d.getDate()} ${MONTHS_EN[d.getMonth()]} ${d.getFullYear()}, ${String(h12).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`
+  const { year, month, date, hour, minute } = karachiDateParts(new Date(iso))
+  const h12 = hour % 12 === 0 ? 12 : hour % 12
+  return `${date} ${MONTHS_EN[month - 1]} ${year}, ${String(h12).padStart(2, '0')}:${String(minute).padStart(2, '0')} ${hour < 12 ? 'AM' : 'PM'}`
 }
 function periodLabel(report: ClosingReport): string | null {
   if (!report.periodStart) return null
@@ -360,4 +398,13 @@ export async function renderCancelledSection(report: ClosingReport, dayNameUr: s
 export async function renderComplimentarySection(report: ClosingReport, dayNameUr: string): Promise<Buffer | null> {
   if (report.complimentaryItems.length === 0) return null
   return renderHtmlToPng(pageShell(dayNameUr, report.date, 'آفشل بل', complimentaryItemsTable(report.complimentaryItems, report.complimentaryTotal), periodLabel(report)))
+}
+
+// Top Selling + full Item-Wise sales, one image (same "bundle related blocks
+// into one section" pattern as renderSummarySection). Null when nothing was
+// punched that session — same guard shape as every other optional section.
+export async function renderItemsSection(report: ClosingReport, dayNameUr: string): Promise<Buffer | null> {
+  if (report.itemsSold.length === 0) return null
+  const body = `${topSellingTable(report.itemsSold)}${itemsSoldTable(report.itemsSold)}`
+  return renderHtmlToPng(pageShell(dayNameUr, report.date, 'چیز کی بنیاد پر فروخت', body, periodLabel(report)))
 }
