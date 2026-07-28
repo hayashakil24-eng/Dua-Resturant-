@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { PageHeader } from '../components/ui.jsx'
 import { money, dateLong, time } from '../utils/format.js'
@@ -67,6 +67,14 @@ export default function Closing() {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  // A ref, not just the `saving` state, because two rapid clicks land in the
+  // same synchronous tick — both onClick handlers can run before React
+  // re-renders with the updated `saving` value, so a state-only guard still
+  // lets both calls through (the exact race that produced two closings
+  // ~66ms apart). Refs update immediately, closing that window; `saving`
+  // stays purely for the UI (disabling the button, showing a spinner).
+  const savingRef = useRef(false)
   const [historyVisibleCount, setHistoryVisibleCount] = useState(CLOSING_HISTORY_PAGE_SIZE)
 
   const armAndPrint = (rep, meta) => {
@@ -77,8 +85,23 @@ export default function Closing() {
   const printRecord = (rec) =>
     armAndPrint(rec, { closedBy: rec.closedBy, closedByRole: rec.closedByRole, closingTime: rec.closingTime })
 
+  // A rapid double-click on "Yes, Save Closing" (no guard existed here
+  // before) fired this twice before either request's effect was visible to
+  // the other, and with no server-side lock on the session boundary either,
+  // both independently computed "everything since the last closing" and
+  // landed as two overlapping closings a few milliseconds apart instead of
+  // one — confirmed live, two closings ~66ms apart on the same session's
+  // activity. This guard blocks re-entrancy for the common case (this
+  // component staying mounted); it doesn't cover a second device/tab
+  // racing the same closing, which needs an actual server-side lock, not a
+  // client flag — out of scope for this fix.
   const onSave = async () => {
+    if (savingRef.current) return
+    savingRef.current = true
+    setSaving(true)
     const res = await saveDailyClosing(report)
+    savingRef.current = false
+    setSaving(false)
     if (res?.error) {
       setSaved(false)
       return setError(res.error)
@@ -101,7 +124,7 @@ export default function Closing() {
             </button>
             <button
               onClick={() => setConfirmOpen(true)}
-              disabled={blocked}
+              disabled={blocked || saving}
               title={
                 drawerOpen
                   ? 'Close the open cash drawer first'
@@ -238,9 +261,10 @@ export default function Closing() {
                     setConfirmOpen(false)
                     onSave()
                   }}
-                  className="btn-gold flex-1 py-3"
+                  disabled={saving}
+                  className="btn-gold flex-1 py-3 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <IconCheck size={18} /> Yes, Save Closing
+                  <IconCheck size={18} /> {saving ? 'Saving…' : 'Yes, Save Closing'}
                 </button>
               </div>
             </div>
