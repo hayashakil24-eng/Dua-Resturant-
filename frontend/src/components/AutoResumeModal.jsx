@@ -5,8 +5,8 @@ import { IconCash } from './Icons.jsx'
 import { BiLabel } from './ui.jsx'
 
 // Shown on a cashier's login when a paused (still-open) drawer exists — the
-// cashier resumes the same shift, or ends it to start fresh. English + LTR to
-// match the rest of the cashier flow. `onResume` / `onEndInstead` / `onLogout`
+// cashier resumes the same shift, or ends it to start fresh. Roman Urdu + LTR
+// to match the rest of the cashier flow. `onResume` / `onEndInstead` / `onLogout`
 // are provided by Layout. `onLogout` is the escape hatch: the drawer is a
 // single global one, so a DIFFERENT cashier logging in lands here on someone
 // else's open drawer — without this they'd be trapped (the overlay covers the
@@ -30,42 +30,41 @@ export default function AutoResumeModal({ shift, onResume, onEndInstead, onLogou
             </span>
             <div>
               <h3 className="font-serif text-2xl text-cream">
-                {isMine ? 'Wapas aa gaye' : 'Drawer pehle se khula hai'}
+                {isMine ? 'Khush aamdeed' : 'Drawer pehle se khula hai'}
               </h3>
               <p className="text-xs text-cream-dim">
                 {isMine
-                  ? `Aap ki shift abhi khuli hai · ${shift.cashierName}, your shift is still open.`
-                  : `Ye drawer ${shift.cashierName} ka hai · This drawer belongs to ${shift.cashierName}.`}
+                  ? `${shift.cashierName}, aap ki shift abhi tak khuli hai.`
+                  : `Ye drawer ${shift.cashierName} ka hai.`}
               </p>
             </div>
           </div>
 
           {!isMine && (
             <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/[0.08] px-4 py-2.5 text-[11px] text-amber-200">
-              Agar ye aap ka drawer nahi to neeche "Not you? Log out" dabayein · If this isn't
-              your drawer, use "Not you? Log out" below.
+              Agar ye aap ka drawer nahi to neeche "Aap nahi? Log out" dabayein.
             </div>
           )}
 
           {/* Running balance */}
           <div className="mt-5 rounded-2xl border border-gold/25 bg-gold/[0.06] p-5 text-center">
-            <p className="text-[11px] uppercase tracking-widest text-gold">Ab tak expected cash · Expected cash so far</p>
+            <p className="text-[11px] uppercase tracking-widest text-gold">Ab tak mutawaqqa cash</p>
             <p className="mt-1 font-serif text-4xl font-semibold text-gold">{money(expected)}</p>
             <p className="mt-2 text-[11px] text-cream-dim">
-              Opening {money(shift.openingCash)}
-              {sales ? ` + Cash sales ${money(sales.totalCashSales)}` : ''}
+              Shuruati {money(shift.openingCash)}
+              {sales ? ` + Cash sale ${money(sales.totalCashSales)}` : ''}
             </p>
           </div>
 
           <div className="mt-6 flex flex-col gap-2">
             <button onClick={onResume} className="btn-gold w-full py-3">
-              <IconCash size={18} /> <BiLabel ur="Shift jari rakhein" en="Resume shift" />
+              <IconCash size={18} /> <BiLabel ur="Shift jaari rakhein" />
             </button>
             <button onClick={onEndInstead} className="btn-ghost w-full py-3">
-              <BiLabel ur="Ye shift khatam karke nayi shuru karein" en="End this shift & start new" />
+              <BiLabel ur="Ye shift khatam kar ke nai shuru karein" />
             </button>
             <button onClick={onLogout} className="mt-1 text-xs text-cream-dim transition hover:text-cream">
-              Aap nahi? Log out · Not you? Log out
+              Aap nahi? Log out
             </button>
           </div>
         </div>

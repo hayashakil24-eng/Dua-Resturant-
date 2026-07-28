@@ -129,6 +129,8 @@
     "forwardRemaining": "You will still hold",
     "forwardInvalid": "Enter a valid amount within the cash you are holding.",
     "forwardConfirm": "Confirm handover",
+    "forwardPending": "Awaiting Admin approval",
+    "forwardPendingHint": "waiting for the Admin to accept. You can hand over more once they have signed for it.",
     "reasonOptional": "Reason (optional)",
     "cancel": "Cancel",
     "sending": "Sending…"

@@ -405,7 +405,7 @@ export default function Layout({ children }) {
                     Drawer: <span className="text-cream">{activeShift.cashierName}</span>
                   </span>
                   <span className="text-cream-dim">
-                    Expected{' '}
+                    Mutawaqqa{' '}
                     <span className="font-semibold text-gold">
                       {money(calculateShiftSales(activeShift.id)?.expectedCash ?? activeShift.openingCash)}
                     </span>
@@ -415,7 +415,7 @@ export default function Layout({ children }) {
               <div className="mt-5 flex flex-col gap-2">
                 <button onClick={pauseAndLogout} className="btn-ghost w-full py-3">
                   <IconClock size={18} />{' '}
-                  <BiLabel ur="Thodi der ke liye ja rahe hain" en="Step away — keep drawer open" />
+                  <BiLabel ur="Thori der ke liye ja rahe hain" />
                 </button>
                 <button
                   onClick={() => {
@@ -425,10 +425,10 @@ export default function Layout({ children }) {
                   className="btn-gold w-full py-3"
                 >
                   <IconCash size={18} />{' '}
-                  <BiLabel ur="Shift khatam — cash ginein" en="End shift & count cash" />
+                  <BiLabel ur="Shift khatam — cash ginein" />
                 </button>
                 <button onClick={() => setExitChoice(false)} className="mt-1 text-xs text-cream-dim hover:text-cream">
-                  Wapas kaam par · Back to work
+                  Wapas kaam par
                 </button>
               </div>
             </div>

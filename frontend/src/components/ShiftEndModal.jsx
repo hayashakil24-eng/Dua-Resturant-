@@ -47,9 +47,9 @@ export default function ShiftEndModal({ shift, onClose, onComplete }) {
   const matched = Math.abs(difference) < 10
 
   const submit = () => {
-    if (!hasCount || counted < 0) return setError('Drawer ka cash gin kar likhein · Enter the actual cash counted.')
+    if (!hasCount || counted < 0) return setError('Drawer ka cash gin kar likhein.')
     if (handoverTo === 'Other' && !handoverPerson)
-      return setError('Cash lene wale ka naam chunein · Select the person receiving the cash.')
+      return setError('Cash lene wale ka naam chunein.')
     setError('')
     // `to` must be the recipient's ROLE, never the literal 'Other' — it is what
     // decides whose dashboard the approval shows up on.
@@ -72,8 +72,7 @@ export default function ShiftEndModal({ shift, onClose, onComplete }) {
               <div>
                 <h3 className="font-serif text-2xl text-cream">Shift khatam · Cash ginein</h3>
                 <p className="text-xs text-cream-dim">
-                  Drawer ka cash gin kar likhein aur batayein kis ko de rahe hain — woh manzoori dega ·
-                  Count the drawer and choose who receives the cash (they approve it).
+                  Drawer ka cash gin kar likhein aur batayein kis ko de rahe hain — woh manzoori dega.
                 </p>
               </div>
             </div>
@@ -89,13 +88,13 @@ export default function ShiftEndModal({ shift, onClose, onComplete }) {
                 Drawer: <span className="text-cream">{shift.cashierName}</span>
               </div>
               <div className="space-y-2">
-                <Row label="Shuruati cash · Opening" value={money(shift.openingCash)} />
-                <Row label="Cash sales" value={money(sales.totalCashSales)} />
-                <Row label="Card sales" value={money(sales.totalCardSales)} />
-                <Row label="Online sales" value={money(sales.totalOnlineSales)} />
+                <Row label="Shuruati cash" value={money(shift.openingCash)} />
+                <Row label="Cash sale" value={money(sales.totalCashSales)} />
+                <Row label="Card sale" value={money(sales.totalCardSales)} />
+                <Row label="Online sale" value={money(sales.totalOnlineSales)} />
               </div>
               <div className="mt-3 flex items-center justify-between border-t border-ink-line pt-3">
-                <span className="text-sm font-semibold text-cream">Expected cash</span>
+                <span className="text-sm font-semibold text-cream">Mutawaqqa cash</span>
                 <span className="font-serif text-2xl font-semibold text-gold">
                   {money(sales.expectedCash)}
                 </span>
@@ -105,7 +104,7 @@ export default function ShiftEndModal({ shift, onClose, onComplete }) {
             {/* Physical count */}
             <div className="mt-5">
               <label className="mb-2 block text-[11px] uppercase tracking-wider text-cream-dim">
-                Drawer mein kitna cash hai? Ginein (Rs.) · Actual cash counted
+                Drawer mein kitna cash hai? Ginein (Rs.)
               </label>
               <input
                 type="number"
@@ -113,7 +112,7 @@ export default function ShiftEndModal({ shift, onClose, onComplete }) {
                 min={0}
                 autoFocus
                 className="input"
-                placeholder="Drawer gin kar likhein · count & enter"
+                placeholder="Drawer gin kar likhein"
                 value={actual}
                 onChange={(e) => setActual(e.target.value)}
               />
@@ -122,7 +121,7 @@ export default function ShiftEndModal({ shift, onClose, onComplete }) {
             {/* Hand cash over to */}
             <div className="mt-5">
               <label className="mb-2 block text-[11px] uppercase tracking-wider text-cream-dim">
-                Cash kis ko de rahe hain? · Handed to
+                Cash kis ko de rahe hain?
               </label>
               <div className="grid grid-cols-3 gap-2">
                 {['Admin', 'Manager', 'Other'].map((opt) => (
@@ -136,7 +135,7 @@ export default function ShiftEndModal({ shift, onClose, onComplete }) {
                         : 'border-ink-line bg-ink-soft text-cream-dim hover:text-cream'
                     }`}
                   >
-                    {opt === 'Other' ? 'Koi aur · Other' : opt}
+                    {opt === 'Other' ? 'Koi aur' : opt}
                   </button>
                 ))}
               </div>
@@ -146,7 +145,7 @@ export default function ShiftEndModal({ shift, onClose, onComplete }) {
                   value={handoverPerson}
                   onChange={(e) => setHandoverPerson(e.target.value)}
                 >
-                  <option value="">Naam chunein · Select person…</option>
+                  <option value="">Naam chunein…</option>
                   {others.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name} ({s.role})
@@ -159,7 +158,7 @@ export default function ShiftEndModal({ shift, onClose, onComplete }) {
             {/* Reason (optional) */}
             <div className="mt-4">
               <label className="mb-2 block text-[11px] uppercase tracking-wider text-cream-dim">
-                Wajah (optional) · Reason
+                Wajah (ikhtiyari)
               </label>
               <textarea
                 className="input h-16 resize-none"
@@ -181,19 +180,19 @@ export default function ShiftEndModal({ shift, onClose, onComplete }) {
                 }`}
               >
                 {matched ? (
-                  <p className="text-sm font-semibold text-emerald-300">✓ Cash poora hai · Cash matches the drawer.</p>
+                  <p className="text-sm font-semibold text-emerald-300">✓ Cash poora hai</p>
                 ) : difference > 0 ? (
                   <p className="text-sm font-semibold text-rose-300">
-                    {money(Math.abs(difference))} kam hai · Shortage
+                    {money(Math.abs(difference))} kam hai
                   </p>
                 ) : (
                   <p className="text-sm font-semibold text-sky-300">
-                    {money(Math.abs(difference))} zyada hai · Excess
+                    {money(Math.abs(difference))} zyada hai
                   </p>
                 )}
                 {!matched && (
                   <p className="mt-1 text-[11px] text-cream-dim">
-                    Ye Admin/Manager dashboard par flag hoga · flagged to the dashboard.
+                    Ye Admin/Manager dashboard par flag hoga.
                   </p>
                 )}
               </div>
@@ -205,17 +204,16 @@ export default function ShiftEndModal({ shift, onClose, onComplete }) {
 
             {/* Submitting closes the drawer AND signs the cashier out — one action. */}
             <div className="mt-4 rounded-lg border border-sky-500/25 bg-sky-500/[0.06] px-3 py-2 text-[11px] text-sky-200">
-              Submit karne par shift band ho jayegi aur aap log out ho jayenge · this completes
-              your shift and logs you out.
+              Submit karne par shift band ho jayegi aur aap log out ho jayenge.
             </div>
           </div>
 
           <div className="mt-6 flex flex-shrink-0 gap-3">
             <button onClick={onClose} className="btn-ghost flex-1 py-3">
-              <BiLabel ur="Wapas kaam par" en="Back to work" />
+              <BiLabel ur="Wapas kaam par" />
             </button>
             <button onClick={submit} className="btn-gold flex-1 py-3">
-              <IconCash size={18} /> <BiLabel ur="Shift band karein" en="Finish & log out" />
+              <IconCash size={18} /> <BiLabel ur="Shift band karein" />
             </button>
           </div>
         </div>

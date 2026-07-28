@@ -5,7 +5,7 @@ import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import { IconClose, IconCash } from './Icons.jsx'
 import { BiLabel } from './ui.jsx'
 
-// Cashier mid-shift partial handover. English + LTR (cashier flow). Submitting
+// Cashier mid-shift partial handover. Roman Urdu + LTR (cashier flow). Submitting
 // creates a PENDING handover — the cash only leaves the drawer once a
 // Manager/Admin accepts it from their dashboard. `current` is the live drawer
 // balance; `onSubmit({ amount, toName, toRole, reason })`.
@@ -38,8 +38,8 @@ export default function PartialHandoverModal({ current, onClose, onSubmit }) {
   // an over-limit amount or a dead shift) — awaited here so a failure shows
   // an error instead of the modal closing as if it succeeded.
   const submit = async () => {
-    if (amt <= 0 || amt > current) return setError('Drawer ki raqam ke andar sahi amount likhein · Enter a valid amount within the drawer balance.')
-    if (!toId) return setError('Cash lene wale ko chunein · Select who receives the cash.')
+    if (amt <= 0 || amt > current) return setError('Drawer ki raqam ke andar sahi amount likhein.')
+    if (!toId) return setError('Cash lene wale ko chunein.')
     const person = recipients.find((s) => s.id === toId)
     setError('')
     setSubmitting(true)
@@ -57,8 +57,7 @@ export default function PartialHandoverModal({ current, onClose, onSubmit }) {
             <div>
               <h3 className="font-serif text-2xl text-cream">Manager ko cash dena · Beech-shift</h3>
               <p className="text-xs text-cream-dim">
-                Abhi drawer se kuch cash manager ko dein — unki manzoori ke baad niklega. Shift khuli rahegi ·
-                Hand part of the drawer to a manager now (needs approval).
+                Abhi drawer se kuch cash manager ko dein — unki manzoori ke baad niklega. Shift khuli rahegi.
               </p>
             </div>
             <button onClick={onClose} className="text-cream-dim hover:text-cream">
@@ -69,13 +68,13 @@ export default function PartialHandoverModal({ current, onClose, onSubmit }) {
           <div className="mt-5 min-h-0 flex-1 overflow-y-auto">
             {/* Current drawer */}
             <div className="rounded-2xl border border-gold/25 bg-gold/[0.06] p-4 text-center">
-              <p className="text-[11px] uppercase tracking-widest text-gold">Drawer mein abhi · Current drawer</p>
+              <p className="text-[11px] uppercase tracking-widest text-gold">Drawer mein abhi</p>
               <p className="mt-1 font-serif text-3xl font-semibold text-gold">{money(current)}</p>
             </div>
 
             <div className="mt-4">
               <label className="mb-2 block text-[11px] uppercase tracking-wider text-cream-dim">
-                Kitna cash de rahe hain? (Rs.) · Handover amount
+                Kitna cash de rahe hain? (Rs.)
               </label>
               <input
                 type="number"
@@ -92,17 +91,17 @@ export default function PartialHandoverModal({ current, onClose, onSubmit }) {
 
             {amt > 0 && amt <= current && (
               <div className="mt-3 flex items-center justify-between rounded-xl border border-emerald-500/25 bg-emerald-500/[0.06] px-4 py-2.5">
-                <span className="text-sm text-cream-dim">Drawer mein bachega · Remaining</span>
+                <span className="text-sm text-cream-dim">Drawer mein bachega</span>
                 <span className="font-serif text-lg font-semibold text-emerald-300">{money(remaining)}</span>
               </div>
             )}
 
             <div className="mt-4">
               <label className="mb-2 block text-[11px] uppercase tracking-wider text-cream-dim">
-                Kis ko dena hai? · Hand over to
+                Kis ko dena hai?
               </label>
               <select className="input py-2.5" value={toId} onChange={(e) => setToId(e.target.value)}>
-                <option value="">Naam chunein · Select recipient…</option>
+                <option value="">Naam chunein…</option>
                 {recipients.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name} ({roleOf(s)})
@@ -113,7 +112,7 @@ export default function PartialHandoverModal({ current, onClose, onSubmit }) {
 
             <div className="mt-4">
               <label className="mb-2 block text-[11px] uppercase tracking-wider text-cream-dim">
-                Wajah (optional) · Reason
+                Wajah (ikhtiyari)
               </label>
               <textarea
                 className="input h-16 resize-none"
@@ -130,11 +129,11 @@ export default function PartialHandoverModal({ current, onClose, onSubmit }) {
 
           <div className="mt-6 flex flex-shrink-0 gap-3">
             <button onClick={onClose} disabled={submitting} className="btn-ghost flex-1 py-3 disabled:opacity-60">
-              <BiLabel ur="Rehne dein" en="Cancel" />
+              <BiLabel ur="Rehne dein" />
             </button>
             <button onClick={submit} disabled={submitting} className="btn-gold flex-1 py-3 disabled:opacity-60">
               <IconCash size={18} />{' '}
-              {submitting ? 'Bhej rahe hain…' : <BiLabel ur="Cash dena confirm karein" en="Submit handover" />}
+              {submitting ? 'Bhej rahe hain…' : <BiLabel ur="Cash dena confirm karein" />}
             </button>
           </div>
         </div>
