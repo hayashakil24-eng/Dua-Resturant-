@@ -241,7 +241,7 @@ at (already present as empty, gitignored dirs in a fresh checkout —
 on the VPS the same way if they don't exist):
 
 ```bash
-mkdir -p /opt/cafeali/app/updates/frontend /opt/cafeali/app/updates/control-panel
+mkdir -p /opt/cafeali/app/backend/updates/frontend /opt/cafeali/app/backend/updates/control-panel
 ```
 
 Per release, for whichever app changed:
@@ -253,9 +253,13 @@ npm run dist        # electron-builder writes release/latest.yml + the
                      # installer .exe + its .blockmap
 
 # Copy exactly those three files to the matching VPS subfolder, replacing
-# whatever was there — e.g. via scp:
-scp release/latest.yml "release/Cafe Ali Setup <version>.exe" "release/Cafe Ali Setup <version>.exe.blockmap" \
-  user@vps:/opt/cafeali/app/updates/frontend/
+# whatever was there. Upload the .exe + .blockmap FIRST and latest.yml LAST —
+# a client that checks in between sees a manifest whose installer isn't there
+# yet. The path is the updates dir inside the VPS's own checkout (env.updatesDir
+# defaults to backend/updates/), not a top-level /opt/cafeali/app/updates/:
+scp "release/Cafe Ali Setup <version>.exe" "release/Cafe Ali Setup <version>.exe.blockmap" \
+  cafeali@<vps-ip>:/opt/cafeali/app/backend/updates/frontend/
+scp release/latest.yml cafeali@<vps-ip>:/opt/cafeali/app/backend/updates/frontend/
 ```
 
 Nothing on the VPS's running process needs restarting — the static route
