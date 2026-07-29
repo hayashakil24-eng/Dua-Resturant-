@@ -14,12 +14,13 @@ export default function ShiftStartModal({ onStart }) {
 
   const amount = Number(opening)
 
-  const submit = () => {
+  const submit = async () => {
     if (!opening || Number.isNaN(amount) || amount < 0) {
       return setError('Drawer ka cash likhein.')
     }
     setError('')
-    onStart(amount)
+    const res = await onStart(amount)
+    if (res?.error) setError(res.error)
   }
 
   return (

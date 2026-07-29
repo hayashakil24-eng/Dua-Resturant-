@@ -327,8 +327,16 @@ export function AppProvider({ children }) {
   const logout = () => {
     // Best-effort, not awaited: revokes this session server-side (keeps the
     // Control Panel's connected-devices list accurate) but must never block
-    // or fail the actual logout if the server is unreachable.
-    apiPost('/api/auth/logout').catch(() => {})
+    // or fail the actual logout if the server is unreachable. Fired inside a
+    // try/catch and BEFORE the local clear only so the request still carries
+    // the Bearer token (client.js reads it at call time) — nothing it can do
+    // may stop the two setters below from running, or the user is stuck
+    // signed in with no way out.
+    try {
+      apiPost('/api/auth/logout').catch(() => {})
+    } catch {
+      /* ignore — signing out locally is what actually matters */
+    }
     setToken(null)
     setUser(null)
   }

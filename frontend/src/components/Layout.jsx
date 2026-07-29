@@ -195,6 +195,7 @@ export default function Layout({ children }) {
   const [open, setOpen] = useState(false)
   const [endOpen, setEndOpen] = useState(false)
   const [exitChoice, setExitChoice] = useState(false)
+  const [exitError, setExitError] = useState('')
   const [handoverOpen, setHandoverOpen] = useState(false)
   const [resumed, setResumed] = useState(false) // resume prompt handled this session
   const location = useLocation()
@@ -232,13 +233,18 @@ export default function Layout({ children }) {
     : null
 
   // Opening a fresh drawer counts as "handled" so the resume prompt won't fire.
-  const beginShift = (openingCash) => {
-    startShift(openingCash)
+  const beginShift = async (openingCash) => {
+    const res = await startShift(openingCash)
+    if (res?.error) return res // modal shows it; no drawer was opened
     setResumed(true)
   }
 
-  const finishShift = (shiftId, actual, handover) => {
-    endShift(shiftId, actual, handover)
+  // Every shift call below is awaited before logout() on purpose: logout revokes
+  // this session server-side, so firing them together raced the revoke against
+  // the in-flight POST and could silently leave the drawer open/unpaused.
+  const finishShift = async (shiftId, actual, handover) => {
+    const res = await endShift(shiftId, actual, handover)
+    if (res?.error) return res // stay signed in so the cashier can retry the count
     setEndOpen(false)
     logout() // shift closed → sign the cashier out, back to login
   }
@@ -247,11 +253,13 @@ export default function Layout({ children }) {
   // or End Shift (reconcile + close). Everyone else just logs out.
   const handleExit = () => {
     setOpen(false)
+    setExitError('')
     if (hasOpenDrawer) setExitChoice(true)
     else logout()
   }
-  const pauseAndLogout = () => {
-    pauseShift()
+  const pauseAndLogout = async () => {
+    const res = await pauseShift()
+    if (res?.error) return setExitError(res.error)
     setExitChoice(false)
     logout()
   }
@@ -313,31 +321,32 @@ export default function Layout({ children }) {
           </div>
           <div className="ms-auto flex items-center gap-3">
             <LanguageSwitcher />
-            {isCashier && activeShift && (
-              <>
-                {myPendingHandover ? (
-                  <span
-                    title={`Rs. ${myPendingHandover.amount} to ${myPendingHandover.toName} — awaiting their approval`}
-                    className="hidden items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-300 sm:inline-flex"
-                  >
-                    <IconClock size={13} /> Cash di — manzoori ka intezar
-                  </span>
-                ) : (
-                  <button
-                    onClick={() => setHandoverOpen(true)}
-                    className="hidden items-center gap-1.5 rounded-full border border-ink-line bg-ink-soft px-3 py-1.5 text-xs font-semibold text-cream-dim transition hover:text-cream sm:inline-flex"
-                  >
-                    <IconWallet size={14} /> Manager ko cash dena
-                  </button>
-                )}
-                <button
-                  onClick={handleExit}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20"
+            {isCashier && activeShift &&
+              (myPendingHandover ? (
+                <span
+                  title={`Rs. ${myPendingHandover.amount} to ${myPendingHandover.toName} — awaiting their approval`}
+                  className="hidden items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-300 sm:inline-flex"
                 >
-                  <IconLogout size={14} /> {t('app.logout')}
+                  <IconClock size={13} /> Cash di — manzoori ka intezar
+                </span>
+              ) : (
+                <button
+                  onClick={() => setHandoverOpen(true)}
+                  className="hidden items-center gap-1.5 rounded-full border border-ink-line bg-ink-soft px-3 py-1.5 text-xs font-semibold text-cream-dim transition hover:text-cream sm:inline-flex"
+                >
+                  <IconWallet size={14} /> Manager ko cash dena
                 </button>
-              </>
-            )}
+              ))}
+            {/* Logout lives in the header for EVERY role, not just a cashier on
+                shift: the sidebar's user-card button sits in the bottom strip an
+                overlay can cover, and staff need a way out that never depends on
+                the sidebar being visible (mobile) or unobstructed. */}
+            <button
+              onClick={handleExit}
+              className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20"
+            >
+              <IconLogout size={14} /> {t('app.logout')}
+            </button>
             <span className="hidden rounded-full border border-ink-line bg-ink-soft px-3 py-1.5 text-xs text-cream-dim sm:inline">
               {t('app.signedInAs')} <span className="text-gold">{user.role}</span>
             </span>
@@ -411,6 +420,9 @@ export default function Layout({ children }) {
                     </span>
                   </span>
                 </div>
+              )}
+              {exitError && (
+                <p className="mt-4 rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{exitError}</p>
               )}
               <div className="mt-5 flex flex-col gap-2">
                 <button onClick={pauseAndLogout} className="btn-ghost w-full py-3">

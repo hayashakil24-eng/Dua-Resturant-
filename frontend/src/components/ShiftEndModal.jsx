@@ -46,7 +46,7 @@ export default function ShiftEndModal({ shift, onClose, onComplete }) {
   const difference = sales.expectedCash - counted // + shortage, − excess
   const matched = Math.abs(difference) < 10
 
-  const submit = () => {
+  const submit = async () => {
     if (!hasCount || counted < 0) return setError('Drawer ka cash gin kar likhein.')
     if (handoverTo === 'Other' && !handoverPerson)
       return setError('Cash lene wale ka naam chunein.')
@@ -56,7 +56,10 @@ export default function ShiftEndModal({ shift, onClose, onComplete }) {
     const person = handoverTo === 'Other' ? others.find((s) => s.id === handoverPerson) : null
     const to = person ? roleOf(person) : handoverTo
     const name = person ? person.name : handoverTo
-    onComplete(shift.id, counted, { to, name, reason: reason.trim() })
+    // Awaited: onComplete closes the drawer server-side and only then signs the
+    // cashier out, so a failure has to come back here instead of vanishing.
+    const res = await onComplete(shift.id, counted, { to, name, reason: reason.trim() })
+    if (res?.error) setError(res.error)
   }
 
   return (

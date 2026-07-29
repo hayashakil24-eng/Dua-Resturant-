@@ -23,8 +23,12 @@ export default function UpdateBanner() {
   if (!update || dismissed) return null
 
   return (
-    <div className="fixed inset-x-0 bottom-4 z-50 flex justify-center px-4">
-      <div className="card flex items-center gap-3 px-4 py-3 shadow-lift">
+    // pointer-events-none on the wrapper: it spans the full viewport width at z-50,
+    // which sat directly on top of the sidebar's user card (z-30) and swallowed every
+    // click on the logout button while an update was pending. Only the visible card
+    // takes clicks.
+    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex justify-center px-4">
+      <div className="card pointer-events-auto flex items-center gap-3 px-4 py-3 shadow-lift">
         <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gold/10 text-gold ring-1 ring-gold/25">
           <IconRefresh size={18} className={update.ready ? '' : 'animate-spin'} />
         </div>
