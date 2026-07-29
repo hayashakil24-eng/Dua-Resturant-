@@ -28,6 +28,12 @@ creds.md
 .DS_Store
 Thumbs.db
 desktop.ini
+*.lnk
+
+# User-guide PDF build scratch — md2html/build-pdf write per-run intermediate
+# HTML here; the tracked deliverables are the .md sources and the built
+# Cafe-Ali-User-Guide.html/.pdf, never these.
+docs/user-guide/build/.tmp/
 
 # Logs
 npm-debug.log*
