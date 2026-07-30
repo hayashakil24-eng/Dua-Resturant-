@@ -124,10 +124,8 @@ function EmployeeModal({ employee, onSave, onClose }) {
                   placeholder={t('employees.phonePh')}
                   aria-invalid={phoneError}
                 />
-                {phoneError ? (
+                {phoneError && (
                   <p className="mt-1.5 text-[11px] text-red-400">{t('employees.phoneInvalid')}</p>
-                ) : (
-                  <p className="mt-1.5 text-[11px] text-cream-dim">{t('employees.phoneOptional')}</p>
                 )}
               </Field>
               <Field label={t('employees.baseSalary')}>
