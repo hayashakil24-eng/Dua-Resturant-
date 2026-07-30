@@ -448,6 +448,7 @@
     "namePh": "e.g. Ahmed Ali",
     "phonePh": "0300-1234567",
     "phoneInvalid": "Phone number must be exactly 11 digits.",
+    "phoneOptional": "Optional",
     "emailPh": "name@cafeali.com",
     "deviceUserId": "Attendance Machine ID (optional)",
     "deviceUserIdPh": "ID enrolled on the fingerprint/face machine",

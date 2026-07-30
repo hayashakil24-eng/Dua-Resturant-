@@ -448,6 +448,7 @@
     "namePh": "مثلاً احمد علی",
     "phonePh": "0300-1234567",
     "phoneInvalid": "فون نمبر بالکل 11 ہندسوں کا ہونا ضروری ہے۔",
+    "phoneOptional": "اختیاری",
     "emailPh": "name@cafeali.com",
     "deviceUserId": "حاضری مشین آئی ڈی (اختیاری)",
     "deviceUserIdPh": "فنگر پرنٹ/فیس مشین پر درج آئی ڈی",
