@@ -681,6 +681,8 @@ export default function Settings() {
     gstRate,
     setGst,
     setGstRate,
+    maxCashierDiscountPercent,
+    setMaxCashierDiscountPercent,
     whatsappReport,
     setWhatsappReportConfig,
     attendanceDevice,
@@ -758,6 +760,23 @@ export default function Settings() {
     setRateError('')
     setRateSaved(true)
     setTimeout(() => setRateSaved(false), 2000)
+  }
+
+  // Ceiling on a Cashier's Apply Discount (frontend + server-enforced in
+  // orders.service.ts's applyDiscount) — same editable-draft/Save shape as
+  // the GST rate field above.
+  const [maxDiscountInput, setMaxDiscountInput] = useState(String(maxCashierDiscountPercent))
+  const [maxDiscountError, setMaxDiscountError] = useState('')
+  const [maxDiscountSaved, setMaxDiscountSaved] = useState(false)
+  const saveMaxDiscount = async () => {
+    const res = await setMaxCashierDiscountPercent(maxDiscountInput)
+    if (res?.error) {
+      setMaxDiscountSaved(false)
+      return setMaxDiscountError(res.error)
+    }
+    setMaxDiscountError('')
+    setMaxDiscountSaved(true)
+    setTimeout(() => setMaxDiscountSaved(false), 2000)
   }
 
   // WhatsApp daily report (requirements.md §6/§7) — hour + recipient are
@@ -911,6 +930,45 @@ export default function Settings() {
           </div>
           <p className="mt-2 text-xs text-cream-dim">
             {t('settings.gstRateHint', 'The percentage applied when GST is enabled. Takes effect on new bills right away.')}
+          </p>
+        </div>
+
+        {/* Cashier's Apply Discount is capped at this — 0 means Cashier can't
+            discount at all until this is set. Admin/Manager are unaffected
+            (their `discount` permission is 'full', not this capped 'edit'). */}
+        <div className="mt-5 border-t border-ink-line pt-5">
+          <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+            {t('settings.maxCashierDiscountLabel', 'Max Cashier Discount (%)')}
+          </label>
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              type="number"
+              inputMode="decimal"
+              min={0}
+              max={100}
+              step="0.5"
+              className="input w-32"
+              value={maxDiscountInput}
+              onChange={(e) => setMaxDiscountInput(e.target.value)}
+              disabled={!canEdit}
+            />
+            {canEdit && (
+              <button onClick={saveMaxDiscount} className="btn-gold px-5 py-2.5 text-sm">
+                {t('common.save', 'Save')}
+              </button>
+            )}
+            {maxDiscountError && <span className="text-xs text-rose-300">{maxDiscountError}</span>}
+            {maxDiscountSaved && (
+              <span className="text-xs text-emerald-300">
+                {t('settings.maxDiscountSaved', 'Limit updated.')}
+              </span>
+            )}
+          </div>
+          <p className="mt-2 text-xs text-cream-dim">
+            {t(
+              'settings.maxCashierDiscountHint',
+              'The highest discount a Cashier can apply to a bill. Admin and Manager are unlimited.',
+            )}
           </p>
         </div>
 

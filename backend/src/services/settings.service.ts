@@ -57,6 +57,21 @@ export async function setGstRate(ctx: Ctx, pct: number) {
   })
 }
 
+// Accepts a percentage (0-100) — the ceiling on a Cashier's applyDiscount
+// (see orders.service.ts). Cashier's `discount` permission is 'edit' (capped),
+// not 'full' like Admin/Manager; this is the actual number that caps it.
+export async function setMaxCashierDiscountPercent(ctx: Ctx, pct: number) {
+  const n = Number(pct)
+  if (!Number.isFinite(n) || n < 0 || n > 100) throw new ServiceError('Enter a discount limit between 0 and 100.')
+  return prisma.$transaction(async (tx) => {
+    const cur = await tx.appSettings.upsert({ where: { id: SETTINGS_ID }, create: { id: SETTINGS_ID }, update: {} })
+    if (cur.maxCashierDiscountPercent === n) return cur
+    const updated = await tx.appSettings.update({ where: { id: SETTINGS_ID }, data: { maxCashierDiscountPercent: n } })
+    await writeAudit(tx, { action: 'MAX_CASHIER_DISCOUNT_CHANGED', actor: ctx.actor, details: { percent: n } })
+    return updated
+  })
+}
+
 // ---- WhatsApp daily report (requirements.md §6/§7) -------------------------
 
 export interface WhatsappReportConfig {

@@ -167,7 +167,10 @@ export const PERMISSIONS = {
     pos: 'full',
     orders: 'edit',
     orderCancel: 'none',
-    discount: 'none',
+    // Capped, not unlimited like Admin/Manager's 'full' — the actual ceiling
+    // (Settings' Max Cashier Discount %) is enforced in orders.service.ts's
+    // applyDiscount, not by this table. 'edit' just grants UI/route access.
+    discount: 'edit',
     tables: 'full',
     menu: 'hidden',
     inventory: 'hidden',

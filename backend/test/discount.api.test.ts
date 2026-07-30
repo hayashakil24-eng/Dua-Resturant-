@@ -120,10 +120,52 @@ describe('percentage discount', () => {
     await prisma.order.delete({ where: { id: order.id } })
   })
 
-  it('is refused for a cashier', async () => {
+  it('is blocked for a cashier by the 0% default cap, not a bare 403', async () => {
+    // Cashier's `discount` permission is 'edit' (capped), not 'none' — the
+    // route itself no longer refuses it; Settings' Max Cashier Discount %
+    // (0 until an Admin sets one) is what blocks this.
     const cashier = await tokenFor('cashier')
     const order = await newOrder(cashier, 25)
     const res = await app.inject({ method: 'POST', url: `/api/orders/${order.id}/discount`, headers: auth(cashier), payload: { percent: 10 } })
-    expect(res.statusCode).toBe(403)
+    expect(res.statusCode).toBe(400)
+  })
+})
+
+describe('cashier discount cap (Settings’ Max Cashier Discount %)', () => {
+  it('lets a cashier discount up to the admin-set cap, and rejects above it', async () => {
+    const admin = await tokenFor('admin')
+    const cashier = await tokenFor('cashier')
+    const cap = await app.inject({ method: 'POST', url: '/api/settings/max-cashier-discount', headers: auth(admin), payload: { pct: 10 } })
+    expect(cap.statusCode).toBe(200)
+    expect(JSON.parse(cap.body).settings.maxCashierDiscountPercent).toBe(10)
+
+    const withinCap = await newOrder(cashier, 27)
+    const ok = await app.inject({ method: 'POST', url: `/api/orders/${withinCap.id}/discount`, headers: auth(cashier), payload: { percent: 8 } })
+    expect(ok.statusCode).toBe(200)
+    expect(JSON.parse(ok.body).order.discount.percent).toBe(8)
+
+    const overCap = await newOrder(cashier, 28)
+    const blocked = await app.inject({ method: 'POST', url: `/api/orders/${overCap.id}/discount`, headers: auth(cashier), payload: { percent: 15 } })
+    expect(blocked.statusCode).toBe(400)
+
+    // Flat-amount mode is capped the same way (effective-percent-of-bill).
+    const amountOverCap = await newOrder(cashier, 29)
+    const gross = amountOverCap.items.reduce((s: number, it: { price: number; qty: number }) => s + it.price * it.qty, 0)
+    const blockedAmt = await app.inject({
+      method: 'POST',
+      url: `/api/orders/${amountOverCap.id}/discount`,
+      headers: auth(cashier),
+      payload: { amount: Math.round(gross * 0.15) }, // 15% > 10% cap
+    })
+    expect(blockedAmt.statusCode).toBe(400)
+
+    // Manager stays unlimited ('full') — unaffected by the cashier cap.
+    const managerOrder = await newOrder(cashier, 30)
+    const manager = await tokenFor('manager')
+    const managerRes = await app.inject({ method: 'POST', url: `/api/orders/${managerOrder.id}/discount`, headers: auth(manager), payload: { percent: 50 } })
+    expect(managerRes.statusCode).toBe(200)
+
+    // Reset so this doesn't leak into other test files' expectations.
+    await app.inject({ method: 'POST', url: '/api/settings/max-cashier-discount', headers: auth(admin), payload: { pct: 0 } })
   })
 })

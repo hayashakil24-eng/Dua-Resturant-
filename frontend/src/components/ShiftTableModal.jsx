@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
-import { tableLabel } from '../data/mockData.js'
+import { tableLabel, SPECIAL_TABLE_IDS } from '../data/mockData.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import { pageWindow } from '../utils/pageWindow.js'
 import { IconClose, IconTable, IconCheck, IconSearch } from './Icons.jsx'
@@ -65,6 +65,17 @@ export default function ShiftTableModal({ order, onClose, onConfirm }) {
       return
     }
     onConfirm(dest)
+  }
+
+  // Takeaway is a locked, seatless pseudo-table (id 302) — deliberately excluded
+  // from the physical picker grid above, but a running dine-in order should
+  // still be convertible to it in one click. Fires immediately, no dest-select
+  // step, since it's a single unambiguous destination rather than a choice.
+  const takeawayAvailable = tables.some((tbl) => tbl.id === SPECIAL_TABLE_IDS.takeaway)
+  const alreadyTakeaway = order.table === SPECIAL_TABLE_IDS.takeaway
+  const toTakeaway = () => {
+    if (alreadyTakeaway || !takeawayAvailable) return
+    onConfirm(SPECIAL_TABLE_IDS.takeaway)
   }
 
   return (
@@ -191,16 +202,24 @@ export default function ShiftTableModal({ order, onClose, onConfirm }) {
 
           {error && <p className="mt-3 text-xs text-rose-300">{error}</p>}
 
-          <div className="mt-6 flex gap-3">
-            <button onClick={onClose} className="btn-ghost flex-1 py-3">
+          <div className="mt-6 grid grid-cols-3 gap-3">
+            <button onClick={onClose} className="btn-ghost py-3">
               Cancel
             </button>
             <button
               onClick={confirm}
               disabled={dest == null}
-              className="flex-1 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 py-3 font-semibold text-white transition-all duration-200 hover:from-emerald-400 hover:to-green-500 hover:shadow-lg hover:shadow-emerald-500/40 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:shadow-none"
+              className="rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 py-3 text-sm font-semibold text-white transition-all duration-200 hover:from-emerald-400 hover:to-green-500 hover:shadow-lg hover:shadow-emerald-500/40 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:shadow-none"
             >
               <IconCheck size={16} /> Move Order
+            </button>
+            <button
+              onClick={toTakeaway}
+              disabled={alreadyTakeaway || !takeawayAvailable}
+              title={alreadyTakeaway ? 'This order is already Takeaway' : 'Convert this order to Takeaway'}
+              className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 py-3 text-sm font-semibold text-white transition-all duration-200 hover:from-amber-400 hover:to-orange-500 hover:shadow-lg hover:shadow-amber-500/40 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:shadow-none"
+            >
+              🛍️ Takeaway
             </button>
           </div>
         </div>

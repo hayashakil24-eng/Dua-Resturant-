@@ -37,6 +37,8 @@ export interface StaffInput {
   role?: string
   shift?: string
   shiftStartTime?: string
+  shiftEndTime?: string | null
+  shiftEndMode?: string | null // "fixed" | "dayClosing"
   phone?: string
   email?: string
   baseSalary?: number
@@ -86,6 +88,8 @@ export async function addStaff(ctx: Ctx, emp: StaffInput) {
           // Derive the start time from the shift (same as the seed) so a record
           // without one doesn't always read as Absent.
           shiftStartTime: emp.shiftStartTime || SHIFT_START_TIMES[shift] || SHIFT_START_TIMES.Morning,
+          shiftEndTime: emp.shiftEndTime ?? null,
+          shiftEndMode: emp.shiftEndMode ?? null,
           phone: emp.phone ?? null,
           email: emp.email ?? null,
           baseSalary: Number(emp.baseSalary) || 0,

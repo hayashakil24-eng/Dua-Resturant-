@@ -211,7 +211,10 @@ export const PERMISSIONS: Record<Role, Record<PageKey, AccessLevel>> = {
     pos: 'full',
     orders: 'edit',
     orderCancel: 'none',
-    discount: 'none',
+    // Capped, not unlimited like Admin/Manager's 'full' — see the frontend
+    // mirror (permissions.js) and orders.service.ts's applyDiscount, which
+    // enforces the actual ceiling (Settings' Max Cashier Discount %).
+    discount: 'edit',
     tables: 'full',
     menu: 'hidden',
     inventory: 'hidden',

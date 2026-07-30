@@ -74,6 +74,35 @@ export function calcSalary(base: number, workingDays: number, present: number): 
   return workingDays > 0 ? Math.round((base / workingDays) * present) : 0
 }
 
+// Mirrors frontend/src/utils/payroll.js's calcNetSalary — see that file's
+// comment for the "4 free offs, real per-minute late/early" design and why
+// absent/workingDays still come from the mock monthAttendance() above.
+const FREE_OFFS_PER_MONTH = 4
+export interface NetSalaryInput {
+  base: number
+  workingDays: number
+  absent: number
+  lateMinutes?: number
+  earlyMinutes?: number
+  shiftMinutes?: number
+}
+export interface NetSalaryResult {
+  absenceDeduction: number
+  lateDeduction: number
+  earlyDeduction: number
+  total: number
+}
+export function calcNetSalary({ base, workingDays, absent, lateMinutes = 0, earlyMinutes = 0, shiftMinutes = 480 }: NetSalaryInput): NetSalaryResult {
+  const perDayRate = workingDays > 0 ? base / workingDays : 0
+  const paidAbsences = Math.max(0, (absent || 0) - FREE_OFFS_PER_MONTH)
+  const absenceDeduction = Math.round(paidAbsences * perDayRate)
+  const perMinuteRate = shiftMinutes > 0 ? perDayRate / shiftMinutes : 0
+  const lateDeduction = Math.round((lateMinutes || 0) * perMinuteRate)
+  const earlyDeduction = Math.round((earlyMinutes || 0) * perMinuteRate)
+  const total = Math.max(0, base - absenceDeduction - lateDeduction - earlyDeduction)
+  return { absenceDeduction, lateDeduction, earlyDeduction, total }
+}
+
 export interface StaffLike {
   id: string
   active: boolean

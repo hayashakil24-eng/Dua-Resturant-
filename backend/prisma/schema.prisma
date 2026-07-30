@@ -67,6 +67,13 @@ model Staff {
   rejectReason   String?
   shift          String? // "Morning" | "Evening"
   shiftStartTime String? // "HH:MM", 24h — drives Late calculation
+  // Expected checkout. shiftEndMode "fixed" reads shiftEndTime ("HH:MM");
+  // "dayClosing" (Evening only) means expected checkout is whatever time that
+  // date's DailyClosing.closingTime was — the restaurant's actual close, not
+  // a fixed clock value, since an evening shift's real end varies by day.
+  // Both null = not configured (legacy staff) — no early-leave computed.
+  shiftEndTime String?
+  shiftEndMode String? // "fixed" | "dayClosing"
   phone          String?
   email          String?
   // The numeric user ID this staff member is enrolled under on the on-site
@@ -393,6 +400,16 @@ model Order {
   table  Int
   waiter String?
 
+  // Delivery order details (table === the locked "Delivery" pseudo-table) —
+  // collected once via DeliveryDetailsModal at order-creation time. deliveryCharge
+  // is informational/printed only, never added to Subtotal/Total.
+  deliveryRiderName    String?
+  deliveryCustomerName String?
+  deliveryCharge       Int?
+  deliveryPhone        String?
+  deliveryAddress      String?
+  deliveryInstructions String?
+
   payment String @default("Unpaid") // "Unpaid" | "Paid" | "Udhaar" | "Complimentary"
   method  String @default("—") // "—" | "Cash" | "Card" | "Online" | "Udhaar" | "Free"
 
@@ -658,6 +675,11 @@ model AppSettings {
   // fresh every poll, the same way whatsapp/schedule.ts reads its config).
   attendanceDeviceIp   String?
   attendanceDevicePort Int     @default(4370)
+  // Cashier's discount permission is 'edit' (capped), not 'full' like
+  // Admin/Manager — this is the actual ceiling, enforced in
+  // orders.service.ts's applyDiscount. 0 = Cashier can't discount at all
+  // until an Admin sets a real limit here (see Settings.jsx).
+  maxCashierDiscountPercent Float @default(0)
   updatedAt  DateTime @updatedAt
 }
 

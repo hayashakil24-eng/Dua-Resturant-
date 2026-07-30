@@ -4,12 +4,13 @@ import { PageHeader, PaymentBadge, EmptyState } from '../components/ui.jsx'
 import { money, time, dateLong } from '../utils/format.js'
 import { safePrint } from '../utils/print.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
-import { tableLabel } from '../data/mockData.js'
+import { tableLabel, SPECIAL_TABLE_IDS } from '../data/mockData.js'
 import DiscountModal from '../components/DiscountModal.jsx'
 import ComplimentaryOrderDetail from '../components/ComplimentaryOrderDetail.jsx'
 import { complimentaryCost, formatCostTotal } from '../utils/cost.js'
 import Logo from '../components/Logo.jsx'
 import { IconReceipt, IconPrint, IconCheck, IconClose, IconWallet, IconSearch } from '../components/Icons.jsx'
+import { paidAgainstCharge } from '../utils/receivableAllocation.js'
 
 // Same set (and order) as Orders.jsx's FILTERS — the two pages list the same
 // orders, so a cashier who learns one toolbar knows the other.
@@ -26,11 +27,21 @@ export function Receipt({
   onApplyDiscount = () => {},
   onRemoveDiscount = () => {},
 }) {
-  const { gstRate, gstEnabled } = useApp()
+  const { gstRate, gstEnabled, receivables } = useApp()
   // A placed order shows its LOCKED rate; a legacy order without a snapshot (or a
   // brand-new object) falls back to the current global setting.
   const rate = typeof order.gstRate === 'number' ? order.gstRate : gstEnabled ? gstRate : 0
   const { subtotal, tax, discount, total } = orderTotal(order.items, order.discount?.amount, rate)
+  // Udhaar orders show how much of THIS order has been recovered — see
+  // paidAgainstCharge for why that's derived rather than stored directly.
+  const receivable =
+    order.payment === 'Udhaar'
+      ? receivables.find((r) => (r.charges || []).some((c) => c.orderId === order.serverId))
+      : null
+  const { paid: udhaarPaid, remaining: udhaarRemaining } = receivable
+    ? paidAgainstCharge(receivable, order.serverId)
+    : { paid: 0, remaining: 0 }
+  const isDelivery = order.table === SPECIAL_TABLE_IDS.delivery
   const [printing, setPrinting] = useState(false)
   useEscapeKey(onClose)
 
@@ -89,8 +100,25 @@ export function Receipt({
               <span className="text-right">{time(order.createdAt)}</span>
               <span>Table</span>
               <span className="text-right">{tableLabel(order.table)}</span>
-              <span>Waiter</span>
-              <span className="text-right">{order.waiter || '—'}</span>
+              {isDelivery ? (
+                <>
+                  <span>Rider</span>
+                  <span className="text-right">{order.deliveryRiderName || '—'}</span>
+                  <span>Customer</span>
+                  <span className="text-right">{order.deliveryCustomerName || '—'}</span>
+                  <span>Phone</span>
+                  <span className="text-right">{order.deliveryPhone || '—'}</span>
+                  <span>Address</span>
+                  <span className="text-right">{order.deliveryAddress || '—'}</span>
+                  <span>Delivery Charges</span>
+                  <span className="text-right">{money(order.deliveryCharge)}</span>
+                </>
+              ) : (
+                <>
+                  <span>Waiter</span>
+                  <span className="text-right">{order.waiter || '—'}</span>
+                </>
+              )}
             </div>
 
             <div className="my-4 border-t border-dashed border-[#E8DCC4]" />
@@ -160,6 +188,20 @@ export function Receipt({
                     : `${order.payment}${order.payment === 'Paid' ? ` · ${order.method}` : ''}`}
                 </span>
               </div>
+              {/* Udhaar recovered so far against THIS order (derived — see
+                  paidAgainstCharge), and what's still owed on it. */}
+              {order.payment === 'Udhaar' && udhaarPaid > 0 && (
+                <>
+                  <div className="flex justify-between">
+                    <span></span>
+                    <span className="font-bold">- {money(udhaarPaid)}</span>
+                  </div>
+                  <div className="mt-1 flex justify-between border-t border-[#E8DCC4] pt-1 text-sm font-bold">
+                    <span>Balance Due</span>
+                    <span>{money(udhaarRemaining)}</span>
+                  </div>
+                </>
+              )}
               {/* Which online account the money landed in — printed for the
                   customer and for daily reconciliation of each account. */}
               {order.method === 'Online' && order.onlineAccountName && (
@@ -184,7 +226,7 @@ export function Receipt({
             {/* Software credit — subtle, kept small so it never competes with the bill. */}
             <div className="mt-3 border-t border-dashed border-[#E8DCC4] pt-2 text-center">
               <p className="text-[12px] text-[#8D6E63]">
-                Software by SoftDap | Support: +92 334 3207049
+                Software by SoftDap
               </p>
             </div>
           </div>
@@ -267,7 +309,7 @@ export function Receipt({
 import { canModify } from '../config/permissions.js'
 
 export default function Billing() {
-  const { orders, orderTotal, markPaid, applyDiscount, removeDiscount, user, menu, gstEnabled, gstRate } = useApp()
+  const { orders, orderTotal, markPaid, applyDiscount, removeDiscount, user, menu, gstEnabled, gstRate, maxCashierDiscountPercent } = useApp()
   // Track by id so the open receipt reflects live discount / paid changes.
   const [activeId, setActiveId] = useState(null)
   const [showDiscount, setShowDiscount] = useState(false)
@@ -477,6 +519,9 @@ export default function Billing() {
           // Pre-discount breakdown: GST is part of the base a percentage applies to.
           bill={orderTotal(active.items, 0, active.gstRate)}
           rate={typeof active.gstRate === 'number' ? active.gstRate : gstEnabled ? gstRate : 0}
+          // null = unlimited (Admin/Manager, 'full'); Cashier ('edit'/capped)
+          // gets the Admin-set ceiling — re-enforced server-side regardless.
+          maxPercent={user?.role === 'Cashier' ? maxCashierDiscountPercent : null}
           onApply={handleApplyDiscount}
           onClose={() => setShowDiscount(false)}
         />

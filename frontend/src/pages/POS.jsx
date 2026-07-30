@@ -6,6 +6,7 @@ import { money, time } from '../utils/format.js'
 import { Receipt } from './Billing.jsx'
 import PaymentModal from '../components/PaymentModal.jsx'
 import ManageMostOrderedModal from '../components/ManageMostOrderedModal.jsx'
+import DeliveryDetailsModal from '../components/DeliveryDetailsModal.jsx'
 import KitchenSlips from '../components/KitchenSlips.jsx'
 import { safePrint } from '../utils/print.js'
 import { getRecipeStock, getStockShortfall } from '../utils/inventoryFlow.js'
@@ -234,6 +235,8 @@ export default function POS() {
   const [cart, setCart] = useState({}) // { lineKey: qty }, lineKey = id or `id::variant`
   const [variantPick, setVariantPick] = useState(null) // menu item awaiting a variant
   const [showManageMostOrdered, setShowManageMostOrdered] = useState(false)
+  const [deliveryDetails, setDeliveryDetails] = useState(null)
+  const [showDeliveryModal, setShowDeliveryModal] = useState(false)
   const mostOrderedItems = getMostOrderedItems()
   const canManageMostOrdered = user ? canModify(user.role, 'mostOrderedManage') : false
 
@@ -337,6 +340,7 @@ export default function POS() {
   // so there is no waiter to assign — the field is disabled and the order goes
   // out unassigned rather than pinning it on whoever happened to be picked.
   const isOffPremise = Boolean(tables.find((t) => t.id === Number(table))?.orderType)
+  const isDeliverySelected = tables.find((t) => t.id === Number(table))?.orderType === 'delivery'
 
   // The selected table already has a running order → a second separate order
   // isn't allowed (add to it instead). One source of truth for the warning,
@@ -424,6 +428,9 @@ export default function POS() {
     // Delivery/Takeaway have no waiter to assign (the field is disabled), so
     // requiring one here would make those orders impossible to place.
     if (!isOffPremise && !waiter) return 'Please assign a waiter.'
+    // Safety net behind the DeliveryDetailsModal — a Delivery order can't be
+    // placed without rider/customer/phone/address/charge on file.
+    if (isDeliverySelected && !deliveryDetails) return 'Delivery details are required — rider name, customer name, phone, address and charges.'
     // Prevent out-of-stock orders: the cart's recipes must not exceed stock.
     const short = getStockShortfall(
       items.map(({ key, qty, portion }) => ({ id: key, qty, portion })),
@@ -441,6 +448,7 @@ export default function POS() {
     clear()
     setTable('')
     setWaiter('')
+    setDeliveryDetails(null)
   }
 
   const placeOrder = async ({ payment, method, onlineAccount = null }) => {
@@ -460,6 +468,18 @@ export default function POS() {
       payment,
       method,
       onlineAccount,
+      // Rider/customer/charge — informational only, never added to the total
+      // (confirmed with the client). Omitted entirely for a non-Delivery order.
+      ...(isDeliverySelected && deliveryDetails
+        ? {
+            deliveryRiderName: deliveryDetails.riderName,
+            deliveryCustomerName: deliveryDetails.customerName,
+            deliveryCharge: Number(deliveryDetails.charge) || 0,
+            deliveryPhone: deliveryDetails.phone,
+            deliveryAddress: deliveryDetails.address,
+            deliveryInstructions: deliveryDetails.instructions,
+          }
+        : {}),
     })
     if (order?.error) return order
     resetForm()
@@ -810,6 +830,10 @@ export default function POS() {
                       // Switching to Delivery/Takeaway drops any waiter already
                       // picked, so a disabled field can never still submit one.
                       if (tables.find((t) => t.id === Number(next))?.orderType) setWaiter('')
+                      // Delivery needs rider/customer/address details up front —
+                      // pre-filled with whatever was already entered, in case the
+                      // cashier switched away and back before checking out.
+                      if (tables.find((t) => t.id === Number(next))?.orderType === 'delivery') setShowDeliveryModal(true)
                     }}
                   >
                     <option value="">Select table or order type</option>
@@ -1057,6 +1081,23 @@ export default function POS() {
 
       {showManageMostOrdered && (
         <ManageMostOrderedModal onClose={() => setShowManageMostOrdered(false)} />
+      )}
+
+      {showDeliveryModal && (
+        <DeliveryDetailsModal
+          initial={deliveryDetails}
+          onConfirm={(details) => {
+            setDeliveryDetails(details)
+            setShowDeliveryModal(false)
+          }}
+          onClose={() => {
+            // Delivery can't proceed without these details — nothing valid is
+            // left selected, so back out of the table pick entirely.
+            setTable('')
+            setDeliveryDetails(null)
+            setShowDeliveryModal(false)
+          }}
+        />
       )}
     </div>
   )

@@ -4,6 +4,7 @@ import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader, StatCard } from '../components/ui.jsx'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import { money } from '../utils/format.js'
+import { SHIFT_START_TIMES } from '../utils/attendanceHelpers.js'
 import {
   IconUsers,
   IconSearch,
@@ -43,21 +44,48 @@ function Field({ label, children }) {
   )
 }
 
+// Morning's default checkout — pre-filled but editable, not a hard rule.
+const DEFAULT_MORNING_CHECKOUT = '22:00'
+
 function EmployeeModal({ employee, onSave, onClose }) {
   const t = useT()
-  const [form, setForm] = useState(
-    employee || {
+  const [form, setForm] = useState(() => {
+    if (employee) {
+      // Legacy staff may have no shiftEndTime/shiftEndMode yet (added before
+      // this feature) — fall back to the same shift-based defaults a new
+      // employee gets, so the fields never render blank/unselected.
+      return {
+        ...employee,
+        shiftStartTime: employee.shiftStartTime || SHIFT_START_TIMES[employee.shift] || SHIFT_START_TIMES.Morning,
+        shiftEndMode: employee.shiftEndMode || (employee.shift === 'Evening' ? 'dayClosing' : 'fixed'),
+        shiftEndTime: employee.shiftEndTime || (employee.shift === 'Evening' ? '' : DEFAULT_MORNING_CHECKOUT),
+      }
+    }
+    return {
       name: '',
       role: 'Waiter',
       shift: 'Morning',
+      shiftStartTime: SHIFT_START_TIMES.Morning,
+      shiftEndMode: 'fixed',
+      shiftEndTime: DEFAULT_MORNING_CHECKOUT,
       phone: '',
       email: '',
       baseSalary: '',
       deviceUserId: '',
       active: true,
-    },
-  )
+    }
+  })
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
+  // Switching shift resets check-in/out to that shift's defaults — Evening's
+  // checkout has no sensible "fixed" carry-over from Morning's 10 PM default.
+  const onShiftChange = (newShift) =>
+    setForm((f) => ({
+      ...f,
+      shift: newShift,
+      shiftStartTime: SHIFT_START_TIMES[newShift] || f.shiftStartTime,
+      shiftEndMode: newShift === 'Evening' ? 'dayClosing' : 'fixed',
+      shiftEndTime: newShift === 'Evening' ? '' : DEFAULT_MORNING_CHECKOUT,
+    }))
   // Pakistani numbers are 11 digits (03XX-XXXXXXX). Only the digit count is
   // capped — separators the user types are left alone, so both the dashed
   // seed format and a plain 03045566778 stay valid.
@@ -103,7 +131,7 @@ function EmployeeModal({ employee, onSave, onClose }) {
                 </select>
               </Field>
               <Field label={t('employees.shift')}>
-                <select className="input py-2.5" value={form.shift} onChange={(e) => set('shift', e.target.value)}>
+                <select className="input py-2.5" value={form.shift} onChange={(e) => onShiftChange(e.target.value)}>
                   {SHIFTS.map((s) => (
                     <option key={s} value={s}>
                       {t(`shifts.${s}`, s)}
@@ -112,6 +140,45 @@ function EmployeeModal({ employee, onSave, onClose }) {
                 </select>
               </Field>
             </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label={t('employees.checkIn')}>
+                <input
+                  type="time"
+                  className="input py-2.5"
+                  value={form.shiftStartTime || ''}
+                  onChange={(e) => set('shiftStartTime', e.target.value)}
+                />
+              </Field>
+              {form.shift === 'Evening' ? (
+                <Field label={t('employees.checkOut')}>
+                  <select className="input py-2.5" value={form.shiftEndMode || 'dayClosing'} onChange={(e) => set('shiftEndMode', e.target.value)}>
+                    <option value="dayClosing">{t('employees.dayClosing')}</option>
+                    <option value="fixed">{t('employees.others')}</option>
+                  </select>
+                </Field>
+              ) : (
+                <Field label={t('employees.checkOut')}>
+                  <input
+                    type="time"
+                    className="input py-2.5"
+                    value={form.shiftEndTime || ''}
+                    onChange={(e) => set('shiftEndTime', e.target.value)}
+                  />
+                </Field>
+              )}
+            </div>
+
+            {form.shift === 'Evening' && form.shiftEndMode === 'fixed' && (
+              <Field label={t('employees.checkOutTime')}>
+                <input
+                  type="time"
+                  className="input py-2.5"
+                  value={form.shiftEndTime || ''}
+                  onChange={(e) => set('shiftEndTime', e.target.value)}
+                />
+              </Field>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <Field label={t('employees.phone')}>
@@ -174,6 +241,8 @@ function EmployeeModal({ employee, onSave, onClose }) {
                   ...form,
                   name: form.name.trim(),
                   baseSalary: Number(form.baseSalary) || 0,
+                  // "Day Closing" mode has no fixed time to store — null, not ''.
+                  shiftEndTime: form.shiftEndMode === 'dayClosing' ? null : form.shiftEndTime || null,
                 })
                 onClose()
               }}

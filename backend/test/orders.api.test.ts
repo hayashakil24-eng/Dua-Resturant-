@@ -185,4 +185,85 @@ describe('orders', () => {
     const res = await app.inject({ method: 'POST', url: `/api/orders/${orderId}/cancel`, headers: auth(admin), payload: {} })
     expect(res.statusCode).toBe(400)
   })
+
+  it('shifts a running order onto Takeaway (302), and allows a second concurrent order there too', async () => {
+    const cashier = await tokenFor('cashier')
+    const place = (table: number) =>
+      app.inject({
+        method: 'POST',
+        url: '/api/orders',
+        headers: auth(cashier),
+        payload: { table, items: [{ menuItemId: 'br2', name: 'Garlic Naan', price: 150, qty: 1 }], payment: 'Unpaid' },
+      })
+
+    const id1 = JSON.parse((await place(9)).body).order.id
+    const shift1 = await app.inject({ method: 'POST', url: `/api/orders/${id1}/table`, headers: auth(cashier), payload: { table: 302 } })
+    expect(shift1.statusCode).toBe(200)
+    expect(JSON.parse(shift1.body).order.table).toBe(302)
+
+    // Takeaway is a seatless pseudo-table meant to hold many concurrent orders,
+    // unlike a physical table — a second unpaid order can also land on it.
+    const id2 = JSON.parse((await place(10)).body).order.id
+    const shift2 = await app.inject({ method: 'POST', url: `/api/orders/${id2}/table`, headers: auth(cashier), payload: { table: 302 } })
+    expect(shift2.statusCode).toBe(200)
+    expect(JSON.parse(shift2.body).order.table).toBe(302)
+  })
+
+  it('still refuses to move an order onto an occupied physical table', async () => {
+    const cashier = await tokenFor('cashier')
+    const place = (table: number) =>
+      app.inject({
+        method: 'POST',
+        url: '/api/orders',
+        headers: auth(cashier),
+        payload: { table, items: [{ menuItemId: 'br2', name: 'Garlic Naan', price: 150, qty: 1 }], payment: 'Unpaid' },
+      })
+    await place(13) // occupies table 13
+    const idB = JSON.parse((await place(14)).body).order.id
+    const res = await app.inject({ method: 'POST', url: `/api/orders/${idB}/table`, headers: auth(cashier), payload: { table: 13 } })
+    expect(res.statusCode).toBe(400)
+  })
+
+  it('rejects a Delivery order (table 301) missing rider/customer/phone/address/charge', async () => {
+    const cashier = await tokenFor('cashier')
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orders',
+      headers: auth(cashier),
+      payload: { table: 301, items: [{ menuItemId: 'br2', name: 'Garlic Naan', price: 150, qty: 1 }], payment: 'Unpaid' },
+    })
+    expect(res.statusCode).toBe(400)
+  })
+
+  it('places a Delivery order with full details, hides no total impact from deliveryCharge, and round-trips them', async () => {
+    const cashier = await tokenFor('cashier')
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orders',
+      headers: auth(cashier),
+      payload: {
+        table: 301,
+        items: [{ menuItemId: 'br2', name: 'Garlic Naan', price: 150, qty: 2 }],
+        payment: 'Unpaid',
+        deliveryRiderName: 'Sajid',
+        deliveryCustomerName: 'Mubashir',
+        deliveryCharge: 100,
+        deliveryPhone: '0300-1234567',
+        deliveryAddress: 'House 12, Hawksbay Road',
+        deliveryInstructions: 'Call before arriving',
+      },
+    })
+    expect(res.statusCode).toBe(200)
+    const { order } = JSON.parse(res.body)
+    expect(order.table).toBe(301)
+    expect(order.deliveryRiderName).toBe('Sajid')
+    expect(order.deliveryCustomerName).toBe('Mubashir')
+    expect(order.deliveryCharge).toBe(100)
+    expect(order.deliveryPhone).toBe('0300-1234567')
+    expect(order.deliveryAddress).toBe('House 12, Hawksbay Road')
+
+    const fetched = await app.inject({ method: 'GET', url: '/api/orders', headers: auth(cashier) })
+    const refetched = JSON.parse(fetched.body).orders.find((o: { id: string }) => o.id === order.id)
+    expect(refetched.deliveryRiderName).toBe('Sajid')
+  })
 })

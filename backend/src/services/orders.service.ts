@@ -94,6 +94,12 @@ export function serializeOrder(o: OrderWithItems) {
     displayId: `ORD-${o.orderNumber}`,
     table: o.table,
     waiter: o.waiter,
+    deliveryRiderName: o.deliveryRiderName ?? undefined,
+    deliveryCustomerName: o.deliveryCustomerName ?? undefined,
+    deliveryCharge: o.deliveryCharge ?? undefined,
+    deliveryPhone: o.deliveryPhone ?? undefined,
+    deliveryAddress: o.deliveryAddress ?? undefined,
+    deliveryInstructions: o.deliveryInstructions ?? undefined,
     items: o.items.map((it) => ({
       id: cartKey(it), // cart key the frontend expects on order lines
       itemId: it.id, // DB row id, for precise qty edits
@@ -302,6 +308,12 @@ export interface AddOrderInput {
   payment?: string
   method?: string
   onlineAccountId?: string | null
+  deliveryRiderName?: string | null
+  deliveryCustomerName?: string | null
+  deliveryCharge?: number | null
+  deliveryPhone?: string | null
+  deliveryAddress?: string | null
+  deliveryInstructions?: string | null
 }
 
 export async function addOrder(ctx: Ctx, input: AddOrderInput) {
@@ -323,6 +335,19 @@ export async function addOrder(ctx: Ctx, input: AddOrderInput) {
       if (running) throw new ServiceError(`Table already has a running order (ORD-${running.orderNumber}) — add to it or settle it first.`)
     }
 
+    // Delivery details are collected up front in the POS modal — re-checked
+    // here (not just in the UI) same as every other mutator in this service.
+    const isDelivery = tableRow?.orderType === 'delivery'
+    if (isDelivery) {
+      if (!input.deliveryRiderName?.trim()) throw new ServiceError('Rider name is required for a delivery order.')
+      if (!input.deliveryCustomerName?.trim()) throw new ServiceError('Customer name is required for a delivery order.')
+      if (!input.deliveryPhone?.trim()) throw new ServiceError('Customer phone is required for a delivery order.')
+      if (!input.deliveryAddress?.trim()) throw new ServiceError('Delivery address is required for a delivery order.')
+      if (input.deliveryCharge == null || !Number.isFinite(Number(input.deliveryCharge))) {
+        throw new ServiceError('Delivery charge is required for a delivery order.')
+      }
+    }
+
     const settings = await tx.appSettings.findUnique({ where: { id: 'singleton' } })
     const gstRate = settings?.gstEnabled ? settings.gstRate : 0
     const shiftId = await getActiveShiftId(tx)
@@ -338,6 +363,12 @@ export async function addOrder(ctx: Ctx, input: AddOrderInput) {
         orderNumber,
         table,
         waiter: input.waiter ?? null,
+        deliveryRiderName: isDelivery ? input.deliveryRiderName?.trim() : null,
+        deliveryCustomerName: isDelivery ? input.deliveryCustomerName?.trim() : null,
+        deliveryCharge: isDelivery ? Number(input.deliveryCharge) : null,
+        deliveryPhone: isDelivery ? input.deliveryPhone?.trim() : null,
+        deliveryAddress: isDelivery ? input.deliveryAddress?.trim() : null,
+        deliveryInstructions: isDelivery ? input.deliveryInstructions?.trim() || null : null,
         payment,
         method: payment === 'Paid' ? input.method ?? '—' : '—',
         onlineAccountId: paidOnline ? account?.id ?? null : null,
@@ -558,8 +589,12 @@ export async function shiftOrderTable(ctx: Ctx, orderId: string, newTable: numbe
     // An occupied table is never a valid destination: two unpaid orders sharing
     // one seat is a billing mix-up, not a merge. Checked here and not only in
     // the picker, since two cashiers can pick the same free table at once.
-    const busy = await tx.order.findFirst({ where: { table, cancelled: false, payment: 'Unpaid', id: { not: orderId } } })
-    if (busy) throw new ServiceError('That table already has a running order — pick a free table.')
+    // Delivery/Takeaway (dest.orderType set) are seatless pseudo-tables meant to
+    // hold many concurrent orders — exempt, matching POS.jsx's selectedTableBusy.
+    if (!dest.orderType) {
+      const busy = await tx.order.findFirst({ where: { table, cancelled: false, payment: 'Unpaid', id: { not: orderId } } })
+      if (busy) throw new ServiceError('That table already has a running order — pick a free table.')
+    }
 
     const from = o.table
     const at = new Date()
@@ -599,6 +634,22 @@ export async function applyDiscount(
       amt = Math.min(Math.max(0, Number(opts.amount) || 0), total)
     }
     if (amt <= 0) throw new ServiceError('Enter a discount amount greater than zero.')
+
+    // Cashier's `discount` permission is 'edit' (capped), not 'full' like
+    // Admin/Manager — re-checked here, never trusted from the client, same as
+    // every other figure in this function. Effective-percent-of-bill covers
+    // both percent and flat-amount requests identically.
+    if (ctx.actor.role === 'Cashier') {
+      const { maxCashierDiscountPercent: cap } = await tx.appSettings.upsert({ where: { id: 'singleton' }, create: { id: 'singleton' }, update: {} })
+      const effectivePercent = total > 0 ? (amt / total) * 100 : 0
+      if (effectivePercent > cap + 0.01) {
+        throw new ServiceError(
+          cap > 0
+            ? `Cashiers can discount up to ${cap}% — ask a Manager/Admin for more.`
+            : 'Cashiers cannot apply a discount until an Admin sets a limit in Settings.',
+        )
+      }
+    }
 
     const reason = opts.reason || 'Manual Discount'
     const notes = opts.notes ?? ''

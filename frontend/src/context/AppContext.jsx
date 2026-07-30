@@ -126,6 +126,10 @@ export function AppProvider({ children }) {
   const [pendingHandovers, setPendingHandovers] = useState([])
   const [gstEnabled, setGstEnabled] = useState(false)
   const [gstRate, setGstRateState] = useState(TAX_RATE)
+  // Ceiling on a Cashier's applyDiscount — 0 until an Admin sets a real limit
+  // in Settings (Cashier's `discount` permission is 'edit'/capped, not
+  // 'full' like Admin/Manager — see permissions.js).
+  const [maxCashierDiscountPercent, setMaxCashierDiscountPercentState] = useState(0)
   const [whatsappReport, setWhatsappReport] = useState({ enabled: false, hour: 23, recipient: '' })
   const [attendanceDevice, setAttendanceDevice] = useState({ ip: '', port: 4370 })
   const [onlineAccounts, setOnlineAccounts] = useState([])
@@ -169,6 +173,7 @@ export function AppProvider({ children }) {
       apiGet('/api/settings').then((d) => {
         setGstEnabled(Boolean(d.settings?.gstEnabled))
         setGstRateState(d.settings?.gstRate ?? TAX_RATE)
+        setMaxCashierDiscountPercentState(d.settings?.maxCashierDiscountPercent ?? 0)
         setWhatsappReport({
           enabled: Boolean(d.settings?.whatsappReportEnabled),
           hour: d.settings?.whatsappReportHour ?? 23,
@@ -375,6 +380,15 @@ export function AppProvider({ children }) {
       return toError(e)
     }
   }
+  const setMaxCashierDiscountPercent = async (pct) => {
+    try {
+      await apiPost('/api/settings/max-cashier-discount', { pct: Number(pct) })
+      await refresh(['settings'])
+      return {}
+    } catch (e) {
+      return toError(e)
+    }
+  }
   const setWhatsappReportConfig = async (patch = {}) => {
     try {
       await apiPost('/api/settings/whatsapp-report', patch)
@@ -462,7 +476,20 @@ export function AppProvider({ children }) {
   }
 
   // ---- Orders ------------------------------------------------------------
-  const addOrder = async ({ table, waiter, items, payment, method, onlineAccount = null }) => {
+  const addOrder = async ({
+    table,
+    waiter,
+    items,
+    payment,
+    method,
+    onlineAccount = null,
+    deliveryRiderName,
+    deliveryCustomerName,
+    deliveryCharge,
+    deliveryPhone,
+    deliveryAddress,
+    deliveryInstructions,
+  }) => {
     try {
       const { order } = await apiPost('/api/orders', {
         table,
@@ -471,6 +498,12 @@ export function AppProvider({ children }) {
         payment,
         method,
         onlineAccountId: onlineAccount?.id ?? null,
+        deliveryRiderName,
+        deliveryCustomerName,
+        deliveryCharge,
+        deliveryPhone,
+        deliveryAddress,
+        deliveryInstructions,
       })
       await refresh(['orders', 'inventory'])
       return normalizeOrder(order)
@@ -1216,6 +1249,8 @@ export function AppProvider({ children }) {
     gstRate,
     setGst,
     setGstRate,
+    maxCashierDiscountPercent,
+    setMaxCashierDiscountPercent,
     whatsappReport,
     setWhatsappReportConfig,
     attendanceDevice,

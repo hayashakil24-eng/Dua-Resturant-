@@ -4,6 +4,7 @@ import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader, StatCard } from '../components/ui.jsx'
 import { money, dateShort } from '../utils/format.js'
 import SettleReceivableModal from '../components/SettleReceivableModal.jsx'
+import ReceivableStatement from '../components/ReceivableStatement.jsx'
 import { Receipt } from './Billing.jsx'
 import { IconWallet, IconAlert, IconCheck, IconChevronDown, IconReceipt } from '../components/Icons.jsx'
 
@@ -20,6 +21,7 @@ export default function ReceivablesManagement() {
   const [showAll, setShowAll] = useState(false)
   const [visibleCount, setVisibleCount] = useState(RECEIVABLES_PAGE_SIZE)
   const [viewOrder, setViewOrder] = useState(null) // order whose bill is being viewed
+  const [viewStatement, setViewStatement] = useState(null) // receivable whose combined statement is being viewed
   const [settleTarget, setSettleTarget] = useState(null)
   // Which account rows are expanded to show their bill-by-bill breakdown
   // (charges — the udhaar orders that built up the balance, distinct from
@@ -100,7 +102,14 @@ export default function ReceivablesManagement() {
               {shown.map((r) => {
                 const open = r.status === 'open'
                 const isOpen = expanded.has(r.id)
-                const charges = [...(r.charges || [])].sort((a, b) => new Date(b.at) - new Date(a.at))
+                // Charges (orders that built up the balance) and payments
+                // (settlements against it) shown together, newest first, so
+                // a payment shows inline instead of only in the Settled
+                // section further down the page.
+                const entries = [
+                  ...(r.charges || []).map((c) => ({ ...c, kind: 'charge' })),
+                  ...(r.payments || []).map((p) => ({ ...p, kind: 'payment' })),
+                ].sort((a, b) => new Date(b.at) - new Date(a.at))
                 return (
                   <Fragment key={r.id}>
                     <tr
@@ -150,7 +159,7 @@ export default function ReceivablesManagement() {
                           <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-cream-dim">
                             {t('receivables.billBreakdown')}
                           </p>
-                          {charges.length === 0 ? (
+                          {entries.length === 0 ? (
                             <p className="text-xs text-cream-dim">{t('receivables.noCharges')}</p>
                           ) : (
                             <table className="w-full text-left text-xs">
@@ -164,25 +173,43 @@ export default function ReceivablesManagement() {
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-ink-line/60">
-                                {charges.map((c) => {
-                                  const chargeOrder = c.orderId ? orderByServerId.get(c.orderId) : null
+                                {entries.map((e) => {
+                                  if (e.kind === 'payment') {
+                                    return (
+                                      <tr key={e.id}>
+                                        <td className="py-1.5 pe-4 text-cream-dim">{dateShort(e.at)}</td>
+                                        <td className="py-1.5 pe-4 text-cream-dim">—</td>
+                                        <td className="py-1.5 pe-4 text-cream-dim">—</td>
+                                        <td className="py-1.5 pe-4 text-right font-semibold text-emerald-300">{money(e.amount)}</td>
+                                        <td className="py-1.5 text-right">
+                                          <button
+                                            onClick={() => setViewStatement(r)}
+                                            className="inline-flex items-center gap-1 rounded-lg border border-ink-line bg-ink-soft px-2.5 py-1 text-[11px] font-semibold text-cream-dim transition hover:border-gold/40 hover:text-gold"
+                                          >
+                                            <IconReceipt size={12} /> {t('receivables.viewBill')}
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    )
+                                  }
+                                  const chargeOrder = e.orderId ? orderByServerId.get(e.orderId) : null
                                   return (
-                                  <tr key={c.id}>
-                                    <td className="py-1.5 pe-4 text-cream-dim">{dateShort(c.at)}</td>
-                                    <td className="py-1.5 pe-4 text-cream-dim">{c.orderId ? orderLabel(c.orderId) : '—'}</td>
-                                    <td className="py-1.5 pe-4 text-cream-dim">{c.by || '—'}</td>
-                                    <td className="py-1.5 pe-4 text-right font-semibold text-rose-300">{money(c.amount)}</td>
-                                    <td className="py-1.5 text-right">
-                                      {chargeOrder && (
-                                        <button
-                                          onClick={() => setViewOrder(chargeOrder)}
-                                          className="inline-flex items-center gap-1 rounded-lg border border-ink-line bg-ink-soft px-2.5 py-1 text-[11px] font-semibold text-cream-dim transition hover:border-gold/40 hover:text-gold"
-                                        >
-                                          <IconReceipt size={12} /> {t('receivables.viewBill')}
-                                        </button>
-                                      )}
-                                    </td>
-                                  </tr>
+                                    <tr key={e.id}>
+                                      <td className="py-1.5 pe-4 text-cream-dim">{dateShort(e.at)}</td>
+                                      <td className="py-1.5 pe-4 text-cream-dim">{e.orderId ? orderLabel(e.orderId) : '—'}</td>
+                                      <td className="py-1.5 pe-4 text-cream-dim">{e.by || '—'}</td>
+                                      <td className="py-1.5 pe-4 text-right font-semibold text-rose-300">{money(e.amount)}</td>
+                                      <td className="py-1.5 text-right">
+                                        {chargeOrder && (
+                                          <button
+                                            onClick={() => setViewOrder(chargeOrder)}
+                                            className="inline-flex items-center gap-1 rounded-lg border border-ink-line bg-ink-soft px-2.5 py-1 text-[11px] font-semibold text-cream-dim transition hover:border-gold/40 hover:text-gold"
+                                          >
+                                            <IconReceipt size={12} /> {t('receivables.viewBill')}
+                                          </button>
+                                        )}
+                                      </td>
+                                    </tr>
                                   )
                                 })}
                               </tbody>
@@ -260,6 +287,14 @@ export default function ReceivablesManagement() {
           canMarkPaid={false}
           onMarkPaid={() => {}}
           onClose={() => setViewOrder(null)}
+        />
+      )}
+
+      {viewStatement && (
+        <ReceivableStatement
+          receivable={viewStatement}
+          orderLabel={orderLabel}
+          onClose={() => setViewStatement(null)}
         />
       )}
     </div>

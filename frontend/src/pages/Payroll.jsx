@@ -1,9 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader, StatCard } from '../components/ui.jsx'
 import { money, dateShort, monthYear } from '../utils/format.js'
-import { monthAttendance, calcSalary } from '../utils/payroll.js'
+import { monthAttendance, calcNetSalary } from '../utils/payroll.js'
+import { formatLateDuration } from '../utils/attendanceHelpers.js'
+import { apiGet } from '../api/client.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import {
   IconWallet,
@@ -24,7 +26,7 @@ const DAY_STYLES = {
   upcoming: 'border border-dashed border-ink-line text-cream-dim',
 }
 
-function DetailsModal({ staff, att, year, month, monthLabel, onClose }) {
+function DetailsModal({ staff, att, gapDays, year, month, monthLabel, onClose }) {
   const t = useT()
   useEscapeKey(onClose)
   const firstDow = new Date(year, month, 1).getDay()
@@ -87,6 +89,25 @@ function DetailsModal({ staff, att, year, month, monthLabel, onClose }) {
               <span className="h-2.5 w-2.5 rounded bg-white/20" /> {t('payroll.dayOff')}
             </span>
           </div>
+
+          {/* Real per-day late/early log (checkIn/checkOut vs shift times) —
+              recorded per day, not just a cumulative month-end number. */}
+          {gapDays && gapDays.length > 0 && (
+            <div className="mt-5 border-t border-ink-line pt-4">
+              <p className="mb-2 text-[11px] uppercase tracking-wider text-cream-dim">{t('payroll.lateEarlyLog')}</p>
+              <div className="max-h-40 space-y-1.5 overflow-y-auto">
+                {gapDays.map((d) => (
+                  <div key={d.date} className="flex items-center justify-between rounded-lg border border-ink-line bg-ink-soft/50 px-3 py-1.5 text-xs">
+                    <span className="text-cream-dim">{dateShort(d.date)}</span>
+                    <span className="flex gap-2">
+                      {d.lateMinutes > 0 && <span className="text-rose-300">{formatLateDuration(d.lateMinutes)}</span>}
+                      {d.earlyMinutes > 0 && <span className="text-amber-300">{d.earlyMinutes}m {t('payroll.earlyShort')}</span>}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -112,7 +133,7 @@ function Row({ label, value }) {
   )
 }
 
-function EditModal({ staff, att, calculated, advances, onAddAdvance, onDeleteAdvance, onDone, onClose }) {
+function EditModal({ staff, att, calculated, deductions, advances, onAddAdvance, onDeleteAdvance, onDone, onClose }) {
   const t = useT()
   const [amount, setAmount] = useState('')
   const [reason, setReason] = useState('')
@@ -169,6 +190,15 @@ function EditModal({ staff, att, calculated, advances, onAddAdvance, onDeleteAdv
           <div className="mt-4 divide-y divide-ink-line">
             <Row label={t('payroll.baseSalaryLocked')} value={money(staff.baseSalary)} />
             <Row label={t('payroll.presentDays')} value={`${att.present} / ${att.workingDays}`} />
+            {deductions.absenceDeduction > 0 && (
+              <Row label={t('payroll.absenceDeduction')} value={<span className="text-rose-300">− {money(deductions.absenceDeduction)}</span>} />
+            )}
+            {deductions.lateDeduction > 0 && (
+              <Row label={t('payroll.lateDeduction')} value={<span className="text-rose-300">− {money(deductions.lateDeduction)}</span>} />
+            )}
+            {deductions.earlyDeduction > 0 && (
+              <Row label={t('payroll.earlyLeaveDeduction')} value={<span className="text-rose-300">− {money(deductions.earlyDeduction)}</span>} />
+            )}
             <Row label={t('payroll.calculatedSalary')} value={money(calculated)} />
           </div>
 
@@ -266,7 +296,7 @@ function EditModal({ staff, att, calculated, advances, onAddAdvance, onDeleteAdv
 // ---------------------------------------------------------------------------
 // Staff payroll card
 // ---------------------------------------------------------------------------
-function PayrollCard({ staff, att, calculated, advTotal, final, onDetails, onEdit }) {
+function PayrollCard({ staff, att, calculated, deductions, advTotal, final, onDetails, onEdit }) {
   const t = useT()
   const pct = att.workingDays > 0 ? (att.present / att.workingDays) * 100 : 0
   return (
@@ -298,6 +328,24 @@ function PayrollCard({ staff, att, calculated, advTotal, final, onDetails, onEdi
       </div>
 
       <div className="mt-4 space-y-1.5 border-t border-ink-line pt-4 text-sm">
+        {deductions.absenceDeduction > 0 && (
+          <div className="flex justify-between text-cream-dim">
+            <span>{t('payroll.absenceDeduction')}</span>
+            <span className="text-rose-300">− {money(deductions.absenceDeduction)}</span>
+          </div>
+        )}
+        {deductions.lateDeduction > 0 && (
+          <div className="flex justify-between text-cream-dim">
+            <span>{t('payroll.lateDeduction')}</span>
+            <span className="text-rose-300">− {money(deductions.lateDeduction)}</span>
+          </div>
+        )}
+        {deductions.earlyDeduction > 0 && (
+          <div className="flex justify-between text-cream-dim">
+            <span>{t('payroll.earlyLeaveDeduction')}</span>
+            <span className="text-rose-300">− {money(deductions.earlyDeduction)}</span>
+          </div>
+        )}
         <div className="flex justify-between text-cream-dim">
           <span>{t('payroll.calculated')}</span>
           <span className="text-cream">{money(calculated)}</span>
@@ -352,10 +400,27 @@ export default function Payroll() {
   const [detailStaff, setDetailStaff] = useState(null)
   const [editStaff, setEditStaff] = useState(null)
   const [saved, setSaved] = useState(false)
+  // Real per-day late/early minutes for the selected month (GET /api/attendance/gaps)
+  // — month-scoped and on-demand, so it isn't part of AppContext's always-fetched state.
+  const [gaps, setGaps] = useState({})
 
   const [year, month] = monthKey.split('-').map(Number)
   const monthIndex = month - 1
   const monthLabel = monthOptions.find((m) => m.key === monthKey)?.label
+
+  useEffect(() => {
+    let cancelled = false
+    apiGet(`/api/attendance/gaps?year=${year}&month=${monthIndex}`)
+      .then((d) => {
+        if (!cancelled) setGaps(d.gaps || {})
+      })
+      .catch(() => {
+        if (!cancelled) setGaps({})
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [year, monthIndex])
 
   // Compute every staff member's payroll (incl. this month's advances).
   const rows = useMemo(
@@ -364,7 +429,16 @@ export default function Payroll() {
         .filter((s) => s.active !== false)
         .map((emp) => {
           const att = monthAttendance(emp.id, year, monthIndex, today)
-          const calculated = calcSalary(emp.baseSalary, att.workingDays, att.present)
+          const g = gaps[emp.id] || { days: [], totalLateMinutes: 0, totalEarlyMinutes: 0, avgShiftMinutes: 480 }
+          const deductions = calcNetSalary({
+            base: emp.baseSalary,
+            workingDays: att.workingDays,
+            absent: att.absent,
+            lateMinutes: g.totalLateMinutes,
+            earlyMinutes: g.totalEarlyMinutes,
+            shiftMinutes: g.avgShiftMinutes,
+          })
+          const calculated = deductions.total
           const staffAdvances = advances.filter((a) => {
             if (a.staffId !== emp.id) return false
             const d = new Date(a.date)
@@ -372,9 +446,9 @@ export default function Payroll() {
           })
           const advTotal = staffAdvances.reduce((s, a) => s + a.amount, 0)
           const final = Math.max(0, calculated - advTotal)
-          return { staff: emp, att, calculated, advances: staffAdvances, advTotal, final }
+          return { staff: emp, att, gapDays: g.days, deductions, calculated, advances: staffAdvances, advTotal, final }
         }),
-    [staff, year, monthIndex, today, advances],
+    [staff, year, monthIndex, today, advances, gaps],
   )
 
   // New advances land in the selected month (last day for past months).
@@ -438,6 +512,7 @@ export default function Payroll() {
             staff={r.staff}
             att={r.att}
             calculated={r.calculated}
+            deductions={r.deductions}
             advTotal={r.advTotal}
             final={r.final}
             onDetails={() => setDetailStaff(r.staff.id)}
@@ -467,6 +542,7 @@ export default function Payroll() {
         <DetailsModal
           staff={detailRow.staff}
           att={detailRow.att}
+          gapDays={detailRow.gapDays}
           year={year}
           month={monthIndex}
           monthLabel={monthLabel}
@@ -479,6 +555,7 @@ export default function Payroll() {
           staff={editRow.staff}
           att={editRow.att}
           calculated={editRow.calculated}
+          deductions={editRow.deductions}
           advances={editRow.advances}
           onAddAdvance={({ amount, reason }) =>
             addAdvance({ staffId: editRow.staff.id, amount, reason, date: advanceDate() })

@@ -23,7 +23,10 @@ const QUICK_PERCENTS = [5, 10, 15, 20, 25, 50]
 // would otherwise pay. The breakdown is shown here because "10% of what?" is
 // the first thing anyone asks. In percent mode the rupee figure is only a
 // preview: the server recomputes it from the percent it is sent.
-export default function DiscountModal({ order, bill, rate = 0, onApply, onClose }) {
+// `maxPercent` (null = unlimited, Admin/Manager) caps what a Cashier can
+// grant — set in Settings, re-enforced server-side in orders.service.ts's
+// applyDiscount so this client check is a courtesy, not the real gate.
+export default function DiscountModal({ order, bill, rate = 0, maxPercent = null, onApply, onClose }) {
   const gross = bill.total
   const [mode, setMode] = useState('percent') // 'percent' | 'amount'
   const [percent, setPercent] = useState('')
@@ -33,6 +36,10 @@ export default function DiscountModal({ order, bill, rate = 0, onApply, onClose 
   const [error, setError] = useState('')
   useEscapeKey(onClose)
 
+  const capped = maxPercent != null
+  const percentCeiling = capped ? Math.min(100, maxPercent) : 100
+  const amountCeiling = capped ? Math.min(gross, Math.round((gross * maxPercent) / 100)) : gross
+
   const byPercent = mode === 'percent'
   const pct = Number(percent) || 0
   const amt = byPercent ? Math.round((gross * pct) / 100) : Number(amount) || 0
@@ -41,9 +48,11 @@ export default function DiscountModal({ order, bill, rate = 0, onApply, onClose 
   const submit = () => {
     if (byPercent) {
       if (!Number.isInteger(pct) || pct <= 0 || pct > 100) return setError('Enter a whole percentage between 1 and 100.')
+      if (pct > percentCeiling) return setError(`You can discount up to ${percentCeiling}%.`)
     } else {
       if (amt <= 0) return setError('Enter a discount amount.')
       if (amt > gross) return setError(`Discount cannot exceed ${money(gross)}.`)
+      if (amt > amountCeiling) return setError(`You can discount up to ${money(amountCeiling)} (${percentCeiling}%).`)
     }
     setError('')
     onApply({
@@ -119,6 +128,12 @@ export default function DiscountModal({ order, bill, rate = 0, onApply, onClose 
             ))}
           </div>
 
+          {capped && (
+            <p className="mt-4 rounded-lg border border-gold/25 bg-gold/[0.06] px-3 py-2 text-xs text-gold">
+              Capped at {percentCeiling}% for your role.
+            </p>
+          )}
+
           {byPercent ? (
             <div className="mt-4">
               <label className="mb-2 block text-[11px] uppercase tracking-wider text-cream-dim">
@@ -128,7 +143,7 @@ export default function DiscountModal({ order, bill, rate = 0, onApply, onClose 
                 type="number"
                 inputMode="numeric"
                 min={1}
-                max={100}
+                max={percentCeiling}
                 step={1}
                 autoFocus
                 className="input"
@@ -137,7 +152,7 @@ export default function DiscountModal({ order, bill, rate = 0, onApply, onClose 
                 onChange={(e) => setPercent(e.target.value)}
               />
               <div className="mt-2 flex flex-wrap gap-2">
-                {QUICK_PERCENTS.map((p) => (
+                {QUICK_PERCENTS.filter((p) => p <= percentCeiling).map((p) => (
                   <button
                     key={p}
                     type="button"
@@ -171,14 +186,14 @@ export default function DiscountModal({ order, bill, rate = 0, onApply, onClose 
                 type="number"
                 inputMode="numeric"
                 min={0}
-                max={gross}
+                max={amountCeiling}
                 autoFocus
                 className="input"
                 placeholder="e.g. 150"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
               />
-              <p className="mt-1 text-[11px] text-cream-dim">Max {money(gross)}</p>
+              <p className="mt-1 text-[11px] text-cream-dim">Max {money(amountCeiling)}</p>
             </div>
           )}
 

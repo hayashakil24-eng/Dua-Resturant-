@@ -186,6 +186,8 @@
      — several are portaled to <body>, so an unscoped reveal showed all at once. */
   body.print-receipt #printable-receipt,
   body.print-receipt #printable-receipt *,
+  body.print-statement #printable-statement,
+  body.print-statement #printable-statement *,
   body.print-report #printable-report,
   body.print-report #printable-report *,
   body.print-kot #printable-kots,
@@ -298,6 +300,25 @@
     right: 0;
     top: 0;
     width: 384px; /* matches the on-screen max-w-sm slip */
+    margin: 0 auto;
+    background: #fff !important;
+    color: #000 !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Account Statement (ReceivableStatement.jsx) — same fixed/centered/single-
+     page treatment as the receipt above; own surface so the two never overlap. */
+  body.print-statement #root {
+    height: 0 !important;
+    overflow: hidden !important;
+  }
+  body.print-statement #printable-statement {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: 0;
+    width: 384px;
     margin: 0 auto;
     background: #fff !important;
     color: #000 !important;
