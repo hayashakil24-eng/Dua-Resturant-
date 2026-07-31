@@ -805,6 +805,15 @@ model DailyClosing {
   // — a frozen historical snapshot, appropriate for JSON storage rather than
   // one column per field.
   reportJson     String
+  // Running cash-in-hand balance as of THIS closing: the previous closing's
+  // own carriedCash (0 for the very first ever closing) + this session's own
+  // remainingHandover (reportJson.remainingHandover — cash sales minus cash
+  // expenses/purchases for the period this closing covers, which already
+  // correctly nets out a credit purchase's settlement on the day it's
+  // actually paid — see payables.service.ts). Persisted once at save time and
+  // never recomputed later, same "frozen snapshot" reason reportJson is — see
+  // closing.service.ts's saveDailyClosing.
+  carriedCash    Int      @default(0)
 
   @@index([date])
 }

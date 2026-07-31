@@ -145,6 +145,58 @@ function ExpenseBreakdown({ inMonth, payroll, daily }) {
 }
 
 // ---------------------------------------------------------------------------
+// Running cash-in-hand: each saved day closing already carries `carriedCash`
+// (the balance AFTER that session) and `openingCarriedCash` (before it) from
+// the backend (closing.service.ts's saveDailyClosing chains each new closing
+// onto the previous one's own carriedCash) — this just lists the selected
+// month's closings in date order so the day-to-day progression reads
+// top-to-bottom, ending at that month's own closing balance. `current` is the
+// live balance as of the most recent closing overall (not month-scoped), so
+// it stays correct even while browsing a past month.
+function CashInHandBox({ closings, current }) {
+  const t = useT()
+  return (
+    <div className="card p-6">
+      <div className="flex items-center justify-between">
+        <h3 className="font-serif text-xl text-cream">{t('accounting.cashInHand')}</h3>
+        <div className="text-right">
+          <p className="text-[11px] uppercase tracking-widest text-cream-dim">{t('accounting.currentBalance')}</p>
+          <p className="font-serif text-2xl font-semibold text-gold">{money(current)}</p>
+        </div>
+      </div>
+      {closings.length === 0 ? (
+        <p className="mt-6 text-sm text-cream-dim">{t('accounting.noClosingsMonth')}</p>
+      ) : (
+        <div className="mt-5 overflow-x-auto">
+          <table className="w-full min-w-[520px] text-left text-sm">
+            <thead>
+              <tr className="text-xs uppercase tracking-wider text-cream-dim">
+                <th className="pb-2 font-semibold">{t('accounting.colDate')}</th>
+                <th className="pb-2 text-right font-semibold">{t('accounting.colOpening')}</th>
+                <th className="pb-2 text-right font-semibold">{t('accounting.colCashIn')}</th>
+                <th className="pb-2 text-right font-semibold">{t('accounting.colCashOut')}</th>
+                <th className="pb-2 text-right font-semibold">{t('accounting.colClosing')}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-ink-line">
+              {closings.map((c) => (
+                <tr key={c.id}>
+                  <td className="py-2.5 text-cream-dim">{dateShort(c.closingTime)}</td>
+                  <td className="py-2.5 text-right text-cream">{money(c.openingCarriedCash ?? 0)}</td>
+                  <td className="py-2.5 text-right text-emerald-300">+{money(c.netCashSales || 0)}</td>
+                  <td className="py-2.5 text-right text-rose-300">−{money(c.expenses || 0)}</td>
+                  <td className="py-2.5 text-right font-semibold text-gold">{money(c.carriedCash ?? 0)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Cafe Ali Maintenance — its own window, listing each maintenance expense entry.
 function MaintenanceBox({ inMonth }) {
   const t = useT()
@@ -297,7 +349,7 @@ function AddTransactionModal({ onClose, onSave }) {
 
 // ---------------------------------------------------------------------------
 export default function Accounting() {
-  const { transactions, addTransaction, deleteTransaction, staff, orders, orderTotal, menu } = useApp()
+  const { transactions, addTransaction, deleteTransaction, staff, orders, orderTotal, menu, dailyClosings } = useApp()
   const { t, lang } = useLang()
   const today = useMemo(() => new Date(), [])
 
@@ -364,6 +416,23 @@ export default function Accounting() {
           return { label: opt.label.slice(0, 3), income: f.income, expense: f.expense }
         }),
     [transactions, orders, orderTotal, monthOptions, today, staff],
+  )
+
+  // Running cash-in-hand — dailyClosings arrives newest-first (backend's
+  // listClosings), so [0] is the live current balance regardless of which
+  // month is being browsed; the table itself only needs the selected month's
+  // rows, oldest-first so the progression reads top-to-bottom.
+  const currentCashInHand = dailyClosings.length ? (dailyClosings[0].carriedCash ?? 0) : 0
+  const monthClosings = useMemo(
+    () =>
+      dailyClosings
+        .filter((c) => {
+          const d = new Date(c.closingTime)
+          return d.getFullYear() === year && d.getMonth() === monthIndex
+        })
+        .slice()
+        .sort((a, b) => new Date(a.closingTime) - new Date(b.closingTime)),
+    [dailyClosings, year, monthIndex],
   )
 
   // Ledger rows = manual EXPENSE entries + read-only auto lines for POS sales
@@ -597,6 +666,9 @@ export default function Accounting() {
         <>
           <div className="mb-6">
             <PLChart data={chartData} />
+          </div>
+          <div className="mb-6">
+            <CashInHandBox closings={monthClosings} current={currentCashInHand} />
           </div>
           {/* Expense Breakdown + Cafe Ali Maintenance side by side in one row. */}
           <div className="grid gap-6 lg:grid-cols-2">

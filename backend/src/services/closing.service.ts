@@ -101,6 +101,12 @@ export async function listClosings() {
       periodStart: rows[i + 1]?.closingTime.toISOString() ?? null,
       periodEnd: r.closingTime.toISOString(),
       totalSales: r.totalSales,
+      // Cash-in-hand carried forward: this closing's running balance, and
+      // (derived the same way periodStart is, from the next-older row) what it
+      // was carried IN at — so a month's worth of these rows in date order
+      // reads as a running ledger without the frontend needing to walk history.
+      carriedCash: r.carriedCash,
+      openingCarriedCash: rows[i + 1]?.carriedCash ?? 0,
     }
   })
 }
@@ -157,6 +163,10 @@ export async function saveDailyClosing(ctx: Ctx, dateStr?: string) {
   // The frozen snapshot records its own recording window, so a reprinted sheet
   // states the period it covers without needing the neighbouring row.
   report.periodEnd = closingTime.toISOString()
+  // Chain onto the previous closing's own running balance (0 if this is the
+  // very first ever) — see the schema comment on DailyClosing.carriedCash.
+  const previous = await prisma.dailyClosing.findFirst({ orderBy: { closingTime: 'desc' } })
+  const carriedCash = (previous?.carriedCash ?? 0) + report.remainingHandover
   const record = await prisma.$transaction(async (tx) => {
     const saved = await tx.dailyClosing.create({
       data: {
@@ -166,9 +176,10 @@ export async function saveDailyClosing(ctx: Ctx, dateStr?: string) {
         closingTime,
         totalSales: report.netSale,
         reportJson: JSON.stringify(report),
+        carriedCash,
       },
     })
-    await writeAudit(tx, { action: 'DAY_CLOSED', actor: ctx.actor, at: closingTime, details: { date: report.date, totalSales: report.netSale } })
+    await writeAudit(tx, { action: 'DAY_CLOSED', actor: ctx.actor, at: closingTime, details: { date: report.date, totalSales: report.netSale, carriedCash } })
     // Synced (docs/05-phase-4-vps-sync.md "Production hardening") so the
     // WhatsApp webhook's on-demand report (src/vps/app.ts) has real closing
     // data to reply with — the VPS never generates a report from scratch,

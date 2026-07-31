@@ -360,7 +360,14 @@
     "amountRs": "رقم (روپے)",
     "date": "تاریخ",
     "auto": "خودکار",
-    "staffPayrollAuto": "عملہ تنخواہ (پے رول سے خودکار)"
+    "staffPayrollAuto": "عملہ تنخواہ (پے رول سے خودکار)",
+    "cashInHand": "ہاتھ میں نقدی",
+    "currentBalance": "موجودہ بیلنس",
+    "noClosingsMonth": "اس مہینے کے لیے ابھی تک کوئی دن کی بندش محفوظ نہیں ہوئی۔",
+    "colOpening": "ابتدائی",
+    "colCashIn": "نقدی آمد",
+    "colCashOut": "نقدی اخراج",
+    "colClosing": "اختتامی"
   },
   "reports": {
     "title": "رپورٹس",

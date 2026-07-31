@@ -360,7 +360,14 @@
     "amountRs": "Amount (Rs.)",
     "date": "Date",
     "auto": "AUTO",
-    "staffPayrollAuto": "Staff payroll (auto from Payroll)"
+    "staffPayrollAuto": "Staff payroll (auto from Payroll)",
+    "cashInHand": "Cash in Hand",
+    "currentBalance": "Current Balance",
+    "noClosingsMonth": "No day closings saved for this month yet.",
+    "colOpening": "Opening",
+    "colCashIn": "Cash In",
+    "colCashOut": "Cash Out",
+    "colClosing": "Closing"
   },
   "reports": {
     "title": "Reports",

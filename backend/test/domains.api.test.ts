@@ -411,4 +411,30 @@ describe('daily closing', () => {
     // The oldest closing has no predecessor — it was calendar-day scoped.
     expect(closings[closings.length - 1].periodStart).toBeNull()
   })
+
+  // Cash-in-hand carries forward the same way the recording window does:
+  // each closing's own carriedCash = the previous closing's carriedCash (its
+  // openingCarriedCash) + this session's own remainingHandover. The oldest
+  // closing has nothing before it, so it opens from zero.
+  it('chains each closing\'s cash-in-hand balance onto the previous one\'s', async () => {
+    const admin = await tokenFor('admin')
+    const cashier = await tokenFor('cashier')
+
+    await post('/api/orders', cashier, {
+      table: 34,
+      payment: 'Paid',
+      method: 'Cash',
+      items: [{ menuItemId: 'br2', name: 'Garlic Naan', price: 150, qty: 1 }],
+    })
+    expect((await post('/api/closings', admin)).statusCode).toBe(200)
+
+    const list = await app.inject({ method: 'GET', url: '/api/closings', headers: auth(admin) })
+    const { closings } = JSON.parse(list.body)
+    expect(closings.length).toBeGreaterThanOrEqual(2)
+
+    expect(closings[0].openingCarriedCash).toBe(closings[1].carriedCash)
+    expect(closings[0].carriedCash).toBe(closings[0].openingCarriedCash + closings[0].remainingHandover)
+    // The oldest closing opened with nothing carried in.
+    expect(closings[closings.length - 1].openingCarriedCash).toBe(0)
+  })
 })
