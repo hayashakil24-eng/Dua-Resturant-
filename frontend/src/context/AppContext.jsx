@@ -59,11 +59,16 @@ const ACTION_REFETCH_MAP = {
   INGREDIENT_REQUEST_REJECTED: ['ingredientRequests'],
   TRANSACTION_ADDED: ['transactions'],
   TRANSACTION_DELETED: ['transactions'],
-  STOCK_PURCHASED: ['inventory', 'purchases', 'transactions'],
+  // A credit purchase touches 'payables' too (charges a supplier account with
+  // no Transaction yet); a paid one doesn't, but refetching the empty-diff key
+  // anyway is harmless — same as every other over-inclusive entry here.
+  STOCK_PURCHASED: ['inventory', 'purchases', 'transactions', 'payables'],
   ADVANCE_GIVEN: ['advances', 'transactions'],
   ADVANCE_DELETED: ['advances', 'transactions'],
   RECEIVABLE_SETTLED: ['receivables'],
   RECEIVABLE_PAYMENT: ['receivables'],
+  PAYABLE_SETTLED: ['payables', 'transactions'],
+  PAYABLE_PAYMENT: ['payables', 'transactions'],
   SHIFT_STARTED: ['shifts', 'activeShift'],
   SHIFT_PAUSED: ['shifts', 'activeShift'],
   SHIFT_RESUMED: ['shifts', 'activeShift'],
@@ -101,6 +106,13 @@ const normalizeReceivable = (r) => ({
   payments: (r.ledger || []).filter((l) => l.type === 'payment'),
   charges: (r.ledger || []).filter((l) => l.type === 'charge'),
 })
+// Mirror-image of normalizeReceivable — a supplier account's ledger splits
+// into what was charged (credit purchases) vs. what's been paid off.
+const normalizePayable = (p) => ({
+  ...p,
+  payments: (p.ledger || []).filter((l) => l.type === 'payment'),
+  purchases: (p.ledger || []).filter((l) => l.type === 'purchase'),
+})
 
 export function AppProvider({ children }) {
   // Session bootstrap: while true we don't render the app, so a page never
@@ -137,6 +149,7 @@ export function AppProvider({ children }) {
   const [whatsappRecipients, setWhatsappRecipients] = useState([])
   const [dailyClosings, setDailyClosings] = useState([])
   const [receivables, setReceivables] = useState([])
+  const [payables, setPayables] = useState([]) // money owed to suppliers for credit stock purchases
   const [departments, setDepartments] = useState([])
   // Fetched from the backend's AttendanceRecord table (today's rows only —
   // see attendance.service.ts). There's still no real biometric machine feed,
@@ -189,6 +202,7 @@ export function AppProvider({ children }) {
     whatsappRecipients: () => apiGet('/api/whatsapp/recipients').then((d) => setWhatsappRecipients(d.recipients || [])),
     dailyClosings: () => apiGet('/api/closings').then((d) => setDailyClosings(d.closings || [])),
     receivables: () => apiGet('/api/receivables').then((d) => setReceivables((d.receivables || []).map(normalizeReceivable))),
+    payables: () => apiGet('/api/payables').then((d) => setPayables((d.payables || []).map(normalizePayable))),
     departments: () => apiGet('/api/departments').then((d) => setDepartments(d.departments || [])),
     audit: () => apiGet('/api/audit').then((d) => setAuditLog(d.audit || [])),
     attendance: () =>
@@ -741,13 +755,15 @@ export function AppProvider({ children }) {
       return toError(e)
     }
   }
-  // Buying stock — raises quantity and books the spend as a dated expense in
-  // one call, so the purchase reaches the reports. Distinct from adjustStock,
-  // which also serves miscount corrections (no money moved).
-  const recordPurchase = async (id, { quantity, unitCost, totalCost, supplier, date } = {}) => {
+  // Buying stock — raises quantity and books the spend in one call, so the
+  // purchase reaches the reports. Distinct from adjustStock, which also
+  // serves miscount corrections (no money moved). `paid: false` books it as a
+  // supplier credit ("udhar") instead of an immediate expense — see
+  // recordPayablePayment below for how that later gets settled.
+  const recordPurchase = async (id, { quantity, unitCost, totalCost, supplier, date, paid = true } = {}) => {
     try {
-      await apiPost(`/api/inventory/${id}/purchase`, { quantity, unitCost, totalCost, supplier, date })
-      await refresh(['inventory', 'purchases', 'transactions'])
+      await apiPost(`/api/inventory/${id}/purchase`, { quantity, unitCost, totalCost, supplier, date, paid })
+      await refresh(['inventory', 'purchases', 'transactions', 'payables'])
       return { success: true }
     } catch (e) {
       return toError(e)
@@ -1196,6 +1212,21 @@ export function AppProvider({ children }) {
     }
   }
 
+  // ---- Payables (supplier credit purchases) ------------------------------
+  const canSettlePayables = () => Boolean(user && ['Admin', 'Manager'].includes(user.role))
+
+  // No manual "add account" mutator here either — an account only ever comes
+  // into existence from a credit purchase (recordPurchase with paid:false).
+  const recordPayablePayment = async (id, amount, { method = 'Cash', notes = '' } = {}) => {
+    try {
+      const res = await apiPost(`/api/payables/${id}/payment`, { amount: amount ?? null, method, notes })
+      await refresh(['payables', 'transactions'])
+      return { success: true, settled: res.settled }
+    } catch (e) {
+      return toError(e)
+    }
+  }
+
   // ---- Departments -------------------------------------------------------
   const addDepartment = async ({ name, nameUrdu = '', description = '', manager = '', managerId = '' } = {}) => {
     try {
@@ -1353,6 +1384,9 @@ export function AppProvider({ children }) {
     rejectHandover,
     receivables,
     recordReceivablePayment,
+    payables,
+    recordPayablePayment,
+    canSettlePayables,
     markOrderUdhaar,
     markOrderComplimentary,
     departments,

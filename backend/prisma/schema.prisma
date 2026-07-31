@@ -266,13 +266,58 @@ model StockPurchase {
   supplier        String?
   date            DateTime
   // The ledger expense row this purchase minted — see Advance.transactionId.
+  // Only set for a "paid" purchase (transactionId is null for a credit
+  // purchase until the supplier is actually settled — see Payable below).
   transactionId   String?
+  // "paid" (cash left the drawer today, the original/default behavior) |
+  // "unpaid" (bought on credit — the supplier is owed, no cash moved yet).
+  paymentStatus   String   @default("paid")
+  // Set only when paymentStatus is "unpaid" — the supplier account this
+  // purchase charged (see Payable). Not a formal @relation, same convention
+  // as Order.udhaarAccountId → Receivable.
+  payableId       String?
   createdBy       String?
   createdByRole   String?
   createdAt       DateTime @default(now())
 
   @@index([date])
   @@index([inventoryItemId])
+}
+
+// ---------------------------------------------------------------------------
+// Payables (money the cafe owes suppliers) — the mirror-image of Receivable
+// (money customers owe the cafe), same running-balance + immutable-ledger
+// shape. A row is only ever created by recordPurchase when a purchase is
+// logged "unpaid" (same convention as Receivable only being born from
+// markOrderUdhaar) — there is no manual "add supplier" path.
+// ---------------------------------------------------------------------------
+model Payable {
+  id        String   @id @default(cuid())
+  name      String // supplier name
+  balance   Int      @default(0)
+  status    String   @default("open") // "open" | "settled"
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ledger PayableLedgerEntry[]
+
+  @@index([status])
+}
+
+model PayableLedgerEntry {
+  id         String   @id @default(cuid())
+  payableId  String
+  payable    Payable  @relation(fields: [payableId], references: [id], onDelete: Cascade)
+  type       String // "purchase" | "payment"
+  amount     Int
+  method     String? // payments only: "Cash" | "Card" | etc.
+  notes      String?
+  purchaseId String? // purchase entries only: the StockPurchase this credit charge came from
+  by         String?
+  at         DateTime @default(now())
+
+  @@index([payableId, type])
 }
 
 model Recipe {

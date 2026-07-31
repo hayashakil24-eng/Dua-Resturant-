@@ -63,11 +63,17 @@ export interface PurchaseInput {
   totalCost?: number
   supplier?: string
   date?: string
+  // true (default, omitted = existing behavior) — cash left the drawer today,
+  // books an expense immediately. false — bought on credit ("udhar"): no cash
+  // moved yet, so instead of an expense this charges a supplier Payable
+  // account, settled later via payables.service.ts's recordPayablePayment
+  // (which is what actually mints the expense, on the day it's really paid).
+  paid?: boolean
 }
 
-// Buying stock: raises the quantity AND books the money as a dated expense, so
-// the purchase reaches every report through the normal ledger. Kept separate
-// from adjustStock because that path also serves Admin *corrections* to a
+// Buying stock: raises the quantity AND books the money, so the purchase
+// reaches every report through the normal ledger. Kept separate from
+// adjustStock because that path also serves Admin *corrections* to a
 // miscount, where no money moved — booking those as expenses would invent spend.
 export async function recordPurchase(ctx: Ctx, id: string, input: PurchaseInput) {
   const quantity = Number(input.quantity)
@@ -85,6 +91,11 @@ export async function recordPurchase(ctx: Ctx, id: string, input: PurchaseInput)
 
   const date = input.date ? new Date(input.date) : new Date()
   if (Number.isNaN(date.getTime())) throw new ServiceError('A valid purchase date is required.')
+
+  const paid = input.paid !== false
+  const supplier = (input.supplier ?? '').trim() || null
+  // Can't track "who it's owed to" without a name — the whole point of this path.
+  if (!paid && !supplier) throw new ServiceError('Supplier name is required for a credit purchase.')
 
   return prisma.$transaction(async (tx) => {
     const item = await tx.inventoryItem.findUnique({ where: { id } })
@@ -107,28 +118,55 @@ export async function recordPurchase(ctx: Ctx, id: string, input: PurchaseInput)
         unit: item.unit,
         unitCost: effectiveUnitCost,
         totalCost,
-        supplier: (input.supplier ?? '').trim() || null,
+        supplier,
         date,
+        paymentStatus: paid ? 'paid' : 'unpaid',
         createdBy: ctx.actor.name,
         createdByRole: ctx.actor.role,
       },
     })
 
-    const txn = await createLedgerEntry(tx, {
-      type: 'expense',
-      category: PURCHASE_CATEGORY,
-      description: `${item.name} — ${quantity} ${item.unit}`,
-      amount: totalCost,
-      date,
-      source: 'purchase',
-      sourceId: purchase.id,
-    })
-    const linked = await tx.stockPurchase.update({ where: { id: purchase.id }, data: { transactionId: txn.id } })
+    let linked = purchase
+    if (paid) {
+      const txn = await createLedgerEntry(tx, {
+        type: 'expense',
+        category: PURCHASE_CATEGORY,
+        description: `${item.name} — ${quantity} ${item.unit}`,
+        amount: totalCost,
+        date,
+        source: 'purchase',
+        sourceId: purchase.id,
+      })
+      linked = await tx.stockPurchase.update({ where: { id: purchase.id }, data: { transactionId: txn.id } })
+    } else {
+      // No cash moved — charge a supplier Payable account instead of an
+      // expense, same shape as markOrderUdhaar charging a Receivable. Reopens
+      // a settled account under the same name rather than fragmenting one
+      // supplier's history across rows.
+      const account = await tx.payable.findFirst({ where: { name: supplier as string, status: { not: 'settled' } } })
+      const at = new Date()
+      const payable = account
+        ? await tx.payable.update({
+            where: { id: account.id },
+            data: { balance: account.balance + totalCost, status: 'open', ledger: { create: { type: 'purchase', amount: totalCost, purchaseId: purchase.id, by: ctx.actor.name, at } } },
+          })
+        : await tx.payable.create({
+            data: {
+              name: supplier as string,
+              balance: totalCost,
+              status: 'open',
+              notes: 'Opened from a credit stock purchase',
+              ledger: { create: { type: 'purchase', amount: totalCost, purchaseId: purchase.id, by: ctx.actor.name, at } },
+            },
+          })
+      linked = await tx.stockPurchase.update({ where: { id: purchase.id }, data: { payableId: payable.id } })
+      await enqueueOutbox(tx, 'Payable', payable.id, payable)
+    }
 
     await writeAudit(tx, {
       action: 'STOCK_PURCHASED',
       actor: ctx.actor,
-      details: { inventoryItemId: id, name: item.name, quantity, unit: item.unit, totalCost, from: item.stock, to: nextStock },
+      details: { inventoryItemId: id, name: item.name, quantity, unit: item.unit, totalCost, from: item.stock, to: nextStock, paymentStatus: paid ? 'paid' : 'unpaid', supplier },
     })
     await enqueueOutbox(tx, 'InventoryItem', updated.id, updated)
     await enqueueOutbox(tx, 'StockPurchase', linked.id, linked)

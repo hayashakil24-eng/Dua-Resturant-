@@ -19,6 +19,7 @@ import { inventoryRoutes } from './routes/inventory.routes.js'
 import { recipeRoutes } from './routes/recipes.routes.js'
 import { shiftRoutes } from './routes/shifts.routes.js'
 import { receivableRoutes } from './routes/receivables.routes.js'
+import { payableRoutes } from './routes/payables.routes.js'
 import { menuRoutes } from './routes/menu.routes.js'
 import { tableRoutes } from './routes/tables.routes.js'
 import { staffRoutes } from './routes/staff.routes.js'
@@ -91,6 +92,7 @@ export function buildApp(): FastifyInstance {
   app.register(recipeRoutes)
   app.register(shiftRoutes)
   app.register(receivableRoutes)
+  app.register(payableRoutes)
   app.register(menuRoutes)
   app.register(tableRoutes)
   app.register(staffRoutes)

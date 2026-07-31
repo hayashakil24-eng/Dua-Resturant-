@@ -92,6 +92,79 @@ describe('inventory + separation of duties', () => {
     expect(res.statusCode).toBe(403)
   })
 
+  // A credit ("udhar") purchase moves stock the same as a paid one, but must
+  // NOT book an expense yet — no cash left the drawer — and instead opens/adds
+  // to a supplier Payable account so it's tracked until settled.
+  it('records a credit purchase as a Payable instead of an expense, raising stock without moving cash', async () => {
+    const manager = await tokenFor('manager')
+    const before = await prisma.inventoryItem.findUniqueOrThrow({ where: { id: 'INV03' } })
+
+    const res = await post('/api/inventory/INV03/purchase', manager, {
+      quantity: 2,
+      unitCost: 300,
+      supplier: 'Hawksbay Traders',
+      paid: false,
+    })
+    expect(res.statusCode).toBe(200)
+    const { item, purchase } = JSON.parse(res.body)
+    expect(item.stock).toBe(before.stock + 2)
+    expect(purchase.paymentStatus).toBe('unpaid')
+    expect(purchase.transactionId).toBeNull()
+    expect(purchase.payableId).toBeTruthy()
+
+    const payable = await prisma.payable.findUniqueOrThrow({ where: { id: purchase.payableId } })
+    expect(payable.name).toBe('Hawksbay Traders')
+    expect(payable.balance).toBe(600)
+    expect(payable.status).toBe('open')
+  })
+
+  it('requires a supplier name for a credit purchase (400)', async () => {
+    const manager = await tokenFor('manager')
+    const res = await post('/api/inventory/INV03/purchase', manager, { quantity: 1, unitCost: 100, paid: false })
+    expect(res.statusCode).toBe(400)
+  })
+
+  it('accumulates two credit purchases from the same supplier onto one Payable balance, and settling books the expense on the day it is actually paid', async () => {
+    const manager = await tokenFor('manager')
+    const admin = await tokenFor('admin')
+
+    const first = await post('/api/inventory/INV03/purchase', manager, { quantity: 1, unitCost: 400, supplier: 'Coastal Supplies', paid: false })
+    const firstPayableId = JSON.parse(first.body).purchase.payableId
+
+    const second = await post('/api/inventory/INV03/purchase', manager, { quantity: 1, unitCost: 600, supplier: 'Coastal Supplies', paid: false })
+    const secondPurchase = JSON.parse(second.body).purchase
+    expect(secondPurchase.payableId).toBe(firstPayableId) // same supplier → same running account
+
+    const payableBefore = await prisma.payable.findUniqueOrThrow({ where: { id: firstPayableId } })
+    expect(payableBefore.balance).toBe(1000)
+
+    // Only Admin/Manager may settle a payable (inventoryAdd — Cashier is forbidden).
+    const cashier = await tokenFor('cashier')
+    const forbidden = await post(`/api/payables/${firstPayableId}/payment`, cashier, { amount: 400 })
+    expect(forbidden.statusCode).toBe(403)
+
+    // Partial settlement.
+    const partial = await post(`/api/payables/${firstPayableId}/payment`, admin, { amount: 400, method: 'Cash' })
+    expect(partial.statusCode).toBe(200)
+    const partialBody = JSON.parse(partial.body)
+    expect(partialBody.settled).toBe(false)
+    expect(partialBody.payable.balance).toBe(600)
+
+    // A real expense should now exist for the amount actually paid.
+    const txns = await prisma.transaction.findMany({ where: { source: 'payable_payment', sourceId: firstPayableId } })
+    expect(txns.length).toBe(1)
+    expect(txns[0]!.amount).toBe(400)
+    expect(txns[0]!.type).toBe('expense')
+
+    // Settle the rest.
+    const full = await post(`/api/payables/${firstPayableId}/payment`, admin, {})
+    expect(full.statusCode).toBe(200)
+    const fullBody = JSON.parse(full.body)
+    expect(fullBody.settled).toBe(true)
+    expect(fullBody.payable.balance).toBe(0)
+    expect(fullBody.payable.status).toBe('settled')
+  })
+
   it('lets Admin create a new inventory item', async () => {
     const admin = await tokenFor('admin')
     const res = await post('/api/inventory', admin, { name: 'Green Chilli', category: 'Vegetables', unit: 'kg', stock: 3, threshold: 1, costPerUnit: 200 })

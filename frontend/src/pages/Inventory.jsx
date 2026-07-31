@@ -6,6 +6,7 @@ import { dateLong, money } from '../utils/format.js'
 import { unitLabel, categoryLabel, itemNameLabel } from '../i18n/dataDict.js'
 import { canModify } from '../config/permissions.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
+import SettlePayableModal from '../components/SettlePayableModal.jsx'
 import {
   IconInventory,
   IconAlert,
@@ -13,6 +14,7 @@ import {
   IconSearch,
   IconClose,
   IconCheck,
+  IconWallet,
 } from '../components/Icons.jsx'
 
 // Base units an inventory item can be tracked in.
@@ -52,6 +54,11 @@ function PurchaseModal({ item, unitName, onClose, onSave }) {
   const [totalCost, setTotalCost] = useState('')
   const [supplier, setSupplier] = useState('')
   const [date, setDate] = useState(() => toDayStr(new Date()))
+  // Paid now (books an expense immediately, the original behavior) vs. on
+  // credit ("udhar" — supplier goes unpaid until settled later, see
+  // recordPayablePayment). Supplier is required for credit — that's the
+  // whole point of tracking it.
+  const [paid, setPaid] = useState(true)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   useEscapeKey(onClose)
@@ -61,7 +68,7 @@ function PurchaseModal({ item, unitName, onClose, onSave }) {
   // A real bill rarely equals qty × rate exactly (rounding, delivery), so an
   // explicit total overrides the derived one.
   const effectiveTotal = Number(totalCost) > 0 ? Math.round(Number(totalCost)) : derivedTotal
-  const valid = qtyNum > 0 && effectiveTotal > 0
+  const valid = qtyNum > 0 && effectiveTotal > 0 && (paid || supplier.trim().length > 0)
 
   const submit = async () => {
     setSaving(true)
@@ -71,6 +78,7 @@ function PurchaseModal({ item, unitName, onClose, onSave }) {
       totalCost: Number(totalCost) > 0 ? Number(totalCost) : undefined,
       supplier: supplier.trim(),
       date: `${date}T00:00:00`,
+      paid,
     })
     setSaving(false)
     if (res?.error) return setError(res.error)
@@ -148,6 +156,7 @@ function PurchaseModal({ item, unitName, onClose, onSave }) {
             <div>
               <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
                 {t('inventory.purchaseSupplier')}
+                {!paid && <span className="text-rose-300"> *</span>}
               </label>
               <input
                 className="input"
@@ -156,11 +165,42 @@ function PurchaseModal({ item, unitName, onClose, onSave }) {
                 onChange={(e) => setSupplier(e.target.value)}
               />
             </div>
+
+            <div>
+              <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+                {t('inventory.purchasePayment')}
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPaid(true)}
+                  className={`rounded-xl border px-3 py-2.5 text-sm font-semibold transition ${
+                    paid ? 'border-gold/50 bg-gold/12 text-gold' : 'border-ink-line bg-ink-soft text-cream-dim hover:text-cream'
+                  }`}
+                >
+                  {t('inventory.paymentPaidNow')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaid(false)}
+                  className={`rounded-xl border px-3 py-2.5 text-sm font-semibold transition ${
+                    !paid ? 'border-amber-500/50 bg-amber-500/12 text-amber-300' : 'border-ink-line bg-ink-soft text-cream-dim hover:text-cream'
+                  }`}
+                >
+                  {t('inventory.paymentCredit')}
+                </button>
+              </div>
+            </div>
           </div>
 
           {effectiveTotal > 0 && (
-            <p className="mt-4 rounded-xl border border-rose-500/25 bg-rose-500/[0.06] px-4 py-2.5 text-sm text-rose-300">
-              {t('inventory.purchaseWillBook')} <strong>{money(effectiveTotal)}</strong>
+            <p
+              className={`mt-4 rounded-xl border px-4 py-2.5 text-sm ${
+                paid ? 'border-rose-500/25 bg-rose-500/[0.06] text-rose-300' : 'border-amber-500/25 bg-amber-500/[0.06] text-amber-300'
+              }`}
+            >
+              {paid ? t('inventory.purchaseWillBook') : t('inventory.purchaseWillOwe')} <strong>{money(effectiveTotal)}</strong>
+              {!paid && supplier.trim() && ` — ${supplier.trim()}`}
             </p>
           )}
           {error && <p className="mt-3 text-sm text-rose-300">{error}</p>}
@@ -378,12 +418,15 @@ function AddItemModal({ categories, onClose, onSave }) {
 const INVENTORY_PAGE_SIZE = 20
 
 export default function Inventory() {
-  const { inventory, lowStock, recordPurchase, addInventoryItem, user } = useApp()
+  const { inventory, lowStock, recordPurchase, addInventoryItem, user, payables, recordPayablePayment, canSettlePayables } = useApp()
   const { t, lang } = useLang()
   const [query, setQuery] = useState('')
   const [showAdd, setShowAdd] = useState(false)
   const [visibleCount, setVisibleCount] = useState(INVENTORY_PAGE_SIZE)
   const [buying, setBuying] = useState(null) // inventory item being purchased
+  const [settlingPayable, setSettlingPayable] = useState(null) // supplier account being paid down
+  const openPayables = useMemo(() => payables.filter((p) => p.status !== 'settled'), [payables])
+  const totalOwed = useMemo(() => openPayables.reduce((s, p) => s + p.balance, 0), [openPayables])
   // Page access (also gates whether the Adjust column shows at all).
   const canEdit = user && canModify(user.role, 'inventory')
   // Stock only ever moves through a recorded purchase (Buy Stock) or a
@@ -550,6 +593,47 @@ export default function Inventory() {
         )}
       </div>
 
+      {/* Supplier credit ("udhar") purchases — only shown to whoever can also
+          record a purchase, since this is that same money owed as a
+          consequence. Mirrors ReceivablesManagement's layout, flipped. */}
+      {canAddStock && openPayables.length > 0 && (
+        <div className="card mt-6 overflow-hidden">
+          <div className="flex items-center justify-between border-b border-ink-line p-5">
+            <div>
+              <h3 className="font-serif text-xl text-cream">{t('payables.title')}</h3>
+              <p className="text-xs text-cream-dim">{t('payables.subtitle')}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[11px] uppercase tracking-widest text-cream-dim">{t('payables.totalOwed')}</p>
+              <p className="font-serif text-xl font-semibold text-rose-300">{money(totalOwed)}</p>
+            </div>
+          </div>
+          <div className="divide-y divide-ink-line">
+            {openPayables.map((p) => (
+              <div key={p.id} className="flex items-center justify-between gap-3 p-4">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-cream">{p.name}</p>
+                  <p className="text-xs text-cream-dim">
+                    {p.purchases?.length || 0} {t('payables.purchaseCount')}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  <span className="font-serif text-lg font-semibold text-rose-300">{money(p.balance)}</span>
+                  {canSettlePayables() && (
+                    <button
+                      onClick={() => setSettlingPayable(p)}
+                      className="rounded-lg border border-gold/40 bg-gold/10 px-3 py-1.5 text-xs font-semibold text-gold transition hover:bg-gold/20"
+                    >
+                      <IconWallet size={14} className="inline -mt-0.5 mr-1" /> {t('payables.settle')}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {showAdd && (
         <AddItemModal
           categories={categories}
@@ -564,6 +648,18 @@ export default function Inventory() {
           unitName={unitLabel(buying.unit, lang)}
           onClose={() => setBuying(null)}
           onSave={(payload) => recordPurchase(buying.id, payload)}
+        />
+      )}
+
+      {settlingPayable && (
+        <SettlePayableModal
+          payable={settlingPayable}
+          onClose={() => setSettlingPayable(null)}
+          onConfirm={async (data) => {
+            const res = await recordPayablePayment(settlingPayable.id, data.amount, data)
+            if (res?.error) return
+            setSettlingPayable(null)
+          }}
         />
       )}
     </div>
