@@ -33,7 +33,7 @@ async function computeSales(tx: Tx, shift: Shift) {
   let totalCashSales = 0
   let totalCardSales = 0
   for (const o of orders) {
-    const total = orderTotal(o.items.map((it) => ({ price: it.price, qty: it.qty })), o.discountAmount ?? 0, o.gstRate).total
+    const total = orderTotal(o.items.map((it) => ({ price: it.price, qty: it.qty, cancelled: it.cancelled })), o.discountAmount ?? 0, o.gstRate).total
     if (o.method === 'Cash') totalCashSales += total
     else if (o.method === 'Card') totalCardSales += total
   }

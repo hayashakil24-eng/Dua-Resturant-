@@ -116,6 +116,17 @@ export function serializeOrder(o: OrderWithItems) {
       // has to travel with the line or those all read a whole portion.
       portion: it.portion,
       ready: it.ready,
+      cancelled: it.cancelled,
+      cancellation: it.cancelled
+        ? {
+            reason: it.cancellationReason,
+            notes: it.cancellationNotes,
+            materialLoss: it.materialLoss ?? 0,
+            by: it.cancellationBy,
+            role: it.cancellationRole,
+            at: it.cancellationAt?.toISOString(),
+          }
+        : undefined,
     })),
     payment: o.payment,
     method: o.method,
@@ -269,8 +280,10 @@ async function resolvePortions(tx: Tx, items: NormItem[]): Promise<(NormItem & {
 
 // The gross bill total for an order, using its OWN locked gstRate — never the
 // live setting, so an old order's total never shifts when GST is later changed.
+// Cancelled lines are excluded (orderTotal filters on `cancelled`) so a
+// single item pulled off a running bill actually reduces what's owed.
 function orderGross(o: OrderWithItems): number {
-  return orderTotal(o.items.map((it) => ({ price: it.price, qty: it.qty })), 0, o.gstRate).total
+  return orderTotal(o.items.map((it) => ({ price: it.price, qty: it.qty, cancelled: it.cancelled })), 0, o.gstRate).total
 }
 
 async function fetchOrder(tx: Tx, id: string): Promise<OrderWithItems> {
@@ -567,6 +580,68 @@ export async function updateOrderItemQty(ctx: Ctx, orderId: string, itemKey: str
       actor: ctx.actor,
       details: { orderId, itemId: item.id, itemName: item.name, oldQty: item.qty, newQty: nq },
     })
+    return serializeOrder(await fetchOrder(tx, orderId))
+  })
+}
+
+// Cancel ONE line off an otherwise-running (unpaid) bill — e.g. the customer
+// sends back a dish. A line-level sibling of cancelOrder (same reusable/cooked
+// material-loss-vs-restock branching), but scoped to a single OrderItem and
+// never touches the order's own `cancelled`/`payment` state: the rest of the
+// bill keeps going. The item itself is never removed (see matchItem/`items`
+// convention) — only flagged, same as a whole-order cancel.
+export async function cancelOrderItem(ctx: Ctx, orderId: string, itemKey: string, opts: { reason?: string; notes?: string; cooked?: boolean } = {}) {
+  const reason = opts.reason
+  if (!reason) throw new ServiceError('A cancellation reason is required.')
+  const notes = opts.notes ?? ''
+
+  return prisma.$transaction(async (tx) => {
+    const o = await fetchOrder(tx, orderId)
+    if (o.cancelled || o.payment !== 'Unpaid') throw new ServiceError('Only a running (unpaid) order\'s items can be cancelled.')
+    const item = matchItem(o, itemKey)
+    if (!item) throw new NotFoundError('Order line not found.')
+    if (item.cancelled) throw new ServiceError('This item is already cancelled.')
+
+    // Same "was it actually cooked" question as cancelOrder, but read from
+    // this line's OWN per-item KDS ready flag rather than the whole order's —
+    // a more precise signal than cancelOrder gets, since one line can be
+    // ready while its siblings aren't. The modal can still override via
+    // opts.cooked (its own "Mark as Cooked" toggle), same UX as cancelOrder.
+    const cooked = opts.cooked ?? item.ready
+    const menuItem = await tx.menuItem.findUnique({ where: { id: item.menuItemId } })
+    const reusable = menuItem?.reusable ?? false
+    const wasted = cooked && !reusable
+    const asItems = [{ menuItemId: item.menuItemId, qty: item.qty, portion: item.portion }]
+
+    const inventory = await loadInventory(tx)
+    const recipes = await loadApprovedRecipes(tx)
+    let materialLoss = 0
+    if (wasted) {
+      materialLoss = Math.round(calculateOrderMaterialCost(asItems, inventory, recipes))
+    } else {
+      await applyStockChanges(tx, inventory, calculateRestocks(asItems, inventory, recipes), 1, ctx.actor)
+    }
+
+    const at = new Date()
+    await tx.orderItem.update({
+      where: { id: item.id },
+      data: {
+        cancelled: true,
+        cancellationReason: reason,
+        cancellationNotes: notes,
+        cancellationBy: ctx.actor.name,
+        cancellationRole: ctx.actor.role,
+        cancellationAt: at,
+        materialLoss: materialLoss || null,
+      },
+    })
+    await writeAudit(tx, {
+      action: 'ORDER_ITEM_CANCELLED',
+      actor: ctx.actor,
+      at,
+      details: { orderId, itemId: item.id, itemName: item.name, qty: item.qty, reason, notes, materialLoss },
+    })
+
     return serializeOrder(await fetchOrder(tx, orderId))
   })
 }

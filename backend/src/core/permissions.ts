@@ -32,6 +32,16 @@
 //                         the new account's role — the same owner-level
 //                         reasoning as recipeApproval, applied to something
 //                         even more sensitive (granting system permissions).
+//   • orderItemCancel   — cancel ONE line off an otherwise-running bill (e.g.
+//                         the customer sends back a dish). Deliberately
+//                         SEPARATE from orderCancel (which voids the whole
+//                         bill and is Admin-only): the client asked for the
+//                         cashier who's standing at the table to be able to
+//                         pull a single item themselves, without escalating
+//                         to Admin for something this small — so Cashier gets
+//                         'edit' here even though orderCancel is 'none' for
+//                         that role. Still fully server-checked + audited,
+//                         same as every other mutator.
 
 // 'Pending' is a self-signup account awaiting Admin review (see
 // auth.routes.ts POST /api/auth/signup) — it can log in (so the frontend can
@@ -48,6 +58,7 @@ export type PageKey =
   | 'pos'
   | 'orders'
   | 'orderCancel'
+  | 'orderItemCancel'
   | 'discount'
   | 'tables'
   | 'menu'
@@ -87,6 +98,7 @@ export const PERMISSIONS: Record<Role, Record<PageKey, AccessLevel>> = {
     pos: 'full',
     orders: 'edit',
     orderCancel: 'full',
+    orderItemCancel: 'full',
     discount: 'full',
     tables: 'full',
     menu: 'full',
@@ -126,6 +138,7 @@ export const PERMISSIONS: Record<Role, Record<PageKey, AccessLevel>> = {
     pos: 'full', // Manager may punch orders (no drawer — see `drawer`)
     orders: 'view',
     orderCancel: 'none', // Only Admin may cancel bills; Manager is view-only
+    orderItemCancel: 'full', // Manager may still pull a single line off a running bill
     discount: 'full',
     tables: 'full',
     menu: 'full',
@@ -172,6 +185,7 @@ export const PERMISSIONS: Record<Role, Record<PageKey, AccessLevel>> = {
     pos: 'hidden',
     orders: 'hidden',
     orderCancel: 'none',
+    orderItemCancel: 'none',
     discount: 'none',
     tables: 'hidden',
     menu: 'hidden',
@@ -211,6 +225,7 @@ export const PERMISSIONS: Record<Role, Record<PageKey, AccessLevel>> = {
     pos: 'full',
     orders: 'edit',
     orderCancel: 'none',
+    orderItemCancel: 'edit', // Cashier CAN pull a single item off a running bill (see the divider comment above)
     // Capped, not unlimited like Admin/Manager's 'full' — see the frontend
     // mirror (permissions.js) and orders.service.ts's applyDiscount, which
     // enforces the actual ceiling (Settings' Max Cashier Discount %).
@@ -256,6 +271,7 @@ export const PERMISSIONS: Record<Role, Record<PageKey, AccessLevel>> = {
     pos: 'hidden',
     orders: 'hidden',
     orderCancel: 'none',
+    orderItemCancel: 'none',
     discount: 'none',
     tables: 'hidden',
     menu: 'hidden',

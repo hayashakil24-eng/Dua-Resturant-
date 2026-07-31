@@ -186,6 +186,124 @@ describe('orders', () => {
     expect(res.statusCode).toBe(400)
   })
 
+  it('lets a Cashier cancel a single item off a running bill (Kitchen forbidden), reducing the total but leaving the order Unpaid', async () => {
+    const cashier = await tokenFor('cashier')
+    const kitchen = await tokenFor('kitchen')
+    const placed = await app.inject({
+      method: 'POST',
+      url: '/api/orders',
+      headers: auth(cashier),
+      payload: {
+        table: 15,
+        items: [
+          { menuItemId: 'ckh1', name: 'Chicken Shahi Karahi', price: 2699, qty: 1 },
+          { menuItemId: 'br2', name: 'Garlic Naan', price: 150, qty: 2 },
+        ],
+        payment: 'Unpaid',
+      },
+    })
+    const order = JSON.parse(placed.body).order
+    const karahiItem = order.items.find((it: { menuItemId: string }) => it.menuItemId === 'ckh1')
+    const totalBefore = order.items.reduce((s: number, it: { price: number; qty: number }) => s + it.price * it.qty, 0)
+
+    // Kitchen has no orderItemCancel permission.
+    const denied = await app.inject({
+      method: 'POST',
+      url: `/api/orders/${order.id}/items/${karahiItem.id}/cancel`,
+      headers: auth(kitchen),
+      payload: { reason: 'test' },
+    })
+    expect(denied.statusCode).toBe(403)
+
+    // Cashier CAN — deliberately a wider grant than whole-order orderCancel.
+    const ok = await app.inject({
+      method: 'POST',
+      url: `/api/orders/${order.id}/items/${karahiItem.id}/cancel`,
+      headers: auth(cashier),
+      payload: { reason: 'Customer Request' },
+    })
+    expect(ok.statusCode).toBe(200)
+    const updated = JSON.parse(ok.body).order
+    expect(updated.payment).toBe('Unpaid')
+    expect(updated.cancelled).toBe(false)
+    const updatedKarahi = updated.items.find((it: { id: string }) => it.id === karahiItem.id)
+    expect(updatedKarahi.cancelled).toBe(true)
+    expect(updatedKarahi.cancellation.role).toBe('Cashier')
+    expect(updatedKarahi.cancellation.reason).toBe('Customer Request')
+    // The naan line is untouched.
+    const naanItem = updated.items.find((it: { menuItemId: string }) => it.menuItemId === 'br2')
+    expect(naanItem.cancelled).toBe(false)
+
+    // Cancelling the Karahi line removed its price from the bill total.
+    const remainingTotal = updated.items
+      .filter((it: { cancelled: boolean }) => !it.cancelled)
+      .reduce((s: number, it: { price: number; qty: number }) => s + it.price * it.qty, 0)
+    expect(remainingTotal).toBe(totalBefore - karahiItem.price * karahiItem.qty)
+  })
+
+  it('item cancel: cooked=false restocks with no loss; cooked=true books material loss without restocking', async () => {
+    const cashier = await tokenFor('cashier')
+    // Item cancel leaves the order itself running (Unpaid, still occupying its
+    // table) — unlike the whole-order cancel test above, a second place() here
+    // needs its own table rather than reusing one that's still "running".
+    const place = (table: number) =>
+      app.inject({
+        method: 'POST',
+        url: '/api/orders',
+        headers: auth(cashier),
+        payload: { table, items: [{ menuItemId: 'ckh1', name: 'Chicken Shahi Karahi', price: 2699, qty: 1 }], payment: 'Unpaid' },
+      })
+
+    const before = await chickenStock()
+
+    // Not cooked → full restock, no loss.
+    const order1 = JSON.parse((await place(16)).body).order
+    const c1 = await app.inject({
+      method: 'POST',
+      url: `/api/orders/${order1.id}/items/${order1.items[0].id}/cancel`,
+      headers: auth(cashier),
+      payload: { reason: 'Wrong Order', cooked: false },
+    })
+    expect(c1.statusCode).toBe(200)
+    const item1 = JSON.parse(c1.body).order.items[0]
+    expect(item1.cancellation.materialLoss).toBe(0)
+    expect(await chickenStock()).toBeCloseTo(before, 5)
+
+    // Cooked → material loss booked, chicken stays deducted (no restock).
+    const order2 = JSON.parse((await place(18)).body).order
+    const afterSecondPlace = await chickenStock()
+    const c2 = await app.inject({
+      method: 'POST',
+      url: `/api/orders/${order2.id}/items/${order2.items[0].id}/cancel`,
+      headers: auth(cashier),
+      payload: { reason: 'Wrong Order', cooked: true },
+    })
+    const item2 = JSON.parse(c2.body).order.items[0]
+    expect(item2.cancellation.materialLoss).toBeGreaterThan(0)
+    expect(await chickenStock()).toBeCloseTo(afterSecondPlace, 5)
+  })
+
+  it('requires a reason to cancel an item (400), and refuses to cancel the same item twice', async () => {
+    const cashier = await tokenFor('cashier')
+    const placed = await app.inject({
+      method: 'POST',
+      url: '/api/orders',
+      headers: auth(cashier),
+      payload: { table: 17, items: [{ menuItemId: 'br2', name: 'Garlic Naan', price: 150, qty: 1 }], payment: 'Unpaid' },
+    })
+    const order = JSON.parse(placed.body).order
+    const itemId = order.items[0].id
+
+    const noReason = await app.inject({ method: 'POST', url: `/api/orders/${order.id}/items/${itemId}/cancel`, headers: auth(cashier), payload: {} })
+    expect(noReason.statusCode).toBe(400)
+
+    const first = await app.inject({ method: 'POST', url: `/api/orders/${order.id}/items/${itemId}/cancel`, headers: auth(cashier), payload: { reason: 'Wrong Order' } })
+    expect(first.statusCode).toBe(200)
+
+    const second = await app.inject({ method: 'POST', url: `/api/orders/${order.id}/items/${itemId}/cancel`, headers: auth(cashier), payload: { reason: 'Wrong Order' } })
+    expect(second.statusCode).toBe(400)
+  })
+
   it('shifts a running order onto Takeaway (302), and allows a second concurrent order there too', async () => {
     const cashier = await tokenFor('cashier')
     const place = (table: number) =>

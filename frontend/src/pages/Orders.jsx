@@ -151,8 +151,125 @@ function CancelModal({ order, orderTotal, materialLoss = 0, onConfirm, onClose }
   )
 }
 
+// Cancel a single line off an otherwise-running bill — a scaled-down sibling
+// of CancelModal (same reason/notes/cooked shape) but scoped to one item, so
+// the customer sending back one dish doesn't require voiding the whole order.
+function CancelItemModal({ item, orderMaterialLoss, onConfirm, onClose }) {
+  const [reason, setReason] = useState('')
+  const [notes, setNotes] = useState('')
+  // Defaults to this line's OWN per-item KDS ready flag (more precise than the
+  // whole-order kitchen status CancelModal uses, since one line can be ready
+  // while its siblings aren't).
+  const [cooked, setCooked] = useState(Boolean(item.ready))
+  useEscapeKey(onClose)
+  const lineTotal = item.price * item.qty
+  const materialLoss = orderMaterialLoss([item])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-md animate-fade-up">
+        <div className="card max-h-[90vh] overflow-y-auto p-6">
+          <div className="flex items-start justify-between">
+            <div>
+              <h3 className="font-serif text-2xl text-cream">Cancel Item</h3>
+              <p className="mt-0.5 text-xs text-cream-dim">This action is recorded in the audit log.</p>
+            </div>
+            <button onClick={onClose} className="text-cream-dim hover:text-cream">
+              <IconClose size={20} />
+            </button>
+          </div>
+
+          <div className="mt-5 rounded-xl border border-ink-line bg-ink-soft p-4">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-cream">
+                {item.name} <span className="text-cream-dim">×{item.qty}</span>
+              </span>
+              <span className="font-serif text-lg font-semibold text-cream">{money(lineTotal)}</span>
+            </div>
+          </div>
+
+          {cooked ? (
+            materialLoss > 0 && (
+              <div className="mt-3 rounded-xl border border-rose-500/25 bg-rose-500/[0.06] px-3 py-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-cream-dim">Material loss (ingredients wasted)</span>
+                  <span className="font-semibold text-rose-300">{money(materialLoss)}</span>
+                </div>
+                {!item.ready && (
+                  <button
+                    onClick={() => setCooked(false)}
+                    className="mt-1.5 text-[11px] text-cream-dim underline underline-offset-2 transition hover:text-cream"
+                  >
+                    Undo — not cooked (no loss)
+                  </button>
+                )}
+              </div>
+            )
+          ) : (
+            materialLoss > 0 && (
+              <div className="mt-3 rounded-xl border border-ink-line bg-ink-soft px-3 py-2.5">
+                <p className="text-xs text-cream-dim">
+                  Not cooked yet — no ingredients wasted. If it was already made, mark it cooked to
+                  book the material loss.
+                </p>
+                <button
+                  onClick={() => setCooked(true)}
+                  className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-500/15"
+                >
+                  <IconCheck size={14} /> Mark as Cooked
+                </button>
+              </div>
+            )
+          )}
+
+          <div className="mt-4">
+            <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+              Reason for cancellation <span className="text-rose-300">*</span>
+            </label>
+            <select className="input py-2.5" value={reason} onChange={(e) => setReason(e.target.value)}>
+              <option value="">Select a reason…</option>
+              {CANCEL_REASONS.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="mt-4">
+            <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+              Notes (optional)
+            </label>
+            <textarea
+              className="input min-h-[64px]"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="e.g. Customer sent it back"
+            />
+          </div>
+
+          <div className="mt-6 flex gap-3">
+            <button onClick={onClose} className="btn-ghost flex-1 py-3">
+              Keep Item
+            </button>
+            <button
+              onClick={() => onConfirm({ reason, notes: notes.trim(), cooked })}
+              disabled={!reason}
+              title={reason ? 'Cancel this item' : 'Select a reason first'}
+              className="flex-1 rounded-xl bg-gradient-to-r from-rose-500 to-red-600 py-3 font-semibold text-white transition-all duration-200 hover:from-rose-400 hover:to-red-500 hover:shadow-lg hover:shadow-rose-500/40 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:shadow-none"
+            >
+              Confirm Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Orders() {
-  const { orders, orderTotal, markPaid, cancelOrder, orderMaterialLoss, markOrderUdhaar, markOrderComplimentary, shiftOrderTable, onlineAccounts, auditLog, user } = useApp()
+  const { orders, orderTotal, markPaid, cancelOrder, cancelOrderItem, orderMaterialLoss, markOrderUdhaar, markOrderComplimentary, shiftOrderTable, onlineAccounts, auditLog, user } = useApp()
   // Admin oversees orders but doesn't personally settle bills — that's a
   // Cashier action — so the button is hidden for Admin even though they keep
   // full edit access otherwise (table shift, etc.).
@@ -165,11 +282,16 @@ export default function Orders() {
   // hand a customer their bill) — a wider gate than the settle actions above.
   const canPrintBill = user && hasAccess(user.role, 'orders')
   const canCancel = user && canModify(user.role, 'orderCancel')
+  // Cancelling a single line off a running bill is a separate, wider-held
+  // permission than voiding the whole order — Cashier has this even though
+  // orderCancel is 'none' for that role (see permissions.js's divider comment).
+  const canCancelItem = user && canModify(user.role, 'orderItemCancel')
   const canUdhaar = user && canModify(user.role, 'receivables') // Manager/Admin: put a bill on account
   const canComp = user && canModify(user.role, 'orderComplimentary') // Manager/Admin: free/on-the-house
   const [filter, setFilter] = useState('All')
   const [query, setQuery] = useState('')
   const [cancelTarget, setCancelTarget] = useState(null)
+  const [itemCancelTarget, setItemCancelTarget] = useState(null) // { orderId, item } — running order → cancel one line
   const [payTarget, setPayTarget] = useState(null) // unpaid order awaiting payment
   const [shiftTarget, setShiftTarget] = useState(null) // unpaid order → move to another table
   const [billTarget, setBillTarget] = useState(null) // unpaid order → print bill only (no settle)
@@ -343,14 +465,46 @@ export default function Orders() {
             </div>
 
             <ul className="mt-5 divide-y divide-ink-line">
-              {order.items.map((it) => (
-                <li key={it.id} className="flex items-center justify-between py-2.5 text-sm">
-                  <span className={order.cancelled ? 'text-cream-dim line-through' : 'text-cream'}>
-                    {it.name} <span className="text-cream-dim">×{it.qty}</span>
-                  </span>
-                  <span className="font-semibold text-cream">{money(it.price * it.qty)}</span>
-                </li>
-              ))}
+              {order.items.map((it) => {
+                const struckThrough = order.cancelled || it.cancelled
+                // Only an active line on a still-running (unpaid, not
+                // whole-order-cancelled) bill can be pulled — matches the
+                // server's own guard in cancelOrderItem.
+                const canCancelThisItem = canCancelItem && !order.cancelled && !it.cancelled && order.payment === 'Unpaid'
+                return (
+                  <li key={it.id} className="py-2.5 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={struckThrough ? 'text-cream-dim line-through' : 'text-cream'}>
+                        {it.name} <span className="text-cream-dim">×{it.qty}</span>
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`font-semibold ${it.cancelled ? 'text-cream-dim line-through' : 'text-cream'}`}>
+                          {money(it.price * it.qty)}
+                        </span>
+                        {canCancelThisItem && (
+                          <button
+                            onClick={() => {
+                              setItemCancelTarget({ orderId: order.id, item: it })
+                              onClose()
+                            }}
+                            title="Cancel this item"
+                            className="text-cream-dim transition hover:text-rose-300"
+                          >
+                            <IconClose size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {it.cancelled && (
+                      <p className="mt-1 text-[11px] text-rose-300">
+                        Cancelled by {it.cancellation?.by || '—'}
+                        {it.cancellation?.role ? ` (${it.cancellation.role})` : ''}
+                        {it.cancellation?.reason ? ` · ${it.cancellation.reason}` : ''}
+                      </p>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
 
             <div className="mt-3 space-y-1 border-t border-ink-line pt-3 text-sm">
@@ -630,6 +784,18 @@ export default function Orders() {
             setCancelTarget(null)
           }}
           onClose={() => setCancelTarget(null)}
+        />
+      )}
+
+      {itemCancelTarget && (
+        <CancelItemModal
+          item={itemCancelTarget.item}
+          orderMaterialLoss={orderMaterialLoss}
+          onConfirm={({ reason, notes, cooked }) => {
+            cancelOrderItem(itemCancelTarget.orderId, itemCancelTarget.item.id, { reason, notes, cooked })
+            setItemCancelTarget(null)
+          }}
+          onClose={() => setItemCancelTarget(null)}
         />
       )}
 

@@ -58,6 +58,13 @@ export async function orderRoutes(app: FastifyInstance): Promise<void> {
     return { order: await orders.cancelOrder(ctx(req), id, { reason, notes, cooked }) }
   })
 
+  // Cancel a single line off a running bill (Cashier/Manager/Admin, per orderItemCancel).
+  app.post('/api/orders/:id/items/:itemId/cancel', { preHandler: requirePermission('orderItemCancel') }, async (req) => {
+    const { id, itemId } = req.params as { id: string; itemId: string }
+    const { reason, notes, cooked } = (req.body ?? {}) as { reason?: string; notes?: string; cooked?: boolean }
+    return { order: await orders.cancelOrderItem(ctx(req), id, itemId, { reason, notes, cooked }) }
+  })
+
   // Discount (Admin/Manager, per discount).
   app.post('/api/orders/:id/discount', { preHandler: requirePermission('discount') }, async (req) => {
     const { id } = req.params as { id: string }

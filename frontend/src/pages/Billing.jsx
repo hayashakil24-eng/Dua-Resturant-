@@ -133,8 +133,16 @@ export function Receipt({
               </thead>
               <tbody>
                 {order.items.map((it) => (
-                  <tr key={it.id} className="align-top">
-                    <td className="py-0.5 pr-2">{it.name}</td>
+                  <tr key={it.id} className={`align-top ${it.cancelled ? 'line-through opacity-50' : ''}`}>
+                    <td className="py-0.5 pr-2">
+                      {it.name}
+                      {/* A struck-through line still needs to say WHY it doesn't
+                          count toward the total — otherwise the printed bill
+                          looks like a math error, not a cancelled item. */}
+                      {it.cancelled && (
+                        <div className="text-[10px] font-normal not-italic">Cancelled by {it.cancellation?.by || '—'}</div>
+                      )}
+                    </td>
                     <td className="py-0.5 text-center">{it.qty}</td>
                     <td className="py-0.5 text-right font-bold">{money(it.price * it.qty)}</td>
                   </tr>

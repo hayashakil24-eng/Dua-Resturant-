@@ -22,6 +22,7 @@ const ACTION_REFETCH_MAP = {
   ORDER_QTY_UPDATED: ['orders'],
   ORDER_TABLE_SHIFTED: ['orders'],
   CANCELLED: ['orders'],
+  ORDER_ITEM_CANCELLED: ['orders', 'inventory'],
   DISCOUNT: ['orders'],
   DISCOUNT_REMOVED: ['orders'],
   ORDER_UDHAAR: ['orders', 'receivables'],
@@ -348,9 +349,12 @@ export function AppProvider({ children }) {
 
   // Bill breakdown for a set of line items. A saved order passes its own LOCKED
   // rate (order.gstRate); a live POS cart omits it and gets today's setting.
-  // Unchanged pure function — see backend/src/core/orderTotal.ts.
+  // See backend/src/core/orderTotal.ts. Item-wise cancelled lines (`it.cancelled`)
+  // are excluded from the sum — they stay in `items` for display (struck
+  // through) but never count toward what's owed; POS cart items never carry
+  // that field, so this is a no-op for the live-cart case.
   const orderTotal = (items, discount = 0, rate) => {
-    const subtotal = items.reduce((s, it) => s + it.price * it.qty, 0)
+    const subtotal = items.filter((it) => !it.cancelled).reduce((s, it) => s + it.price * it.qty, 0)
     const effRate = typeof rate === 'number' ? rate : gstEnabled ? gstRate : 0
     const tax = Math.round(subtotal * effRate)
     const gross = subtotal + tax
@@ -564,6 +568,18 @@ export function AppProvider({ children }) {
   const cancelOrder = async (id, { reason, notes = '', cooked } = {}) => {
     try {
       await apiPost(`/api/orders/${orderSid(id)}/cancel`, { reason, notes, cooked })
+      await refresh(['orders', 'inventory'])
+    } catch (e) {
+      return toError(e)
+    }
+  }
+
+  // Cancel ONE line off an otherwise-running bill (e.g. the customer sends
+  // back a dish) — a line-level sibling of cancelOrder. itemId is the cart
+  // key or DB row id, same as updateOrderItemQty's itemKey.
+  const cancelOrderItem = async (orderId, itemId, { reason, notes = '', cooked } = {}) => {
+    try {
+      await apiPost(`/api/orders/${orderSid(orderId)}/items/${itemId}/cancel`, { reason, notes, cooked })
       await refresh(['orders', 'inventory'])
     } catch (e) {
       return toError(e)
@@ -1238,6 +1254,7 @@ export function AppProvider({ children }) {
     markItemReady,
     clearKitchen,
     cancelOrder,
+    cancelOrderItem,
     orderMaterialLoss,
     updateOrderItemQty,
     shiftOrderTable,

@@ -31,7 +31,7 @@ async function gather() {
     cancelled: o.cancelled,
     payment: o.payment,
     method: o.method,
-    items: o.items.map((it) => ({ price: it.price, qty: it.qty, menuItemId: it.menuItemId, name: it.name })),
+    items: o.items.map((it) => ({ price: it.price, qty: it.qty, menuItemId: it.menuItemId, name: it.name, cancelled: it.cancelled })),
     discountAmount: o.discountAmount ?? 0,
     gstRate: o.gstRate,
     onlineAccountName: o.onlineAccountName,

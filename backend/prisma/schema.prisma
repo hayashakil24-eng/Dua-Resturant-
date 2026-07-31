@@ -501,6 +501,20 @@ model OrderItem {
   // order line-by-line instead of all-or-nothing.
   ready         Boolean @default(false)
 
+  // Item-wise cancellation (e.g. the customer sends back one dish off an
+  // otherwise-running bill) — a line-level mirror of Order's own cancellation
+  // columns above, deliberately NOT a hard delete for the same audit-trail
+  // reason. cancelled items are excluded from orderTotal()/orderGross() (see
+  // core/orderTotal.ts) but stay in `items` so the bill still shows them
+  // struck through, and restock/write-off is applied per-item at cancel time.
+  cancelled          Boolean   @default(false)
+  cancellationReason String?
+  cancellationNotes  String?
+  cancellationBy     String?
+  cancellationRole   String?
+  cancellationAt     DateTime?
+  materialLoss       Int? // ₨ write-off if this one item was cooked (non-reusable) when cancelled
+
   @@index([orderId])
   @@index([menuItemId])
 }

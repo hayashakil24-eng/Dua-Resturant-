@@ -15,6 +15,12 @@
 export interface OrderTotalItem {
   price: number
   qty: number
+  // Item-wise cancellation (a single line voided off an otherwise-running
+  // bill, distinct from the whole order's own `cancelled`) — excluded from
+  // every money total here so a cancelled item's price never survives into
+  // the bill, but callers still keep it in their own `items` array for
+  // display (struck through) since it's never removed from the order.
+  cancelled?: boolean
 }
 
 export interface OrderTotalResult {
@@ -25,7 +31,7 @@ export interface OrderTotalResult {
 }
 
 export function orderTotal(items: OrderTotalItem[], discount = 0, rate = 0): OrderTotalResult {
-  const subtotal = items.reduce((s, it) => s + it.price * it.qty, 0)
+  const subtotal = items.filter((it) => !it.cancelled).reduce((s, it) => s + it.price * it.qty, 0)
   const tax = Math.round(subtotal * rate)
   const gross = subtotal + tax
   const discountAmt = Math.min(Math.max(0, Number(discount) || 0), gross)

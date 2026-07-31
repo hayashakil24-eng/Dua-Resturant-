@@ -41,12 +41,21 @@
 //                         a pure action-gate never used for nav), so every
 //                         non-Admin role uses 'hidden' here rather than
 //                         'none' — hasAccess only blocks on 'hidden'.
+//   • orderItemCancel   — cancel ONE line off an otherwise-running bill (e.g.
+//                         the customer sends back a dish). Deliberately
+//                         SEPARATE from orderCancel (which voids the whole
+//                         bill and is Admin-only): the cashier standing at the
+//                         table can pull a single item themselves without
+//                         escalating to Admin — Cashier gets 'edit' here even
+//                         though orderCancel is 'none' for that role. Still
+//                         fully server-checked + audited, same as any mutator.
 export const PERMISSIONS = {
   Admin: {
     dashboard: 'full',
     pos: 'full',
     orders: 'edit',
     orderCancel: 'full',
+    orderItemCancel: 'full',
     discount: 'full',
     tables: 'full',
     menu: 'full',
@@ -86,6 +95,7 @@ export const PERMISSIONS = {
     pos: 'full', // Manager may punch orders (no drawer — see `drawer`)
     orders: 'view',
     orderCancel: 'none', // Only Admin may cancel bills; Manager is view-only
+    orderItemCancel: 'full', // Manager may still pull a single line off a running bill
     discount: 'full',
     tables: 'full',
     menu: 'full',
@@ -128,6 +138,7 @@ export const PERMISSIONS = {
     pos: 'hidden',
     orders: 'hidden',
     orderCancel: 'none',
+    orderItemCancel: 'none',
     discount: 'none',
     tables: 'hidden',
     menu: 'hidden',
@@ -167,6 +178,7 @@ export const PERMISSIONS = {
     pos: 'full',
     orders: 'edit',
     orderCancel: 'none',
+    orderItemCancel: 'edit', // Cashier CAN pull a single item off a running bill (see the divider comment above)
     // Capped, not unlimited like Admin/Manager's 'full' — the actual ceiling
     // (Settings' Max Cashier Discount %) is enforced in orders.service.ts's
     // applyDiscount, not by this table. 'edit' just grants UI/route access.
@@ -211,6 +223,7 @@ export const PERMISSIONS = {
     pos: 'hidden',
     orders: 'hidden',
     orderCancel: 'none',
+    orderItemCancel: 'none',
     discount: 'none',
     tables: 'hidden',
     menu: 'hidden',
