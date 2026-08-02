@@ -446,6 +446,11 @@ function requireUnlocked(fn) {
 // it too rather than only after unlocking.
 ipcMain.handle('get-update-status', () => updateInfo)
 ipcMain.handle('install-update', requireUnlocked(() => {
+  // Without this, quitAndInstall's app.quit() hits the close-to-tray handler
+  // above, which preventDefaults the window close (since isQuitting is still
+  // false) — the app just hides instead of actually exiting, so the installer
+  // never launches and the app never restarts.
+  app.isQuitting = true
   autoUpdater.quitAndInstall(true, true)
 }))
 
