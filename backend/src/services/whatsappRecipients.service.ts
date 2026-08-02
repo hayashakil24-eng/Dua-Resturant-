@@ -39,6 +39,14 @@ async function verify(phone: string): Promise<{ verified: boolean; error: string
     if (err instanceof WhatsAppApiError && err.code === META_RECIPIENT_NOT_ALLOWED_CODE) {
       return { verified: false, error: 'Not added on Meta’s dashboard yet.' }
     }
+    // A WhatsAppApiError here is a real, unretryable failure (bad/expired
+    // token, malformed request, ...) — surface Meta's own message rather
+    // than letting it fall through to a generic 500, which used to happen
+    // because WhatsAppApiError carries its HTTP status as `.status`, not the
+    // `.statusCode` the global error handler (app.ts) checks for.
+    if (err instanceof WhatsAppApiError) {
+      throw new ServiceError(`WhatsApp send failed: ${err.message}`, err.status >= 500 ? 502 : 400)
+    }
     throw err
   }
 }

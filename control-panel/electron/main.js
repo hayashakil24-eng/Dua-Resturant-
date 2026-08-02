@@ -230,6 +230,12 @@ async function startBackend() {
   process.env.DATABASE_URL = `file:${dbPath}`
   process.env.JWT_SECRET = config.jwtSecret
   process.env.BACKUP_DIR = config.backupDir
+  // No console window in a packaged Electron app — without this, backend
+  // request errors (req.log.error in app.ts's error handler) go to a stdout
+  // nobody can see, so a failure like a stale schema after a skipped
+  // migration looks like an opaque "Internal server error" with no way to
+  // find out what actually happened.
+  process.env.LOG_FILE = path.join(userDataDir, 'backend.log')
 
   try {
     // Apply any migrations shipped since this install's last launch —

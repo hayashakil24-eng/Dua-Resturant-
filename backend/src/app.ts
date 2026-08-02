@@ -33,7 +33,15 @@ import { systemRoutes } from './routes/system.routes.js'
 
 export function buildApp(): FastifyInstance {
   const app = Fastify({
-    logger: process.env.NODE_ENV === 'test' ? false : { level: process.env.LOG_LEVEL ?? 'info' },
+    // LOG_FILE lets a packaged Electron host (Control Panel — no visible
+    // console) persist request errors somewhere a user/support session can
+    // actually read them, instead of them vanishing into a stdout no one
+    // is attached to. Unset (the standalone backend's default) keeps the
+    // existing stdout-only behavior.
+    logger:
+      process.env.NODE_ENV === 'test'
+        ? false
+        : { level: process.env.LOG_LEVEL ?? 'info', ...(process.env.LOG_FILE ? { file: process.env.LOG_FILE } : {}) },
   })
 
   // The Electron renderer (dev: http://localhost:5173) and any LAN device talk
