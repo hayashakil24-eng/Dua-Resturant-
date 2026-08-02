@@ -1,6 +1,6 @@
 {
   "name": "@cafe-ali/control-panel",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "private": true,
   "type": "module",
   "main": "electron/main.js",
