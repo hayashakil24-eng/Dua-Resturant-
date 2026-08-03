@@ -21,6 +21,7 @@ import ReceivablesManagement from './pages/ReceivablesManagement.jsx'
 import HandoverApprovals from './pages/HandoverApprovals.jsx'
 import Reports from './pages/Reports.jsx'
 import Closing from './pages/Closing.jsx'
+import CashManagement from './pages/CashManagement.jsx'
 import KitchenDisplay from './pages/KitchenDisplay.jsx'
 import Kitchen from './pages/Kitchen.jsx'
 import Billing from './pages/Billing.jsx'
@@ -86,6 +87,7 @@ export default function App() {
       <Route path="/handovers" element={<Protected path="/handovers"><HandoverApprovals /></Protected>} />
       <Route path="/reports" element={<Protected path="/reports"><Reports /></Protected>} />
       <Route path="/closing" element={<Protected path="/closing"><Closing /></Protected>} />
+      <Route path="/cash-management" element={<Protected path="/cash-management"><CashManagement /></Protected>} />
       <Route path="/kitchen" element={<Protected path="/kitchen"><Kitchen /></Protected>} />
       <Route path="/kds" element={<Protected path="/kds" fullscreen><KitchenDisplay /></Protected>} />
       <Route path="/billing" element={<Protected path="/billing"><Billing /></Protected>} />
