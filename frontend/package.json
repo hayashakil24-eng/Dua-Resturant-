@@ -1,7 +1,7 @@
 {
   "name": "cafe-ali",
   "private": true,
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Cafe Ali restaurant/hotel management desktop app",
   "author": "Cafe Ali",
   "type": "module",
