@@ -69,6 +69,7 @@ export const NAV = [
   { to: '/billing', label: 'Billing', labelKey: 'nav.billing', icon: IconReceipt, pageKey: 'billing', group: 'finance' },
   { to: '/reports', label: 'Reports', labelKey: 'nav.reports', icon: IconReport, pageKey: 'reports', group: 'reports' },
   { to: '/closing', label: 'Day Closing', labelKey: 'nav.closing', icon: IconReceipt, pageKey: 'closing', group: 'reports' },
+  { to: '/cash-management', label: 'Cash Management', labelKey: 'nav.cashManagement', icon: IconCash, pageKey: 'cashManagement', group: 'reports' },
   { to: '/settings', label: 'Settings', labelKey: 'nav.settings', icon: IconSettings, pageKey: 'settings', group: 'settings' },
 ]
 

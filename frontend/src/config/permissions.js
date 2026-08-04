@@ -66,6 +66,7 @@ export const PERMISSIONS = {
     accounting: 'full',
     reports: 'full',
     closing: 'full', // end-of-day closing report (Admin/Manager)
+    cashManagement: 'full', // cumulative cash/card/online totals + spend log (Admin/Manager)
     receivables: 'full', // credit accounts — view & settle
     departments: 'full', // create/edit counters + assign items to them
     drawer: 'full', // may run a cash drawer
@@ -106,6 +107,7 @@ export const PERMISSIONS = {
     accounting: 'full',
     reports: 'full',
     closing: 'full', // end-of-day closing report (Admin/Manager)
+    cashManagement: 'full', // cumulative cash/card/online totals + spend log (Admin/Manager)
     receivables: 'full', // Manager may view & settle credit accounts
     departments: 'full', // Manager may create counters + assign items too
     drawer: 'none', // Manager RECEIVES cash; running a drawer too would defeat the chain
@@ -149,6 +151,7 @@ export const PERMISSIONS = {
     accounting: 'hidden',
     reports: 'hidden',
     closing: 'hidden',
+    cashManagement: 'hidden',
     receivables: 'hidden',
     departments: 'hidden', // Kitchen doesn't configure counters
     drawer: 'none',
@@ -192,6 +195,7 @@ export const PERMISSIONS = {
     accounting: 'hidden',
     reports: 'hidden',
     closing: 'hidden',
+    cashManagement: 'hidden',
     receivables: 'hidden',
     departments: 'hidden', // Cashier only places orders (auto-routed)
     drawer: 'full', // the cashier's own till
@@ -234,6 +238,7 @@ export const PERMISSIONS = {
     accounting: 'hidden',
     reports: 'hidden',
     closing: 'hidden',
+    cashManagement: 'hidden',
     receivables: 'hidden',
     departments: 'hidden',
     drawer: 'none',
