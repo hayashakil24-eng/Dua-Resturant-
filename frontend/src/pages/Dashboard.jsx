@@ -5,7 +5,7 @@ import { useT, useLang } from '../i18n/LanguageContext.jsx'
 import { itemNameLabel, unitLabel } from '../i18n/dataDict.js'
 import { PageHeader, StatCard, PaymentBadge } from '../components/ui.jsx'
 import { money, time, dateShort, clock as fmtClock, dayShort, monthName as fmtMonthName } from '../utils/format.js'
-import { tableLabel } from '../data/mockData.js'
+import { tableLabel, tableLabelCompact } from '../data/mockData.js'
 import HandoverApprovalModal from '../components/HandoverApprovalModal.jsx'
 import ForwardCashModal from '../components/ForwardCashModal.jsx'
 import { cashPositions } from '../utils/cashFlow.js'
@@ -308,7 +308,7 @@ function RecentOrders({ orders, orderTotal }) {
         {orders.slice(0, 5).map((o) => (
           <div key={o.id} className="flex items-center gap-4 p-4 hover:bg-white/[0.02]">
             <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gold/10 font-serif text-xs font-semibold text-gold ring-1 ring-gold/20">
-              {tableLabel(o.table)}
+              {tableLabelCompact(o.table)}
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-cream">
@@ -1106,7 +1106,7 @@ function CashierDashboard({ stats, orders, orderTotal, unpaidTotal, onProcessBil
                 {paidOrders.slice(0, 5).map((o) => (
                   <div key={o.id} className="flex items-center gap-4 p-4 hover:bg-white/[0.02]">
                     <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-500/10 font-serif text-xs font-semibold text-emerald-300 ring-1 ring-emerald-500/20">
-                      {tableLabel(o.table)}
+                      {tableLabelCompact(o.table)}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-cream">

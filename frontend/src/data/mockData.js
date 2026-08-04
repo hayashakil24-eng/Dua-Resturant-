@@ -88,6 +88,16 @@ export const registerTableLabels = (tables) => {
 export const tableLabel = (id) =>
   LIVE_TABLE_LABELS?.get(Number(id)) || TABLE_LABELS.get(Number(id)) || `T${id}`
 
+// Compact form for small fixed-size badges (Dashboard's Recent Orders
+// avatars) — "Takeaway"/"Delivery" overflow a 40px circle; every physical
+// table's own code (A1, HUT12…) is already short enough to fit as-is, so
+// only the two special pseudo-tables need shortening.
+const COMPACT_LABELS = { Takeaway: 'T/A', Delivery: 'DO' }
+export const tableLabelCompact = (id) => {
+  const label = tableLabel(id)
+  return COMPACT_LABELS[label] || label
+}
+
 // Account receivables — regular credit customers whose bills accumulate ("on
 // account") and are settled later. `balance` is the outstanding amount (بقایا).
 export const INITIAL_RECEIVABLES = [
