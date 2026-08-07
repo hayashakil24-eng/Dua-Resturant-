@@ -27,6 +27,14 @@ export const money = (n) => `${CURRENCY} ${Number(n || 0).toLocaleString(numLoca
 // don't render Latin digits next to Urdu ones.
 export const num = (n) => Number(n || 0).toLocaleString(numLocale())
 
+// An order line's quantity — a whole serving count for "pcs" items, or a
+// decimal kg weight for weight-billed items (Karahi/Handi/BBQ). `unit` comes
+// from the line's menu item (`menu.find(m => m.id === it.menuItemId)?.unit`),
+// not the order item itself. Rounds to 2dp so float drift from repeated
+// cart edits never surfaces (e.g. "1.4999999999999998 kg").
+export const formatQty = (qty, unit) =>
+  unit === 'kg' ? `${num(Math.round((Number(qty) || 0) * 100) / 100)} kg` : num(qty)
+
 export const time = (iso) => {
   if (!iso) return '—'
   const d = new Date(iso)

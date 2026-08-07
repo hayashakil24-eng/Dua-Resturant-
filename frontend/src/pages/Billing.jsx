@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { PageHeader, PaymentBadge, EmptyState } from '../components/ui.jsx'
-import { money, time, dateLong } from '../utils/format.js'
+import { money, time, dateLong, formatQty } from '../utils/format.js'
 import { safePrint } from '../utils/print.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import { tableLabel, SPECIAL_TABLE_IDS } from '../data/mockData.js'
@@ -27,7 +27,10 @@ export function Receipt({
   onApplyDiscount = () => {},
   onRemoveDiscount = () => {},
 }) {
-  const { gstRate, gstEnabled, receivables } = useApp()
+  const { gstRate, gstEnabled, receivables, menu } = useApp()
+  // Order items don't carry their own unit — only the menu item they were
+  // sold from does.
+  const unitOf = (menuItemId) => menu.find((m) => m.id === menuItemId)?.unit || 'pcs'
   // A placed order shows its LOCKED rate; a legacy order without a snapshot (or a
   // brand-new object) falls back to the current global setting.
   const rate = typeof order.gstRate === 'number' ? order.gstRate : gstEnabled ? gstRate : 0
@@ -143,8 +146,8 @@ export function Receipt({
                         <div className="text-[10px] font-normal not-italic">Cancelled by {it.cancellation?.by || '—'}</div>
                       )}
                     </td>
-                    <td className="py-0.5 text-center">{it.qty}</td>
-                    <td className="py-0.5 text-right font-bold">{money(it.price * it.qty)}</td>
+                    <td className="py-0.5 text-center">{formatQty(it.qty, unitOf(it.menuItemId))}</td>
+                    <td className="py-0.5 text-right font-bold">{money(Math.round(it.price * it.qty))}</td>
                   </tr>
                 ))}
               </tbody>

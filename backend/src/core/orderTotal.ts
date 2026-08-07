@@ -31,7 +31,10 @@ export interface OrderTotalResult {
 }
 
 export function orderTotal(items: OrderTotalItem[], discount = 0, rate = 0): OrderTotalResult {
-  const subtotal = items.filter((it) => !it.cancelled).reduce((s, it) => s + it.price * it.qty, 0)
+  // Rounded per line, not just at the end — qty can be a decimal weight now
+  // (kg-billed items), and every money figure shown anywhere must stay a
+  // whole rupee, matching each line's own displayed amount.
+  const subtotal = items.filter((it) => !it.cancelled).reduce((s, it) => s + Math.round(it.price * it.qty), 0)
   const tax = Math.round(subtotal * rate)
   const gross = subtotal + tax
   const discountAmt = Math.min(Math.max(0, Number(discount) || 0), gross)

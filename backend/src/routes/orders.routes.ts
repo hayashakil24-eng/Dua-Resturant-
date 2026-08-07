@@ -59,10 +59,12 @@ export async function orderRoutes(app: FastifyInstance): Promise<void> {
   })
 
   // Cancel a single line off a running bill (Cashier/Manager/Admin, per orderItemCancel).
+  // qty is optional — omitted (or equal to the line's full qty) cancels the
+  // whole line as before; a lower qty cancels only that many units.
   app.post('/api/orders/:id/items/:itemId/cancel', { preHandler: requirePermission('orderItemCancel') }, async (req) => {
     const { id, itemId } = req.params as { id: string; itemId: string }
-    const { reason, notes, cooked } = (req.body ?? {}) as { reason?: string; notes?: string; cooked?: boolean }
-    return { order: await orders.cancelOrderItem(ctx(req), id, itemId, { reason, notes, cooked }) }
+    const { reason, notes, cooked, qty } = (req.body ?? {}) as { reason?: string; notes?: string; cooked?: boolean; qty?: number }
+    return { order: await orders.cancelOrderItem(ctx(req), id, itemId, { reason, notes, cooked, qty }) }
   })
 
   // Discount (Admin/Manager, per discount).

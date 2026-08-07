@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { useT } from '../i18n/LanguageContext.jsx'
 import { StatCard } from './ui.jsx'
-import { money, time } from '../utils/format.js'
+import { money, time, formatQty } from '../utils/format.js'
 import { tableLabel } from '../data/mockData.js'
 import { safePrint } from '../utils/print.js'
 import { sessionLabel } from '../utils/sessions.js'
@@ -12,9 +12,10 @@ import { IconPrint, IconOrders, IconCash } from './Icons.jsx'
 // to a closing-to-closing session, not a calendar day, so it lists the same
 // orders as the report tabs beside it even when the session crosses midnight.
 export default function KOTView({ session }) {
-  const { orders, orderTotal } = useApp()
+  const { orders, orderTotal, menu } = useApp()
   const t = useT()
   const label = sessionLabel(session, t)
+  const unitOf = (menuItemId) => menu.find((m) => m.id === menuItemId)?.unit || 'pcs'
 
   const rows = useMemo(
     () =>
@@ -86,7 +87,9 @@ export default function KOTView({ session }) {
               {rows.map((o) => (
                 <tr key={o.id} className="transition hover:bg-white/[0.02]">
                   <td className="px-5 py-3 font-semibold text-cream">{tableLabel(o.table)}</td>
-                  <td className="px-5 py-3 text-cream-dim">{o.items.map((i) => `${i.name} ×${i.qty}`).join(', ')}</td>
+                  <td className="px-5 py-3 text-cream-dim">
+                    {o.items.map((i) => `${i.name} ×${formatQty(i.qty, unitOf(i.menuItemId))}`).join(', ')}
+                  </td>
                   <td className="px-5 py-3 text-center text-cream-dim">{o.qty}</td>
                   <td className="px-5 py-3 text-right font-semibold text-gold">{money(o.amount)}</td>
                   <td className="px-5 py-3 text-center">

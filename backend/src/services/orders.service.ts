@@ -68,7 +68,11 @@ function parseItem(it: OrderItemInput): NormItem | null {
   const [baseId, keyVariant] = String(rawKey).split('::')
   const menuItemId = String(baseId || '').trim()
   if (!menuItemId) return null
-  const qty = Math.max(1, Math.round(Number(it.qty) || 0))
+  // Raw, unclamped here — a whole-number-vs-decimal-weight rule depends on the
+  // menu item's own `unit`, which isn't known synchronously. resolveUnits()
+  // applies the real rounding/validation once it's loaded that inside the
+  // transaction.
+  const qty = Math.max(0, Number(it.qty) || 0)
   return {
     menuItemId,
     variantLabel: it.variantLabel ?? keyVariant ?? null,
@@ -82,6 +86,14 @@ function parseItem(it: OrderItemInput): NormItem | null {
 
 function cartKey(it: { menuItemId: string; variantLabel: string | null }): string {
   return it.variantLabel ? `${it.menuItemId}::${it.variantLabel}` : it.menuItemId
+}
+
+// Smallest weight a kg-billed line can carry — guards against an accidental
+// near-zero tap producing a line that's effectively free.
+const MIN_KG_QTY = 0.05
+
+function roundKg(n: number): number {
+  return Math.round(n * 100) / 100
 }
 
 // Map a persisted order back to the object shape AppContext.jsx works with, so
@@ -259,6 +271,28 @@ async function restockForItems(tx: Tx, items: OrderItemLike[], actor: Actor): Pr
   await applyStockChanges(tx, inventory, calculateRestocks(items, inventory, recipes), 1, actor)
 }
 
+// Round/validate each incoming line's qty against its own menu item's billing
+// unit — "pcs" (default) keeps the historical whole-number-servings rule,
+// "kg" (Karahi/Handi/BBQ-by-weight) allows a decimal weight instead. Read
+// server-side (never trust a client-supplied unit) for the same reason
+// resolvePortions doesn't trust a client-supplied portion.
+async function resolveUnits(tx: Tx, items: NormItem[]): Promise<NormItem[]> {
+  const ids = [...new Set(items.map((i) => i.menuItemId))]
+  const rows = await tx.menuItem.findMany({ where: { id: { in: ids } }, select: { id: true, unit: true } })
+  const unitById = new Map(rows.map((r) => [r.id, r.unit]))
+  return items.map((it) => {
+    const unit = unitById.get(it.menuItemId) ?? 'pcs'
+    if (unit === 'kg') {
+      const qty = roundKg(it.qty)
+      if (qty < MIN_KG_QTY) throw new ServiceError(`${it.name || 'Item'} must be at least ${MIN_KG_QTY}kg.`)
+      // Weight billing replaces variant sizing — a stray variantLabel from a
+      // stale client cart key is dropped rather than trusted.
+      return { ...it, qty, variantLabel: null }
+    }
+    return { ...it, qty: Math.max(1, Math.round(it.qty)) }
+  })
+}
+
 // Resolve each incoming line's portion from its variant row. Deliberately read
 // server-side instead of trusting a `portion` in the request body: this number
 // scales how much stock leaves inventory, so a stale or tampered client must
@@ -370,7 +404,8 @@ export async function addOrder(ctx: Ctx, input: AddOrderInput) {
     const account = paidOnline && input.onlineAccountId ? await tx.onlineAccount.findUnique({ where: { id: input.onlineAccountId } }) : null
 
     const orderNumber = await nextSequence(tx, 'order')
-    const lines = await resolvePortions(tx, items)
+    const unitItems = await resolveUnits(tx, items)
+    const lines = await resolvePortions(tx, unitItems)
     const created = await tx.order.create({
       data: {
         orderNumber,
@@ -436,9 +471,12 @@ export async function appendOrderItems(ctx: Ctx, orderId: string, newItemsInput:
     if (o.cancelled || o.payment === 'Paid') throw new ServiceError('Cannot add items to a paid or cancelled order.')
 
     const stamp = new Date()
-    const newLines = await resolvePortions(tx, newItems)
+    const unitItems = await resolveUnits(tx, newItems)
+    const newLines = await resolvePortions(tx, unitItems)
     for (const ni of newLines) {
-      const existing = o.items.find((it) => it.menuItemId === ni.menuItemId && (it.variantLabel ?? null) === ni.variantLabel)
+      // Excludes cancelled rows so re-adding an item after a partial cancel
+      // merges into the still-active remaining line, not a cancelled split-off.
+      const existing = o.items.find((it) => !it.cancelled && it.menuItemId === ni.menuItemId && (it.variantLabel ?? null) === ni.variantLabel)
       if (existing) {
         // Merging into an existing line keeps that line's original portion
         // snapshot — same variant, so it is the same number by construction.
@@ -567,7 +605,9 @@ export async function updateOrderItemQty(ctx: Ctx, orderId: string, itemKey: str
     const item = matchItem(o, itemKey)
     if (!item) throw new NotFoundError('Order line not found.')
 
-    const nq = Math.max(0, Math.round(Number(newQty) || 0))
+    const menuItem = await tx.menuItem.findUnique({ where: { id: item.menuItemId } })
+    const raw = Math.max(0, Number(newQty) || 0)
+    const nq = menuItem?.unit === 'kg' ? roundKg(raw) : Math.round(raw)
     if (item.qty === nq) return serializeOrder(o)
     const diff = nq - item.qty
 
@@ -590,7 +630,16 @@ export async function updateOrderItemQty(ctx: Ctx, orderId: string, itemKey: str
 // never touches the order's own `cancelled`/`payment` state: the rest of the
 // bill keeps going. The item itself is never removed (see matchItem/`items`
 // convention) — only flagged, same as a whole-order cancel.
-export async function cancelOrderItem(ctx: Ctx, orderId: string, itemKey: string, opts: { reason?: string; notes?: string; cooked?: boolean } = {}) {
+//
+// opts.qty lets the caller cancel only PART of the line's current quantity
+// (e.g. 1 of 3). Omitting it (or passing the full remaining qty) cancels the
+// whole row exactly as before — that all-or-nothing path is untouched, so
+// existing callers/behavior are unaffected. A true partial cancel instead
+// shrinks this row to what's left (still active) and inserts a cloned row
+// carrying just the cancelled quantity, struck through — the same "never
+// hard-delete, just flag" convention a full cancel already uses, just split
+// across two rows instead of one.
+export async function cancelOrderItem(ctx: Ctx, orderId: string, itemKey: string, opts: { reason?: string; notes?: string; cooked?: boolean; qty?: number } = {}) {
   const reason = opts.reason
   if (!reason) throw new ServiceError('A cancellation reason is required.')
   const notes = opts.notes ?? ''
@@ -602,16 +651,29 @@ export async function cancelOrderItem(ctx: Ctx, orderId: string, itemKey: string
     if (!item) throw new NotFoundError('Order line not found.')
     if (item.cancelled) throw new ServiceError('This item is already cancelled.')
 
+    const menuItem = await tx.menuItem.findUnique({ where: { id: item.menuItemId } })
+    const isKg = menuItem?.unit === 'kg'
+    const rawRequested = opts.qty == null ? item.qty : Number(opts.qty)
+    // A kg-billed line can be cancelled by an arbitrary decimal weight (e.g.
+    // 0.5kg out of a 1.5kg line); a pcs line keeps the historical
+    // whole-number-only rule.
+    const requestedQty = isKg ? roundKg(rawRequested) : rawRequested
+    if (isKg ? !(requestedQty > 0) : !Number.isInteger(requestedQty) || requestedQty <= 0) {
+      throw new ServiceError(isKg ? 'Weight to cancel must be greater than 0kg.' : 'Quantity to cancel must be a whole number of at least 1.')
+    }
+    if (requestedQty > item.qty + 1e-9) {
+      throw new ServiceError('Cannot cancel more than the remaining quantity.')
+    }
+
     // Same "was it actually cooked" question as cancelOrder, but read from
     // this line's OWN per-item KDS ready flag rather than the whole order's —
     // a more precise signal than cancelOrder gets, since one line can be
     // ready while its siblings aren't. The modal can still override via
     // opts.cooked (its own "Mark as Cooked" toggle), same UX as cancelOrder.
     const cooked = opts.cooked ?? item.ready
-    const menuItem = await tx.menuItem.findUnique({ where: { id: item.menuItemId } })
     const reusable = menuItem?.reusable ?? false
     const wasted = cooked && !reusable
-    const asItems = [{ menuItemId: item.menuItemId, qty: item.qty, portion: item.portion }]
+    const asItems = [{ menuItemId: item.menuItemId, qty: requestedQty, portion: item.portion }]
 
     const inventory = await loadInventory(tx)
     const recipes = await loadApprovedRecipes(tx)
@@ -623,23 +685,61 @@ export async function cancelOrderItem(ctx: Ctx, orderId: string, itemKey: string
     }
 
     const at = new Date()
-    await tx.orderItem.update({
-      where: { id: item.id },
-      data: {
-        cancelled: true,
-        cancellationReason: reason,
-        cancellationNotes: notes,
-        cancellationBy: ctx.actor.name,
-        cancellationRole: ctx.actor.role,
-        cancellationAt: at,
-        materialLoss: materialLoss || null,
-      },
-    })
+    const remainingQty = isKg ? roundKg(item.qty - requestedQty) : item.qty - requestedQty
+    if (remainingQty > 0) {
+      await tx.orderItem.update({ where: { id: item.id }, data: { qty: remainingQty } })
+      await tx.orderItem.create({
+        data: {
+          orderId,
+          menuItemId: item.menuItemId,
+          variantLabel: item.variantLabel,
+          name: item.name,
+          price: item.price,
+          qty: requestedQty,
+          cost: item.cost,
+          costEstimated: item.costEstimated,
+          portion: item.portion,
+          ready: item.ready,
+          cancelled: true,
+          cancellationReason: reason,
+          cancellationNotes: notes,
+          cancellationBy: ctx.actor.name,
+          cancellationRole: ctx.actor.role,
+          cancellationAt: at,
+          materialLoss: materialLoss || null,
+        },
+      })
+    } else {
+      await tx.orderItem.update({
+        where: { id: item.id },
+        data: {
+          cancelled: true,
+          cancellationReason: reason,
+          cancellationNotes: notes,
+          cancellationBy: ctx.actor.name,
+          cancellationRole: ctx.actor.role,
+          cancellationAt: at,
+          materialLoss: materialLoss || null,
+        },
+      })
+    }
+
     await writeAudit(tx, {
       action: 'ORDER_ITEM_CANCELLED',
       actor: ctx.actor,
       at,
-      details: { orderId, itemId: item.id, itemName: item.name, qty: item.qty, reason, notes, materialLoss },
+      details: {
+        orderId,
+        orderNumber: o.orderNumber,
+        itemId: item.id,
+        itemName: item.name,
+        originalQty: item.qty,
+        cancelledQty: requestedQty,
+        remainingQty,
+        reason,
+        notes,
+        materialLoss,
+      },
     })
 
     return serializeOrder(await fetchOrder(tx, orderId))

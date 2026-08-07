@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext.jsx'
 import { PageHeader } from '../components/ui.jsx'
-import { money, time } from '../utils/format.js'
+import { money, time, formatQty } from '../utils/format.js'
 import { Receipt } from './Billing.jsx'
 import PaymentModal from '../components/PaymentModal.jsx'
 import ManageMostOrderedModal from '../components/ManageMostOrderedModal.jsx'
@@ -190,6 +190,64 @@ function VariantModal({ item, onPick, onClose }) {
   )
 }
 
+// Weight entry for kg-billed items (Karahi, Handi, some BBQ) — replaces the
+// variant picker for these items: price is per kg, so the cashier types the
+// exact weight instead of tapping +1. Sibling of VariantModal above.
+function WeightModal({ item, initial, onAdd, onClose }) {
+  const [value, setValue] = useState(initial ? String(initial) : '')
+  useEscapeKey(onClose)
+  const n = Number(value)
+  const valid = value !== '' && Number.isFinite(n) && n >= 0.05
+  const submit = () => {
+    if (!valid) return
+    onAdd(Math.round(n * 100) / 100)
+  }
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-sm animate-fade-up">
+        <div className="card max-h-[90vh] overflow-y-auto p-6">
+          <div className="flex items-start justify-between">
+            <div>
+              <h3 className="font-serif text-xl text-cream">{item.name}</h3>
+              <p className="mt-0.5 text-xs text-cream-dim">{money(item.price)}/kg — enter the weight</p>
+            </div>
+            <button onClick={onClose} className="text-cream-dim hover:text-cream">
+              <IconClose size={20} />
+            </button>
+          </div>
+          <div className="mt-5">
+            <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">Weight (kg)</label>
+            <input
+              type="number"
+              inputMode="decimal"
+              step={0.05}
+              min={0.05}
+              autoFocus
+              className="input text-center text-lg font-semibold"
+              placeholder="e.g. 1.5"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && submit()}
+            />
+            {value !== '' && !valid && (
+              <p className="mt-1.5 text-xs text-rose-300">Enter a weight of at least 0.05kg.</p>
+            )}
+            {valid && <p className="mt-1.5 text-xs text-cream-dim">Line total: {money(Math.round(item.price * n))}</p>}
+          </div>
+          <button
+            onClick={submit}
+            disabled={!valid}
+            className="btn-gold mt-5 w-full py-3 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <IconCheck size={18} /> {initial ? 'Update weight' : 'Add to cart'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function POS() {
   const {
     addOrder,
@@ -233,7 +291,10 @@ export default function POS() {
   const scrollCategories = (dir) =>
     catScrollRef.current?.scrollBy({ left: dir === 'left' ? -240 : 240, behavior: 'smooth' })
   const [cart, setCart] = useState({}) // { lineKey: qty }, lineKey = id or `id::variant`
+  const [editingQtyKey, setEditingQtyKey] = useState(null) // cart line whose qty is being typed in
+  const [editingQtyValue, setEditingQtyValue] = useState('')
   const [variantPick, setVariantPick] = useState(null) // menu item awaiting a variant
+  const [weightPick, setWeightPick] = useState(null) // kg-billed menu item awaiting a weight
   const [showManageMostOrdered, setShowManageMostOrdered] = useState(false)
   const [deliveryDetails, setDeliveryDetails] = useState(null)
   const [showDeliveryModal, setShowDeliveryModal] = useState(false)
@@ -312,6 +373,7 @@ export default function POS() {
       // this copy only drives the local check.
       portion: variant?.portion ?? 1,
       emoji: base.emoji,
+      unit: base.unit || 'pcs',
       qty,
     }
   }
@@ -319,6 +381,10 @@ export default function POS() {
   const items = Object.entries(cart)
     .map(([key, qty]) => resolveLine(key, qty))
     .filter((i) => i && i.qty > 0)
+
+  // Billing unit for an already-placed order line — order items don't carry
+  // their own unit, only the menu item they were sold from does.
+  const unitOf = (menuItemId) => menu.find((m) => m.id === menuItemId)?.unit || 'pcs'
 
   const { subtotal, tax, total } = orderTotal(items)
 
@@ -381,10 +447,13 @@ export default function POS() {
     return () => el.removeEventListener('wheel', onWheel)
   }, [])
 
-  const add = (key) => setCart((c) => ({ ...c, [key]: (c[key] || 0) + 1 }))
-  const dec = (key) =>
+  const round2 = (n) => Math.round(n * 100) / 100
+  // step defaults to a whole unit (pcs); kg lines step by 0.25kg instead — see
+  // the stepper buttons below, which pass the line's own unit.
+  const add = (key, step = 1) => setCart((c) => ({ ...c, [key]: round2((c[key] || 0) + step) }))
+  const dec = (key, step = 1) =>
     setCart((c) => {
-      const q = (c[key] || 0) - 1
+      const q = round2((c[key] || 0) - step)
       const next = { ...c }
       if (q <= 0) delete next[key]
       else next[key] = q
@@ -397,15 +466,58 @@ export default function POS() {
       return next
     })
   const clear = () => setCart({})
+  const setQty = (key, qty) => setCart((c) => ({ ...c, [key]: qty }))
 
-  // Tapping a menu item: variant items open the picker, others add directly.
+  // Double-click-to-type quantity entry (e.g. "Naan × 100" without 99 taps of
+  // the + button). Mirrors add/dec's direct setCart writes — no new
+  // calculation path, totals/inventory checks recompute the same way they
+  // already do whenever cart changes.
+  const startEditQty = (it) => {
+    setEditingQtyKey(it.key)
+    setEditingQtyValue(String(it.qty))
+  }
+  const cancelEditQty = () => {
+    setEditingQtyKey(null)
+    setEditingQtyValue('')
+  }
+  const commitEditQty = () => {
+    const key = editingQtyKey
+    if (!key) return
+    const isKg = items.find((i) => i.key === key)?.unit === 'kg'
+    const n = Number(editingQtyValue)
+    if (isKg) {
+      if (!editingQtyValue || !Number.isFinite(n) || n < 0.05) {
+        setError('Enter a valid weight (at least 0.05kg).')
+        cancelEditQty()
+        return
+      }
+      setQty(key, Math.round(n * 100) / 100)
+    } else {
+      if (!editingQtyValue || !Number.isInteger(n) || n < 1) {
+        setError('Enter a valid quantity (whole number, 1 or more).')
+        cancelEditQty()
+        return
+      }
+      setQty(key, n)
+    }
+    setError('')
+    cancelEditQty()
+  }
+
+  // Tapping a menu item: kg-billed items ask for a weight, variant items open
+  // the size picker, others add directly.
   const onItemClick = (m) => {
-    if (m.variants && m.variants.length) setVariantPick(m)
+    if (m.unit === 'kg') setWeightPick(m)
+    else if (m.variants && m.variants.length) setVariantPick(m)
     else add(m.id)
   }
   const chooseVariant = (m, v) => {
     add(`${m.id}::${v.label}`)
     setVariantPick(null)
+  }
+  const chooseWeight = (m, kg) => {
+    setQty(m.id, kg)
+    setWeightPick(null)
   }
   // Total quantity of a menu item across all its variant lines (for the badge).
   const qtyFor = (m) =>
@@ -600,7 +712,7 @@ export default function POS() {
           <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-cream-dim">
             {continuingOrder.items.map((it) => (
               <li key={it.id}>
-                {it.name} <span className="text-cream">×{it.qty}</span>
+                {it.name} <span className="text-cream">×{formatQty(it.qty, unitOf(it.menuItemId))}</span>
               </li>
             ))}
           </ul>
@@ -720,6 +832,7 @@ export default function POS() {
                     <span className="font-serif text-base text-gold">
                       {hasVariants && 'from '}
                       {money(m.price)}
+                      {m.unit === 'kg' && '/kg'}
                     </span>
                     <span className={`grid h-7 w-7 place-items-center rounded-lg ring-1 transition ${
                       disabled
@@ -731,7 +844,7 @@ export default function POS() {
                   </div>
                   {count > 0 && (
                     <span className="absolute right-2 top-2 grid h-6 min-w-6 place-items-center rounded-full bg-gold-grad px-1.5 text-xs font-bold text-ink shadow-md">
-                      {count}
+                      {m.unit === 'kg' ? Math.round(count * 100) / 100 : count}
                     </span>
                   )}
                   {/* Stock status chip (recipe-backed items only) */}
@@ -940,27 +1053,62 @@ export default function POS() {
                         </button>
                       </div>
 
-                      {/* Qty stepper + line total */}
+                      {/* Qty stepper + line total. Kg lines step by 0.25kg and
+                          allow a decimal typed value; pcs lines keep the
+                          original whole-number-only behavior. */}
                       <div className="mt-2 flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
                           <button
-                            onClick={() => dec(it.key)}
+                            onClick={() => dec(it.key, it.unit === 'kg' ? 0.25 : 1)}
                             className="grid h-7 w-7 place-items-center rounded-lg border border-ink-line text-cream-dim hover:text-cream"
                           >
                             <IconMinus size={14} />
                           </button>
-                          <span className="w-6 text-center text-sm font-semibold text-cream">
-                            {it.qty}
-                          </span>
+                          {editingQtyKey === it.key ? (
+                            <input
+                              type="text"
+                              inputMode={it.unit === 'kg' ? 'decimal' : 'numeric'}
+                              autoFocus
+                              maxLength={6}
+                              value={editingQtyValue}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) =>
+                                setEditingQtyValue(
+                                  it.unit === 'kg'
+                                    ? e.target.value.replace(/[^0-9.]/g, '')
+                                    : e.target.value.replace(/[^0-9]/g, ''),
+                                )
+                              }
+                              onBlur={commitEditQty}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault()
+                                  commitEditQty()
+                                } else if (e.key === 'Escape') {
+                                  e.preventDefault()
+                                  cancelEditQty()
+                                }
+                              }}
+                              className="w-14 rounded-lg border border-ink-line bg-ink-soft px-1 py-0.5 text-center text-sm font-semibold text-cream outline-none focus:border-gold/70 focus:ring-2 focus:ring-gold/20"
+                            />
+                          ) : (
+                            <span
+                              onDoubleClick={() => startEditQty(it)}
+                              title="Double-click to type a quantity"
+                              className="cursor-text whitespace-nowrap text-center text-sm font-semibold text-cream"
+                            >
+                              {formatQty(it.qty, it.unit)}
+                            </span>
+                          )}
                           <button
-                            onClick={() => add(it.key)}
+                            onClick={() => add(it.key, it.unit === 'kg' ? 0.25 : 1)}
                             className="grid h-7 w-7 place-items-center rounded-lg border border-ink-line text-cream-dim hover:text-cream"
                           >
                             <IconPlus size={14} />
                           </button>
                         </div>
                         <span className="text-sm font-semibold text-cream">
-                          {money(it.price * it.qty)}
+                          {money(Math.round(it.price * it.qty))}
                         </span>
                       </div>
                     </li>
@@ -1051,6 +1199,15 @@ export default function POS() {
           item={variantPick}
           onPick={(v) => chooseVariant(variantPick, v)}
           onClose={() => setVariantPick(null)}
+        />
+      )}
+
+      {weightPick && (
+        <WeightModal
+          item={weightPick}
+          initial={cart[weightPick.id]}
+          onAdd={(kg) => chooseWeight(weightPick, kg)}
+          onClose={() => setWeightPick(null)}
         />
       )}
 

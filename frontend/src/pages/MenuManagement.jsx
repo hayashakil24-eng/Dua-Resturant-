@@ -26,7 +26,7 @@ const priceLabel = (item) => {
     const hi = Math.max(...prices)
     return lo === hi ? money(lo) : `${money(lo)} – ${money(hi)}`
   }
-  return money(item.price)
+  return item.unit === 'kg' ? `${money(item.price)}/kg` : money(item.price)
 }
 
 const NEW_CAT = '__new__'
@@ -45,6 +45,7 @@ function ItemModal({ item, categories, onSave, onClose }) {
   )
   const [description, setDescription] = useState(item?.description || '')
   const [price, setPrice] = useState(item?.price != null ? String(item.price) : '')
+  const [unit, setUnit] = useState(item?.unit === 'kg' ? 'kg' : 'pcs')
   const [hasVariants, setHasVariants] = useState(!!(item?.variants && item.variants.length))
   const [variants, setVariants] = useState(
     item?.variants?.length
@@ -95,15 +96,23 @@ function ItemModal({ item, categories, onSave, onClose }) {
     }))
     .filter((v) => v.label && v.price > 0)
 
+  const usingVariants = hasVariants && unit !== 'kg'
   const valid =
     name.trim() &&
     resolvedCategory &&
-    (hasVariants ? cleanVariants.length >= 1 : Number(price) > 0)
+    (usingVariants ? cleanVariants.length >= 1 : Number(price) > 0)
 
   const setVariant = (i, field, val) =>
     setVariants((vs) => vs.map((v, idx) => (idx === i ? { ...v, [field]: val } : v)))
   const addVariant = () => setVariants((vs) => [...vs, { label: '', price: '', portion: 1 }])
   const removeVariant = (i) => setVariants((vs) => vs.filter((_, idx) => idx !== i))
+
+  // Weight billing replaces size options — one pricing model per item, so
+  // switching to kg drops any in-progress variant rows rather than saving both.
+  const chooseUnit = (u) => {
+    setUnit(u)
+    if (u === 'kg') setHasVariants(false)
+  }
 
   const save = () => {
     if (!valid) return
@@ -114,8 +123,9 @@ function ItemModal({ item, categories, onSave, onClose }) {
       image: image || undefined,
       active,
       reusable,
+      unit,
     }
-    if (hasVariants) {
+    if (usingVariants) {
       payload.variants = cleanVariants
       payload.price = Math.min(...cleanVariants.map((v) => v.price))
     } else {
@@ -220,18 +230,51 @@ function ItemModal({ item, categories, onSave, onClose }) {
               )}
             </div>
 
-            {/* Variants toggle */}
-            <label className="flex items-center gap-2.5 text-sm text-cream">
-              <input
-                type="checkbox"
-                checked={hasVariants}
-                onChange={(e) => setHasVariants(e.target.checked)}
-                className="h-4 w-4 accent-gold"
-              />
-              {t('menu.hasOptions')}
-            </label>
+            {/* Billing unit: whole pieces (default) vs a decimal kg weight
+                (Karahi/Handi/BBQ). Mutually exclusive with size variants. */}
+            <div>
+              <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+                {t('menu.billingUnit')}
+              </label>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {[
+                  { value: 'pcs', label: t('menu.unitPiece') },
+                  { value: 'kg', label: t('menu.unitKg') },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => chooseUnit(opt.value)}
+                    className={`rounded-xl border px-3 py-2.5 text-left text-sm transition ${
+                      unit === opt.value
+                        ? 'border-gold/70 bg-gold/10 text-cream'
+                        : 'border-ink-line text-cream-dim hover:border-gold/40'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {unit === 'kg' && (
+                <p className="mt-1.5 text-[11px] leading-relaxed text-cream-dim">{t('menu.unitKgHint')}</p>
+              )}
+            </div>
 
-            {hasVariants ? (
+            {/* Variants toggle — hidden for kg-billed items (weight entry
+                replaces Half/Full sizing, see chooseUnit above). */}
+            {unit !== 'kg' && (
+              <label className="flex items-center gap-2.5 text-sm text-cream">
+                <input
+                  type="checkbox"
+                  checked={hasVariants}
+                  onChange={(e) => setHasVariants(e.target.checked)}
+                  className="h-4 w-4 accent-gold"
+                />
+                {t('menu.hasOptions')}
+              </label>
+            )}
+
+            {hasVariants && unit !== 'kg' ? (
               <div className="space-y-2 rounded-xl border border-ink-line bg-ink-soft/50 p-3">
                 <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-cream-dim">
                   <span className="flex-1">{t('menu.colLabel')}</span>
@@ -280,7 +323,7 @@ function ItemModal({ item, categories, onSave, onClose }) {
             ) : (
               <div>
                 <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
-                  {t('menu.priceRs')}
+                  {unit === 'kg' ? t('menu.pricePerKg') : t('menu.priceRs')}
                 </label>
                 <input
                   type="number"

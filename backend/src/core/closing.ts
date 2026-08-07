@@ -322,7 +322,9 @@ export function buildClosingReport(
     for (const it of o.items) {
       const cur = itemSales.get(it.name) ?? { qty: 0, total: 0 }
       cur.qty += it.qty
-      cur.total += it.price * it.qty
+      // Rounded per line — qty can be a decimal kg weight now, and every
+      // money figure shown/saved must stay a whole rupee.
+      cur.total += Math.round(it.price * it.qty)
       itemSales.set(it.name, cur)
     }
   }

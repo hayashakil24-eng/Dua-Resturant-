@@ -195,6 +195,7 @@ export async function seed() {
     name: string
     category: string
     price: number
+    unit?: string
     image: string | null
     description: string | null
     variants?: { label: string; price: number }[]
@@ -205,6 +206,7 @@ export async function seed() {
         name: item.name,
         category: item.category,
         price: item.price,
+        unit: item.unit === 'kg' ? 'kg' : 'pcs',
         image: item.image,
         description: item.description,
         active: true,

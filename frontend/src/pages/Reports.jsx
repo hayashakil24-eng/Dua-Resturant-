@@ -157,7 +157,9 @@ export default function Reports() {
       o.items.forEach((it) => {
         const cur = itemMap[it.name] || { name: it.name, qty: 0, total: 0 }
         cur.qty += it.qty
-        cur.total += it.price * it.qty
+        // Rounded per line — qty can be a decimal kg weight now, and every
+        // money figure shown must stay a whole rupee.
+        cur.total += Math.round(it.price * it.qty)
         itemMap[it.name] = cur
       }),
     )

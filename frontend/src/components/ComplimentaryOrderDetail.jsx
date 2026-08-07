@@ -1,5 +1,5 @@
 import { useApp } from '../context/AppContext.jsx'
-import { money } from '../utils/format.js'
+import { money, formatQty } from '../utils/format.js'
 import { lineCost, complimentaryCost, formatCostTotal } from '../utils/cost.js'
 
 const TONES = {
@@ -65,16 +65,17 @@ export default function ComplimentaryOrderDetail({ order }) {
           <tbody>
             {order.items.map((item) => {
               const unitCost = lineCost(item, menu)
+              const unit = menu.find((m) => m.id === item.menuItemId)?.unit || 'pcs'
               return (
                 <tr key={item.key || item.id} className="border-b border-amber-200 hover:bg-amber-100">
                   <td className="px-2 py-1 text-gray-800">{item.name}</td>
-                  <td className="px-2 py-1 text-center text-gray-800">{item.qty}</td>
-                  <td className="px-2 py-1 text-right text-gray-800">{money(item.price * item.qty)}</td>
+                  <td className="px-2 py-1 text-center text-gray-800">{formatQty(item.qty, unit)}</td>
+                  <td className="px-2 py-1 text-right text-gray-800">{money(Math.round(item.price * item.qty))}</td>
                   <td className="px-2 py-1 text-right text-xs text-gray-600">
                     {unitCost == null ? '—' : money(unitCost)}
                   </td>
                   <td className="px-2 py-1 text-right font-semibold text-amber-800">
-                    {unitCost == null ? '—' : money(unitCost * item.qty)}
+                    {unitCost == null ? '—' : money(Math.round(unitCost * item.qty))}
                   </td>
                 </tr>
               )

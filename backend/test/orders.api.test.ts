@@ -304,6 +304,140 @@ describe('orders', () => {
     expect(second.statusCode).toBe(400)
   })
 
+  it('partial item cancel: cancels only the requested quantity, leaving the remainder as an active line', async () => {
+    const cashier = await tokenFor('cashier')
+    // Top up chicken stock first — by this point in the file it may be low
+    // enough that a 3-unit deduction floor-clamps at 0 (applyStockChanges
+    // never goes negative), which would break the linear per-unit math below.
+    await prisma.inventoryItem.update({ where: { id: 'INV03' }, data: { stock: 1000 } })
+    const beforePlace = await chickenStock()
+    const placed = await app.inject({
+      method: 'POST',
+      url: '/api/orders',
+      headers: auth(cashier),
+      payload: { table: 20, items: [{ menuItemId: 'ckh1', name: 'Chicken Shahi Karahi', price: 2699, qty: 3 }], payment: 'Unpaid' },
+    })
+    const order = JSON.parse(placed.body).order
+    const afterPlace = await chickenStock()
+    const perUnitDeduction = (beforePlace - afterPlace) / 3
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/orders/${order.id}/items/${order.items[0].itemId}/cancel`,
+      headers: auth(cashier),
+      payload: { reason: 'Customer Request', cooked: false, qty: 1 },
+    })
+    expect(res.statusCode).toBe(200)
+    const updated = JSON.parse(res.body).order
+    expect(updated.payment).toBe('Unpaid')
+
+    const active = updated.items.find((it: { menuItemId: string; cancelled: boolean }) => it.menuItemId === 'ckh1' && !it.cancelled)
+    const cancelledLine = updated.items.find((it: { menuItemId: string; cancelled: boolean }) => it.menuItemId === 'ckh1' && it.cancelled)
+    expect(active.qty).toBe(2)
+    expect(cancelledLine.qty).toBe(1)
+    expect(cancelledLine.cancellation.reason).toBe('Customer Request')
+
+    const total = updated.items
+      .filter((it: { cancelled: boolean }) => !it.cancelled)
+      .reduce((s: number, it: { price: number; qty: number }) => s + it.price * it.qty, 0)
+    expect(total).toBe(2699 * 2)
+
+    // Only the cancelled unit's ingredients were restocked, not all 3.
+    expect(await chickenStock()).toBeCloseTo(afterPlace + perUnitDeduction, 5)
+  })
+
+  it('rejects invalid cancel quantities: zero, negative, decimal, and over-limit', async () => {
+    const cashier = await tokenFor('cashier')
+    const placed = await app.inject({
+      method: 'POST',
+      url: '/api/orders',
+      headers: auth(cashier),
+      payload: { table: 21, items: [{ menuItemId: 'br2', name: 'Garlic Naan', price: 150, qty: 3 }], payment: 'Unpaid' },
+    })
+    const order = JSON.parse(placed.body).order
+    const itemId = order.items[0].itemId
+
+    for (const qty of [0, -1, 1.5, 4]) {
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/orders/${order.id}/items/${itemId}/cancel`,
+        headers: auth(cashier),
+        payload: { reason: 'Wrong Order', qty },
+      })
+      expect(res.statusCode).toBe(400)
+    }
+  })
+
+  it('supports cancelling from the same line twice (partial, then partial again)', async () => {
+    const cashier = await tokenFor('cashier')
+    const placed = await app.inject({
+      method: 'POST',
+      url: '/api/orders',
+      headers: auth(cashier),
+      payload: { table: 22, items: [{ menuItemId: 'br2', name: 'Garlic Naan', price: 150, qty: 3 }], payment: 'Unpaid' },
+    })
+    const order = JSON.parse(placed.body).order
+    const itemId = order.items[0].itemId
+
+    const first = await app.inject({
+      method: 'POST',
+      url: `/api/orders/${order.id}/items/${itemId}/cancel`,
+      headers: auth(cashier),
+      payload: { reason: 'Wrong Order', qty: 1 },
+    })
+    expect(first.statusCode).toBe(200)
+    const afterFirst = JSON.parse(first.body).order
+    const activeAfterFirst = afterFirst.items.find((it: { menuItemId: string; cancelled: boolean }) => it.menuItemId === 'br2' && !it.cancelled)
+    expect(activeAfterFirst.qty).toBe(2)
+
+    const second = await app.inject({
+      method: 'POST',
+      url: `/api/orders/${order.id}/items/${activeAfterFirst.itemId}/cancel`,
+      headers: auth(cashier),
+      payload: { reason: 'Wrong Order', qty: 1 },
+    })
+    expect(second.statusCode).toBe(200)
+    const afterSecond = JSON.parse(second.body).order
+    const cancelledLines = afterSecond.items.filter((it: { menuItemId: string; cancelled: boolean }) => it.menuItemId === 'br2' && it.cancelled)
+    const activeAfterSecond = afterSecond.items.find((it: { menuItemId: string; cancelled: boolean }) => it.menuItemId === 'br2' && !it.cancelled)
+    expect(cancelledLines.length).toBe(2)
+    expect(activeAfterSecond.qty).toBe(1)
+  })
+
+  it('re-adding the same item after a partial cancel merges into the active remainder, not the cancelled split', async () => {
+    const cashier = await tokenFor('cashier')
+    const placed = await app.inject({
+      method: 'POST',
+      url: '/api/orders',
+      headers: auth(cashier),
+      payload: { table: 23, items: [{ menuItemId: 'br2', name: 'Garlic Naan', price: 150, qty: 3 }], payment: 'Unpaid' },
+    })
+    const order = JSON.parse(placed.body).order
+    const itemId = order.items[0].itemId
+
+    await app.inject({
+      method: 'POST',
+      url: `/api/orders/${order.id}/items/${itemId}/cancel`,
+      headers: auth(cashier),
+      payload: { reason: 'Wrong Order', qty: 1 },
+    })
+
+    const appended = await app.inject({
+      method: 'POST',
+      url: `/api/orders/${order.id}/items`,
+      headers: auth(cashier),
+      payload: { items: [{ menuItemId: 'br2', name: 'Garlic Naan', price: 150, qty: 2 }] },
+    })
+    expect(appended.statusCode).toBe(200)
+    const updated = JSON.parse(appended.body).order
+    const naanLines = updated.items.filter((it: { menuItemId: string }) => it.menuItemId === 'br2')
+    expect(naanLines.length).toBe(2) // one active (merged), one cancelled — not a third row
+    const active = naanLines.find((it: { cancelled: boolean }) => !it.cancelled)
+    const cancelled = naanLines.find((it: { cancelled: boolean }) => it.cancelled)
+    expect(active.qty).toBe(4) // 2 remaining + 2 appended
+    expect(cancelled.qty).toBe(1)
+  })
+
   it('shifts a running order onto Takeaway (302), and allows a second concurrent order there too', async () => {
     const cashier = await tokenFor('cashier')
     const place = (table: number) =>
@@ -383,5 +517,178 @@ describe('orders', () => {
     const fetched = await app.inject({ method: 'GET', url: '/api/orders', headers: auth(cashier) })
     const refetched = JSON.parse(fetched.body).orders.find((o: { id: string }) => o.id === order.id)
     expect(refetched.deliveryRiderName).toBe('Sajid')
+  })
+})
+
+// Karahi/Handi/BBQ items billed by weight instead of a piece count — see
+// CLAUDE.md's Karahi/Handi note. `ckh1` (used throughout the suite above)
+// deliberately stays unit:"pcs" so the existing decimal-rejection test keeps
+// passing unmodified; this block seeds its own dedicated unit:"kg" item.
+describe('kg-billed items (weight billing)', () => {
+  const KG_ITEM_ID = 'kgtest1'
+  const KG_PRICE = 3000 // Rs. per kg
+
+  beforeAll(async () => {
+    await prisma.menuItem.create({
+      data: {
+        id: KG_ITEM_ID,
+        name: 'Test Weight Karahi',
+        category: 'Test',
+        price: KG_PRICE,
+        unit: 'kg',
+        active: true,
+        costEstimated: true,
+        reusable: false,
+      },
+    })
+    // 1kg chicken "per kg of dish" — a kg-billed item's recipe is authored per
+    // kg ordered, not per serving, since oi.qty now means kg (see
+    // CLAUDE.md / resolveUnits in orders.service.ts).
+    const recipe = await prisma.recipe.create({
+      data: {
+        menuItemId: KG_ITEM_ID,
+        menuItemName: 'Test Weight Karahi',
+        totalCost: 550,
+        status: 'approved',
+        createdBy: 'Test Chef',
+        createdByRole: 'Kitchen',
+        approvedBy: 'Admin User',
+        approvedAt: new Date(),
+      },
+    })
+    await prisma.recipeIngredient.create({
+      data: { recipeId: recipe.id, inventoryItemId: 'INV03', itemName: 'Chicken', quantity: 1, unit: 'kg', costPerUnit: 550, lineCost: 550 },
+    })
+  })
+
+  it('accepts a decimal weight on create, deducts proportionally, and totals a whole rupee', async () => {
+    const cashier = await tokenFor('cashier')
+    await prisma.inventoryItem.update({ where: { id: 'INV03' }, data: { stock: 1000 } })
+    const before = await chickenStock()
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orders',
+      headers: auth(cashier),
+      payload: { table: 900, items: [{ menuItemId: KG_ITEM_ID, name: 'Test Weight Karahi', price: KG_PRICE, qty: 1.5 }], payment: 'Unpaid' },
+    })
+    expect(res.statusCode).toBe(200)
+    const { order } = JSON.parse(res.body)
+    const line = order.items[0]
+    expect(line.qty).toBe(1.5)
+    // 3000 * 1.5 = 4500 exactly, but the rounding must survive a fractional case too.
+    expect(order.items.reduce((s: number, it: { price: number; qty: number }) => s + Math.round(it.price * it.qty), 0)).toBe(4500)
+    expect(Math.round((before - (await chickenStock())) * 1000) / 1000).toBe(1.5)
+  })
+
+  it('rounds a decimal qty to 2dp and rejects a sub-0.05kg weight', async () => {
+    const cashier = await tokenFor('cashier')
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orders',
+      headers: auth(cashier),
+      payload: { table: 901, items: [{ menuItemId: KG_ITEM_ID, name: 'Test Weight Karahi', price: KG_PRICE, qty: 1.239 }], payment: 'Unpaid' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(JSON.parse(res.body).order.items[0].qty).toBe(1.24)
+
+    const tooSmall = await app.inject({
+      method: 'POST',
+      url: '/api/orders',
+      headers: auth(cashier),
+      payload: { table: 902, items: [{ menuItemId: KG_ITEM_ID, name: 'Test Weight Karahi', price: KG_PRICE, qty: 0.01 }], payment: 'Unpaid' },
+    })
+    expect(tooSmall.statusCode).toBe(400)
+  })
+
+  it('appending items and editing qty both accept a decimal weight', async () => {
+    const cashier = await tokenFor('cashier')
+    const placed = await app.inject({
+      method: 'POST',
+      url: '/api/orders',
+      headers: auth(cashier),
+      payload: { table: 903, items: [{ menuItemId: KG_ITEM_ID, name: 'Test Weight Karahi', price: KG_PRICE, qty: 1 }], payment: 'Unpaid' },
+    })
+    const order = JSON.parse(placed.body).order
+
+    const edited = await app.inject({
+      method: 'PATCH',
+      url: `/api/orders/${order.id}/items`,
+      headers: auth(cashier),
+      payload: { itemKey: order.items[0].id, qty: 2.25 },
+    })
+    expect(edited.statusCode).toBe(200)
+    expect(JSON.parse(edited.body).order.items[0].qty).toBe(2.25)
+
+    const appended = await app.inject({
+      method: 'POST',
+      url: `/api/orders/${order.id}/items`,
+      headers: auth(cashier),
+      payload: { items: [{ menuItemId: KG_ITEM_ID, name: 'Test Weight Karahi', price: KG_PRICE, qty: 0.75 }] },
+    })
+    expect(appended.statusCode).toBe(200)
+    const merged = JSON.parse(appended.body).order.items.find((it: { menuItemId: string; cancelled: boolean }) => it.menuItemId === KG_ITEM_ID && !it.cancelled)
+    expect(merged.qty).toBe(3) // 2.25 + 0.75, merged into the same line
+  })
+
+  it('partial-kg cancel accepts a decimal amount, restocks proportionally, and leaves the decimal remainder', async () => {
+    const cashier = await tokenFor('cashier')
+    await prisma.inventoryItem.update({ where: { id: 'INV03' }, data: { stock: 1000 } })
+    const before = await chickenStock()
+
+    const placed = await app.inject({
+      method: 'POST',
+      url: '/api/orders',
+      headers: auth(cashier),
+      payload: { table: 904, items: [{ menuItemId: KG_ITEM_ID, name: 'Test Weight Karahi', price: KG_PRICE, qty: 1.5 }], payment: 'Unpaid' },
+    })
+    const order = JSON.parse(placed.body).order
+    const afterPlace = await chickenStock()
+    expect(Math.round((before - afterPlace) * 1000) / 1000).toBe(1.5)
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/orders/${order.id}/items/${order.items[0].itemId}/cancel`,
+      headers: auth(cashier),
+      payload: { reason: 'Customer Request', cooked: false, qty: 0.5 },
+    })
+    expect(res.statusCode).toBe(200)
+    const updated = JSON.parse(res.body).order
+    const active = updated.items.find((it: { menuItemId: string; cancelled: boolean }) => it.menuItemId === KG_ITEM_ID && !it.cancelled)
+    const cancelledLine = updated.items.find((it: { menuItemId: string; cancelled: boolean }) => it.menuItemId === KG_ITEM_ID && it.cancelled)
+    expect(active.qty).toBe(1)
+    expect(cancelledLine.qty).toBe(0.5)
+    // Restocked exactly the cancelled 0.5kg worth of chicken (0.5kg needed per kg).
+    expect(await chickenStock()).toBeCloseTo(afterPlace + 0.5, 5)
+  })
+
+  it('rejects a zero/negative/over-limit weight cancel, but allows a valid decimal', async () => {
+    const cashier = await tokenFor('cashier')
+    const placed = await app.inject({
+      method: 'POST',
+      url: '/api/orders',
+      headers: auth(cashier),
+      payload: { table: 905, items: [{ menuItemId: KG_ITEM_ID, name: 'Test Weight Karahi', price: KG_PRICE, qty: 1 }], payment: 'Unpaid' },
+    })
+    const order = JSON.parse(placed.body).order
+    const itemId = order.items[0].itemId
+
+    for (const qty of [0, -0.5, 1.5]) {
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/orders/${order.id}/items/${itemId}/cancel`,
+        headers: auth(cashier),
+        payload: { reason: 'Wrong Order', qty },
+      })
+      expect(res.statusCode).toBe(400)
+    }
+
+    const ok = await app.inject({
+      method: 'POST',
+      url: `/api/orders/${order.id}/items/${itemId}/cancel`,
+      headers: auth(cashier),
+      payload: { reason: 'Wrong Order', qty: 0.3 },
+    })
+    expect(ok.statusCode).toBe(200)
   })
 })
