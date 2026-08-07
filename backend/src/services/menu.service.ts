@@ -28,6 +28,9 @@ export interface MenuItemInput {
   name?: string
   category?: string
   price?: number
+  // "pcs" (default) | "kg" — kg-billed items can't carry variants, see
+  // resolveUnits() in orders.service.ts and CLAUDE.md's Karahi/Handi note.
+  unit?: string
   image?: string | null
   description?: string | null
   cost?: number | null
@@ -35,6 +38,10 @@ export interface MenuItemInput {
   reusable?: boolean
   active?: boolean
   variants?: { label: string; price: number; cost?: number | null; costEstimated?: boolean; portion?: number }[]
+}
+
+function normalizeUnit(u: unknown): string {
+  return u === 'kg' ? 'kg' : 'pcs'
 }
 
 // Variant rows are written from three places (add / update / bulk replace), so
@@ -55,18 +62,22 @@ function variantRow(v: NonNullable<MenuItemInput['variants']>[number]) {
 export async function addMenuItem(_ctx: Ctx, item: MenuItemInput) {
   const name = (item.name ?? '').trim()
   if (!name) throw new ServiceError('Menu item name is required.')
+  const unit = normalizeUnit(item.unit)
+  // Weight billing replaces variant sizing — one pricing model per item.
+  const variants = unit === 'kg' ? [] : item.variants
   return prisma.menuItem.create({
     data: {
       name,
       category: item.category || 'Other',
       price: Math.round(Number(item.price) || 0),
+      unit,
       image: item.image ?? null,
       description: item.description ?? null,
       cost: item.cost == null ? null : Math.round(Number(item.cost)),
       costEstimated: item.costEstimated ?? true,
       reusable: item.reusable ?? false,
       active: item.active ?? true,
-      variants: item.variants?.length ? { create: item.variants.map(variantRow) } : undefined,
+      variants: variants?.length ? { create: variants.map(variantRow) } : undefined,
     },
     include: { variants: true },
   })
@@ -78,6 +89,7 @@ export async function updateMenuItem(_ctx: Ctx, id: string, updates: MenuItemInp
   if (scalar.name != null) data.name = String(scalar.name)
   if (scalar.category != null) data.category = scalar.category
   if (scalar.price != null) data.price = Math.round(Number(scalar.price) || 0)
+  if (scalar.unit != null) data.unit = normalizeUnit(scalar.unit)
   if ('image' in scalar) data.image = scalar.image ?? null
   if ('description' in scalar) data.description = scalar.description ?? null
   if ('cost' in scalar) data.cost = scalar.cost == null ? null : Math.round(Number(scalar.cost))
@@ -95,6 +107,12 @@ export async function updateMenuItem(_ctx: Ctx, id: string, updates: MenuItemInp
           data: variants.map((v) => ({ menuItemId: id, ...variantRow(v) })),
         })
       }
+    } else if (data.unit === 'kg') {
+      // Switching an item to weight billing without an explicit variants
+      // payload (the UI hides that section for kg items) — still drop any
+      // variants it had before, since the two pricing models are mutually
+      // exclusive.
+      await tx.menuItemVariant.deleteMany({ where: { menuItemId: id } })
     }
     return tx.menuItem.update({ where: { id }, data, include: { variants: true } })
   })
@@ -117,11 +135,14 @@ export async function replaceMenu(_ctx: Ctx, items: MenuItemInput[]) {
   return prisma.$transaction(async (tx) => {
     await tx.menuItem.deleteMany()
     for (const item of items) {
+      const unit = normalizeUnit(item.unit)
+      const variants = unit === 'kg' ? [] : item.variants
       await tx.menuItem.create({
         data: {
           name: (item.name ?? '').trim() || 'Unnamed',
           category: item.category || 'Other',
           price: Math.round(Number(item.price) || 0),
+          unit,
           image: item.image ?? null,
           description: item.description ?? null,
           cost: item.cost == null ? null : Math.round(Number(item.cost)),
@@ -131,7 +152,7 @@ export async function replaceMenu(_ctx: Ctx, items: MenuItemInput[]) {
           // Was previously missing entirely — a bulk replace silently
           // dropped every item's variants (e.g. Steaks Beef/Chicken, Pizza
           // S/M/L), unlike addMenuItem above which already handles this.
-          variants: item.variants?.length ? { create: item.variants.map(variantRow) } : undefined,
+          variants: variants?.length ? { create: variants.map(variantRow) } : undefined,
         },
       })
     }

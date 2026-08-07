@@ -1,6 +1,7 @@
 import { createPortal } from 'react-dom'
 import { useApp } from '../context/AppContext.jsx'
 import { tableLabel } from '../data/mockData.js'
+import { formatQty } from '../utils/format.js'
 
 // Groups an order's items by department (counter) and renders one thermal-style
 // slip per counter into a <body>-level portal (#printable-kots). The slips are
@@ -10,8 +11,14 @@ import { tableLabel } from '../data/mockData.js'
 // Rendered continuously (with the just-placed order); printing is triggered by
 // safePrint('print-kot') from the POS after an order is sent to the kitchen.
 export default function KitchenSlips({ order }) {
-  const { getDepartmentForItem } = useApp()
+  const { getDepartmentForItem, menu } = useApp()
   if (!order || !order.items?.length) return null
+
+  // `it.id` may be a plain menuItemId or a "menuId::variant" cart key
+  // depending on the caller (a freshly-placed order vs the POS's own
+  // just-built items array) — strip any variant suffix before matching.
+  const unitOf = (it) =>
+    menu.find((m) => m.id === (it.menuItemId || String(it.id).split('::')[0]))?.unit || 'pcs'
 
   // One group per counter; unmapped items fall back to a single "Kitchen" slip.
   const groups = new Map()
@@ -33,6 +40,7 @@ export default function KitchenSlips({ order }) {
       {slips.map((g, i) => (
         <div className="kot-slip" key={g.name + i}>
           <div className="kot-title">CAFÉ ALI</div>
+          {order.reprint && <div className="kot-reprint">⟳ REPRINT</div>}
           <div className="kot-dept">{g.name.toUpperCase()}</div>
           <div className="kot-meta">
             <div className="kot-row"><span>ORDER</span><b>{order.id}</b></div>
@@ -44,7 +52,7 @@ export default function KitchenSlips({ order }) {
             {g.items.map((it, j) => (
               <div className="kot-item" key={it.id + j}>
                 <span>{it.name}</span>
-                <b>×{it.qty}</b>
+                <b>×{formatQty(it.qty, unitOf(it))}</b>
               </div>
             ))}
           </div>

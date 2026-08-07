@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useApp } from '../context/AppContext.jsx'
 import { tableLabel } from '../data/mockData.js'
+import { formatQty } from '../utils/format.js'
 import { IconClose, IconCheck, IconClock, IconSearch } from '../components/Icons.jsx'
 
 const elapsedMin = (iso, now) =>
@@ -12,7 +13,7 @@ const elapsedMin = (iso, now) =>
 // its whole grid row, pushing the short tickets beside it out of shape.
 const COLLAPSED_LINES = 4
 
-function OrderCard({ order, items, now, onReady, onItemReady, onClear, deptFor, showDeptTag }) {
+function OrderCard({ order, items, now, onReady, onItemReady, onClear, deptFor, showDeptTag, unitOf }) {
   const ready = order.kitchen === 'Ready'
   const mins = elapsedMin(order.createdAt, now)
   const urgent = !ready && mins >= 15
@@ -95,7 +96,9 @@ function OrderCard({ order, items, now, onReady, onItemReady, onClear, deptFor, 
                     )}
                   </span>
                 </span>
-                <span className={`shrink-0 text-base font-bold ${it.ready ? 'text-emerald-300/70' : 'text-gold'}`}>×{it.qty}</span>
+                <span className={`shrink-0 text-base font-bold ${it.ready ? 'text-emerald-300/70' : 'text-gold'}`}>
+                  ×{formatQty(it.qty, unitOf ? unitOf(it.menuItemId) : 'pcs')}
+                </span>
               </button>
             </li>
           )
@@ -140,7 +143,8 @@ function OrderCard({ order, items, now, onReady, onItemReady, onClear, deptFor, 
 }
 
 export default function KitchenDisplay() {
-  const { orders, markReady, markItemReady, clearKitchen, departments, getDepartmentForItem } = useApp()
+  const { orders, markReady, markItemReady, clearKitchen, departments, getDepartmentForItem, menu } = useApp()
+  const unitOf = (menuItemId) => menu.find((m) => m.id === menuItemId)?.unit || 'pcs'
   const [now, setNow] = useState(() => Date.now())
   const [dept, setDept] = useState('all') // 'all' | department id
   const [status, setStatus] = useState('all') // 'all' | 'pending' | 'ready'
@@ -326,6 +330,7 @@ export default function KitchenDisplay() {
                 onItemReady={markItemReady}
                 onClear={clearKitchen}
                 deptFor={getDepartmentForItem}
+                unitOf={unitOf}
                 showDeptTag={dept === 'all'}
               />
             ))}

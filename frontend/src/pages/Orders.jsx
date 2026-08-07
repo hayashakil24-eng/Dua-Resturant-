@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { PageHeader, PaymentBadge, EmptyState } from '../components/ui.jsx'
-import { money, time } from '../utils/format.js'
+import { money, time, formatQty } from '../utils/format.js'
 import { tableLabel } from '../data/mockData.js'
-import { IconOrders, IconSearch, IconCheck, IconClose, IconWallet, IconPrint, IconTable } from '../components/Icons.jsx'
+import { IconOrders, IconSearch, IconCheck, IconClose, IconWallet, IconPrint, IconTable, IconMinus, IconPlus } from '../components/Icons.jsx'
 import { canModify, hasAccess } from '../config/permissions.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import PaymentModal from '../components/PaymentModal.jsx'
@@ -14,6 +14,10 @@ import MarkAsComplimentaryModal from '../components/MarkAsComplimentaryModal.jsx
 // be printed as a "bill to pay" here without settling it (waiter takes it to the
 // table; cash is collected and Mark as Paid pressed later).
 import { Receipt } from './Billing.jsx'
+// Reuse the exact same department-routed kitchen-docket pipeline POS.jsx uses
+// for a fresh KOT — fed a synthetic single-item "order" for a docket reprint.
+import KitchenSlips from '../components/KitchenSlips.jsx'
+import { safePrint } from '../utils/print.js'
 
 const FILTERS = ['All', 'Paid', 'Unpaid', 'Udhaar', 'Complimentary', 'Cancelled']
 const CANCEL_REASONS = ['Customer Request', 'Wrong Order', 'Out of Stock', 'Other']
@@ -61,7 +65,10 @@ function CancelModal({ order, orderTotal, materialLoss = 0, onConfirm, onClose }
               <span className="text-sm text-cream-dim">{tableLabel(order.table)}</span>
             </div>
             <p className="mt-2 text-xs text-cream-dim">
-              {order.items.map((i) => `${i.qty}× ${i.name}`).join(', ')}
+              {order.items
+                .filter((i) => !i.cancelled)
+                .map(qtyItemLabel)
+                .join(', ')}
             </p>
             <div className="mt-2 border-t border-ink-line pt-2 text-right">
               <span className="font-serif text-lg font-semibold text-cream">{money(total)}</span>
@@ -155,15 +162,32 @@ function CancelModal({ order, orderTotal, materialLoss = 0, onConfirm, onClose }
 // of CancelModal (same reason/notes/cooked shape) but scoped to one item, so
 // the customer sending back one dish doesn't require voiding the whole order.
 function CancelItemModal({ item, orderMaterialLoss, onConfirm, onClose }) {
+  const { menu } = useApp()
+  const unit = menu.find((m) => m.id === item.menuItemId)?.unit || 'pcs'
+  const isKg = unit === 'kg'
   const [reason, setReason] = useState('')
   const [notes, setNotes] = useState('')
   // Defaults to this line's OWN per-item KDS ready flag (more precise than the
   // whole-order kitchen status CancelModal uses, since one line can be ready
   // while its siblings aren't).
   const [cooked, setCooked] = useState(Boolean(item.ready))
+  // How many of this line's units to cancel. A pcs line defaults to 1 (the
+  // common "one dish sent back" case) rather than the full qty, so the
+  // least-destructive choice is pre-selected — only shown/adjustable when
+  // there's more than one unit, otherwise it cancels in full as before. A kg
+  // line defaults to the FULL remaining weight instead — there's no natural
+  // "one unit" of a decimal weight to default to — and the cashier types a
+  // smaller amount to cancel only part of it.
+  const [cancelQty, setCancelQty] = useState(isKg ? item.qty : 1)
+  const [cancelQtyText, setCancelQtyText] = useState(isKg ? String(item.qty) : '')
+  const [submitting, setSubmitting] = useState(false)
   useEscapeKey(onClose)
-  const lineTotal = item.price * item.qty
-  const materialLoss = orderMaterialLoss([item])
+  const lineTotal = Math.round(item.price * item.qty)
+  const cancelTotal = Math.round(item.price * cancelQty)
+  const materialLoss = orderMaterialLoss([{ ...item, qty: cancelQty }])
+  const validQty = isKg
+    ? Number.isFinite(cancelQty) && cancelQty > 0 && cancelQty <= item.qty + 1e-9
+    : Number.isInteger(cancelQty) && cancelQty >= 1 && cancelQty <= item.qty
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -183,11 +207,64 @@ function CancelItemModal({ item, orderMaterialLoss, onConfirm, onClose }) {
           <div className="mt-5 rounded-xl border border-ink-line bg-ink-soft p-4">
             <div className="flex items-center justify-between">
               <span className="font-semibold text-cream">
-                {item.name} <span className="text-cream-dim">×{item.qty}</span>
+                {item.name} <span className="text-cream-dim">×{formatQty(item.qty, unit)}</span>
               </span>
               <span className="font-serif text-lg font-semibold text-cream">{money(lineTotal)}</span>
             </div>
           </div>
+
+          {isKg ? (
+            <div className="mt-4">
+              <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+                Weight to cancel (kg)
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  step={0.05}
+                  min={0.05}
+                  max={item.qty}
+                  value={cancelQtyText}
+                  onChange={(e) => {
+                    setCancelQtyText(e.target.value)
+                    setCancelQty(Math.round((Number(e.target.value) || 0) * 100) / 100)
+                  }}
+                  className="input w-28 py-2 text-center text-sm font-semibold"
+                />
+                <span className="text-xs text-cream-dim">of {formatQty(item.qty, unit)} · {money(cancelTotal)}</span>
+              </div>
+              {!validQty && cancelQtyText !== '' && (
+                <p className="mt-1.5 text-xs text-rose-300">Enter a weight between 0.05kg and {formatQty(item.qty, unit)}.</p>
+              )}
+            </div>
+          ) : (
+            item.qty > 1 && (
+              <div className="mt-4 flex items-center justify-between">
+                <label className="text-[11px] uppercase tracking-wider text-cream-dim">Quantity to cancel</label>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setCancelQty((q) => Math.max(1, q - 1))}
+                      disabled={cancelQty <= 1}
+                      className="grid h-7 w-7 place-items-center rounded-lg border border-ink-line text-cream-dim hover:text-cream disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <IconMinus size={14} />
+                    </button>
+                    <span className="w-6 text-center text-sm font-semibold text-cream">{cancelQty}</span>
+                    <button
+                      onClick={() => setCancelQty((q) => Math.min(item.qty, q + 1))}
+                      disabled={cancelQty >= item.qty}
+                      className="grid h-7 w-7 place-items-center rounded-lg border border-ink-line text-cream-dim hover:text-cream disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <IconPlus size={14} />
+                    </button>
+                  </div>
+                  <span className="text-xs text-cream-dim">of {item.qty} · {money(cancelTotal)}</span>
+                </div>
+              </div>
+            )
+          )}
 
           {cooked ? (
             materialLoss > 0 && (
@@ -250,13 +327,16 @@ function CancelItemModal({ item, orderMaterialLoss, onConfirm, onClose }) {
           </div>
 
           <div className="mt-6 flex gap-3">
-            <button onClick={onClose} className="btn-ghost flex-1 py-3">
+            <button onClick={onClose} className="btn-ghost flex-1 py-3" disabled={submitting}>
               Keep Item
             </button>
             <button
-              onClick={() => onConfirm({ reason, notes: notes.trim(), cooked })}
-              disabled={!reason}
-              title={reason ? 'Cancel this item' : 'Select a reason first'}
+              onClick={() => {
+                setSubmitting(true)
+                onConfirm({ reason, notes: notes.trim(), cooked, qty: cancelQty })
+              }}
+              disabled={!reason || !validQty || submitting}
+              title={!reason ? 'Select a reason first' : !validQty ? 'Select a valid quantity' : 'Cancel this item'}
               className="flex-1 rounded-xl bg-gradient-to-r from-rose-500 to-red-600 py-3 font-semibold text-white transition-all duration-200 hover:from-rose-400 hover:to-red-500 hover:shadow-lg hover:shadow-rose-500/40 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:shadow-none"
             >
               Confirm Cancel
@@ -269,7 +349,16 @@ function CancelItemModal({ item, orderMaterialLoss, onConfirm, onClose }) {
 }
 
 export default function Orders() {
-  const { orders, orderTotal, markPaid, cancelOrder, cancelOrderItem, orderMaterialLoss, markOrderUdhaar, markOrderComplimentary, shiftOrderTable, onlineAccounts, auditLog, user } = useApp()
+  const { orders, orderTotal, markPaid, cancelOrder, cancelOrderItem, orderMaterialLoss, markOrderUdhaar, markOrderComplimentary, shiftOrderTable, onlineAccounts, auditLog, user, menu } = useApp()
+  // Order items don't carry their own unit — only the menu item they were
+  // sold from does.
+  const unitOf = (menuItemId) => menu.find((m) => m.id === menuItemId)?.unit || 'pcs'
+  // "2× Naan" for pcs, "1.5 kg Chicken Shahi Handi" for kg (no "×" — a weight
+  // isn't a piece count) — used in every order-summary string below.
+  const qtyItemLabel = (i) => {
+    const unit = unitOf(i.menuItemId)
+    return unit === 'kg' ? `${formatQty(i.qty, unit)} ${i.name}` : `${formatQty(i.qty, unit)}× ${i.name}`
+  }
   // Admin oversees orders but doesn't personally settle bills — that's a
   // Cashier action — so the button is hidden for Admin even though they keep
   // full edit access otherwise (table shift, etc.).
@@ -298,6 +387,7 @@ export default function Orders() {
   const [udhaarTarget, setUdhaarTarget] = useState(null) // unpaid order → on-account
   const [compTarget, setCompTarget] = useState(null) // unpaid order → complimentary
   const [detailTarget, setDetailTarget] = useState(null) // order details drawer
+  const [reprintOrder, setReprintOrder] = useState(null) // synthetic single-item order fed to KitchenSlips for a docket reprint
   const [visibleCount, setVisibleCount] = useState(ORDERS_PAGE_SIZE)
   const [logVisibleCount, setLogVisibleCount] = useState(ORDERS_PAGE_SIZE)
 
@@ -339,6 +429,26 @@ export default function Orders() {
     const byServerId = new Map(orders.map((o) => [o.serverId, o.id]))
     return (serverId) => byServerId.get(serverId) ?? null
   }, [orders])
+
+  // Reprint one item's kitchen docket — read-only, never touches order state.
+  // Builds the same {id, table, waiter, items, createdAt} shape POS.jsx's
+  // addToOrder already builds to feed KitchenSlips, just with items:[item] (the
+  // original item object, so qty is always the order's original qty — never
+  // editable here) and the order's original createdAt (so "Order Time" matches
+  // the first docket, not the reprint moment). `reprint: true` only drives the
+  // REPRINT marker in KitchenSlips.jsx.
+  const reprintItem = (order, item) => {
+    if (order.cancelled || item.cancelled) return
+    setReprintOrder({
+      id: order.id,
+      table: order.table,
+      waiter: order.waiter,
+      items: [item],
+      createdAt: order.createdAt,
+      reprint: true,
+    })
+    setTimeout(() => safePrint('print-kot'), 80)
+  }
 
   // Actions shown in the order details drawer. A flat stack of six identical
   // full-width buttons reads as a wall of buttons, not a designed UI — so
@@ -472,14 +582,21 @@ export default function Orders() {
                 // server's own guard in cancelOrderItem.
                 const canCancelThisItem = canCancelItem && !order.cancelled && !it.cancelled && order.payment === 'Unpaid'
                 return (
-                  <li key={it.id} className="py-2.5 text-sm">
+                  <li key={it.itemId} className="py-2.5 text-sm">
                     <div className="flex items-center justify-between gap-2">
-                      <span className={struckThrough ? 'text-cream-dim line-through' : 'text-cream'}>
-                        {it.name} <span className="text-cream-dim">×{it.qty}</span>
+                      <span
+                        className={
+                          (struckThrough ? 'text-cream-dim line-through' : 'text-cream') +
+                          (canPrintBill && !struckThrough ? ' cursor-pointer' : '')
+                        }
+                        onDoubleClick={canPrintBill && !struckThrough ? () => reprintItem(order, it) : undefined}
+                        title={canPrintBill && !struckThrough ? 'Double-click to reprint kitchen docket' : undefined}
+                      >
+                        {it.name} <span className="text-cream-dim">×{formatQty(it.qty, unitOf(it.menuItemId))}</span>
                       </span>
                       <div className="flex items-center gap-2">
                         <span className={`font-semibold ${it.cancelled ? 'text-cream-dim line-through' : 'text-cream'}`}>
-                          {money(it.price * it.qty)}
+                          {money(Math.round(it.price * it.qty))}
                         </span>
                         {canCancelThisItem && (
                           <button
@@ -639,7 +756,10 @@ export default function Orders() {
                       <td className="px-5 py-4 text-cream">{o.waiter || '—'}</td>
                       <td className="max-w-[240px] px-5 py-4 text-cream-dim">
                         <span className={`line-clamp-1 ${o.cancelled ? 'line-through' : ''}`}>
-                          {o.items.map((i) => `${i.qty}× ${i.name}`).join(', ')}
+                          {o.items
+                            .filter((i) => o.cancelled || !i.cancelled)
+                            .map(qtyItemLabel)
+                            .join(', ')}
                         </span>
                       </td>
                       <td className="px-5 py-4 text-right font-semibold text-cream">
@@ -695,7 +815,10 @@ export default function Orders() {
                   <span>· {time(o.createdAt)}</span>
                 </div>
                 <p className={`mt-2 text-sm text-cream-dim ${o.cancelled ? 'line-through' : ''}`}>
-                  {o.items.map((i) => `${i.qty}× ${i.name}`).join(', ')}
+                  {o.items
+                    .filter((i) => o.cancelled || !i.cancelled)
+                    .map(qtyItemLabel)
+                    .join(', ')}
                 </p>
                 <div className="mt-3 flex items-center justify-between border-t border-ink-line pt-3">
                   <span className="font-serif text-lg font-semibold text-cream">
@@ -774,6 +897,11 @@ export default function Orders() {
         <OrderDetailsDrawer order={detailTarget} onClose={() => setDetailTarget(null)} />
       )}
 
+      {/* Single-item kitchen docket reprint — mounted unconditionally, same as
+          POS.jsx's <KitchenSlips order={kotOrder} />; the component itself
+          renders nothing until reprintItem() sets a synthetic order. */}
+      <KitchenSlips order={reprintOrder} />
+
       {cancelTarget && (
         <CancelModal
           order={cancelTarget}
@@ -791,8 +919,11 @@ export default function Orders() {
         <CancelItemModal
           item={itemCancelTarget.item}
           orderMaterialLoss={orderMaterialLoss}
-          onConfirm={({ reason, notes, cooked }) => {
-            cancelOrderItem(itemCancelTarget.orderId, itemCancelTarget.item.id, { reason, notes, cooked })
+          onConfirm={({ reason, notes, cooked, qty }) => {
+            // Target by the DB row id (itemId), not the cart key (id) — after a
+            // partial cancel two rows can share the same cart key, so only the
+            // DB id resolves the exact line unambiguously.
+            cancelOrderItem(itemCancelTarget.orderId, itemCancelTarget.item.itemId, { reason, notes, cooked, qty })
             setItemCancelTarget(null)
           }}
           onClose={() => setItemCancelTarget(null)}

@@ -6,7 +6,7 @@ import { PageHeader, PaymentBadge } from '../components/ui.jsx'
 import { canModify, hasAccess } from '../config/permissions.js'
 import ShiftTableModal from '../components/ShiftTableModal.jsx'
 import TableFormModal from '../components/TableFormModal.jsx'
-import { money, time } from '../utils/format.js'
+import { money, time, formatQty } from '../utils/format.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import { pageWindow } from '../utils/pageWindow.js'
 import {
@@ -81,8 +81,12 @@ function TableCard({ info, now, onClick }) {
 
 function OrderDetailsModal({ order, tableLabel, orderTotal, onClose, canAddItems, onAddItems, canShiftTable, onShiftTable }) {
   const t = useT()
+  const { menu } = useApp()
   useEscapeKey(onClose)
   const { subtotal, tax, discount, total } = orderTotal(order.items, order.discount?.amount, order.gstRate)
+  // Order items don't carry their own unit — only the menu item they were
+  // sold from does.
+  const unitOf = (menuItemId) => menu.find((m) => m.id === menuItemId)?.unit || 'pcs'
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
@@ -111,9 +115,9 @@ function OrderDetailsModal({ order, tableLabel, orderTotal, onClose, canAddItems
             {order.items.map((it) => (
               <li key={it.id} className="flex items-center justify-between py-2 text-sm">
                 <span className="text-cream">
-                  {it.name} <span className="text-cream-dim">×{it.qty}</span>
+                  {it.name} <span className="text-cream-dim">×{formatQty(it.qty, unitOf(it.menuItemId))}</span>
                 </span>
-                <span className="font-semibold text-cream">{money(it.price * it.qty)}</span>
+                <span className="font-semibold text-cream">{money(Math.round(it.price * it.qty))}</span>
               </li>
             ))}
           </ul>

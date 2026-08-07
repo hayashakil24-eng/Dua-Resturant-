@@ -56,14 +56,16 @@ export function complimentaryCost(order, menu = [], orderTotal) {
   const items = order?.items || []
   const billTotal = orderTotal
     ? orderTotal(items, order?.discount?.amount, order?.gstRate).total
-    : items.reduce((s, i) => s + i.price * i.qty, 0)
+    : items.reduce((s, i) => s + Math.round(i.price * i.qty), 0)
   let costTotal = 0
   let allKnown = true
   let anyEstimated = false
   for (const item of items) {
     const c = lineCost(item, menu)
     if (c == null) allKnown = false
-    else costTotal += c * item.qty
+    // Rounded per line, not just at the end — qty can be a decimal kg weight
+    // now, and every money figure shown must stay a whole rupee.
+    else costTotal += Math.round(c * item.qty)
     if (lineCostEstimated(item, menu)) anyEstimated = true
   }
   return {

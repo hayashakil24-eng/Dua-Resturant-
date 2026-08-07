@@ -528,19 +528,10 @@
   {
     "name": "Chicken Shahi Handi",
     "category": "Tempting Handi",
-    "price": 2000,
+    "price": 3299,
+    "unit": "kg",
     "image": "/Chicken Shahi Handi.jpg",
-    "description": "Per Kg",
-    "variants": [
-      {
-        "label": "Half",
-        "price": 2000
-      },
-      {
-        "label": "Full",
-        "price": 3299
-      }
-    ]
+    "description": "Per Kg — enter exact weight at the POS"
   },
   {
     "name": "Chicken Makhni Handi",

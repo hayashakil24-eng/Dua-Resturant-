@@ -147,6 +147,10 @@ model MenuItem {
   name          String
   category      String
   price         Int
+  // "pcs" (default, integer qty) | "kg" (decimal weight qty). Kg-billed items
+  // can't also carry variants — weight entry replaces Half/Full sizing, price
+  // means "per kg" instead of "per plate". See CLAUDE.md's Karahi/Handi note.
+  unit          String   @default("pcs")
   image         String?
   description   String?
   active        Boolean  @default(true)
@@ -532,7 +536,9 @@ model OrderItem {
 
   name          String // snapshot
   price         Int    // snapshot
-  qty           Int
+  // A serving count for "pcs" items, or a kg weight for "kg"-billed items
+  // (see MenuItem.unit) — Float to allow the latter; unrelated to portion.
+  qty           Float
   addedAt       DateTime? // set when appended to an already-placed order
   cost          Int? // snapshot
   costEstimated Boolean?

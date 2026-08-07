@@ -368,7 +368,11 @@ export function AppProvider({ children }) {
   // through) but never count toward what's owed; POS cart items never carry
   // that field, so this is a no-op for the live-cart case.
   const orderTotal = (items, discount = 0, rate) => {
-    const subtotal = items.filter((it) => !it.cancelled).reduce((s, it) => s + it.price * it.qty, 0)
+    // Rounded per line, not just at the end — qty can be a decimal weight now
+    // (kg-billed items), and every money figure shown anywhere must stay a
+    // whole rupee, matching each line's own displayed amount. Mirrors
+    // backend/src/core/orderTotal.ts.
+    const subtotal = items.filter((it) => !it.cancelled).reduce((s, it) => s + Math.round(it.price * it.qty), 0)
     const effRate = typeof rate === 'number' ? rate : gstEnabled ? gstRate : 0
     const tax = Math.round(subtotal * effRate)
     const gross = subtotal + tax
@@ -590,10 +594,12 @@ export function AppProvider({ children }) {
 
   // Cancel ONE line off an otherwise-running bill (e.g. the customer sends
   // back a dish) — a line-level sibling of cancelOrder. itemId is the cart
-  // key or DB row id, same as updateOrderItemQty's itemKey.
-  const cancelOrderItem = async (orderId, itemId, { reason, notes = '', cooked } = {}) => {
+  // key or DB row id, same as updateOrderItemQty's itemKey. qty is optional —
+  // omit it to cancel the whole line; pass a lower qty to cancel only part of
+  // it (the remainder stays on the order as its own active line).
+  const cancelOrderItem = async (orderId, itemId, { reason, notes = '', cooked, qty } = {}) => {
     try {
-      await apiPost(`/api/orders/${orderSid(orderId)}/items/${itemId}/cancel`, { reason, notes, cooked })
+      await apiPost(`/api/orders/${orderSid(orderId)}/items/${itemId}/cancel`, { reason, notes, cooked, qty })
       await refresh(['orders', 'inventory'])
     } catch (e) {
       return toError(e)
