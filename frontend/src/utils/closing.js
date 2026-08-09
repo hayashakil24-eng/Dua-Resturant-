@@ -21,7 +21,7 @@ export const toDayStr = (d) => {
 // calendar day, so the live figures reset the moment a day is closed and a
 // second closing the same day only reports that session (demand.md #9). Null =
 // legacy whole-day scoping (must mirror backend/src/core/closing.ts).
-export function buildClosingReport(orders, orderTotal, transactions, dateStr, inventory = [], recipes = [], sinceIso = null) {
+export function buildClosingReport(orders, orderTotal, transactions, dateStr, inventory = [], recipes = [], sinceIso = null, purchases = []) {
   const sinceMs = sinceIso ? new Date(sinceIso).getTime() : null
   const inSession = (d) => (sinceMs !== null ? new Date(d).getTime() > sinceMs : toDayStr(d) === dateStr)
   const dayOrders = orders.filter((o) => inSession(o.createdAt))
@@ -102,6 +102,18 @@ export function buildClosingReport(orders, orderTotal, transactions, dateStr, in
     .sort((a, b) => b.amount - a.amount)
   const remainingHandover = netCashSales - expenses
 
+  // Purchases today, split by payment type — from StockPurchase records
+  // directly, since a credit purchase never creates a Transaction at all (no
+  // cash moved yet — see recordPurchase). Mirrors backend/src/core/closing.ts.
+  const dayPurchases = (purchases || []).filter((p) => inSession(p.date))
+  const cashPurchases = dayPurchases.filter((p) => p.paymentStatus === 'paid').reduce((s, p) => s + p.totalCost, 0)
+  const creditPurchases = dayPurchases.filter((p) => p.paymentStatus !== 'paid').reduce((s, p) => s + p.totalCost, 0)
+  const totalPurchases = cashPurchases + creditPurchases
+  // Today's cash paid against an OLD supplier credit — already inside
+  // `expenses` above (real cash out today), broken out separately so it's
+  // never read as a new purchase (that figure is totalPurchases).
+  const supplierPayments = dayExpenses.filter((tx) => tx.source === 'payable_payment').reduce((s, tx) => s + tx.amount, 0)
+
   // Extras kept for the on-screen detail / saved record (not on the summary sheet).
   const gstCollected = settled.reduce((s, o) => s + totalOf(o).tax, 0)
   const materialLoss = cancelled.reduce((s, o) => s + (o.materialLoss || 0), 0)
@@ -165,5 +177,9 @@ export function buildClosingReport(orders, orderTotal, transactions, dateStr, in
     cancelledTotal,
     complimentaryItems,
     complimentaryTotal,
+    cashPurchases,
+    creditPurchases,
+    totalPurchases,
+    supplierPayments,
   }
 }

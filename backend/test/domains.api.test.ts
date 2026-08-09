@@ -86,10 +86,15 @@ describe('inventory + separation of duties', () => {
     expect(bad.statusCode).toBe(400)
   })
 
-  it('forbids Admin from purchasing stock (inventoryAdd is Manager-only)', async () => {
+  // permissions.ts: inventoryAdd is 'full' for both Admin and Manager (client
+  // asked for Buy Stock on the Admin table too) — Cashier/Kitchen stay denied,
+  // covered by the 403 case in the first test in this describe block.
+  it('lets Admin purchase stock too (inventoryAdd is not Manager-only)', async () => {
     const admin = await tokenFor('admin')
+    const before = await prisma.inventoryItem.findUniqueOrThrow({ where: { id: 'INV03' } })
     const res = await post('/api/inventory/INV03/purchase', admin, { quantity: 1, unitCost: 100 })
-    expect(res.statusCode).toBe(403)
+    expect(res.statusCode).toBe(200)
+    expect(JSON.parse(res.body).item.stock).toBe(before.stock + 1)
   })
 
   // A credit ("udhar") purchase moves stock the same as a paid one, but must

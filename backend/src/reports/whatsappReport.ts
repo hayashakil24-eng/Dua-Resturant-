@@ -234,6 +234,29 @@ function inventoryTable(rows: { name: string; qty: number; unit: string }[]): st
     </table>`
 }
 
+// Stock bought today (cash vs credit/udhar), plus any cash paid today against
+// an OLD supplier credit — kept as its own line so it never reads as a new
+// purchase (core/closing.ts's ClosingReport doc comment on these 4 fields).
+// Both purchase figures are already inside "کم: اخراجات" above when cash was
+// involved (cashPurchases + supplierPayments) — this is a breakdown of that
+// same money, not additional spend.
+function purchasesBreakdownTable(report: ClosingReport): string {
+  if (report.totalPurchases === 0 && report.supplierPayments === 0) return ''
+  // Two separate tables, not one — breakdownTable auto-sums a "ٹوٹل" row, and
+  // supplierPayments is a different kind of money (an old bill, not today's
+  // purchase); folding it into the same total would misstate totalPurchases.
+  const purchases = report.totalPurchases > 0
+    ? breakdownTable('آج کی خریداری', [
+        { name: 'نقد خریداری', amount: report.cashPurchases },
+        { name: 'ادھار خریداری', amount: report.creditPurchases },
+      ])
+    : ''
+  const payment = report.supplierPayments > 0
+    ? breakdownTable('سپلائر کو ادائیگی (پرانا ادھار)', [{ name: 'رقم', amount: report.supplierPayments }])
+    : ''
+  return `<div class="breakdowns"><div>${purchases}</div><div>${payment}</div></div>`
+}
+
 // Client-requested addition: which orders the day's discount total was made
 // up of — table, amount, reason, and who authorized it (matches
 // core/closing.ts's DiscountBreakdownLine — table/reason/by can each be
@@ -368,6 +391,8 @@ export async function renderSummarySection(report: ClosingReport, dayNameUr: str
       <div>${breakdownTable('اکاؤنٹس', report.accounts.map((a) => ({ name: tr(ACCOUNT_LABEL_UR, a.name), amount: a.amount })))}</div>
       <div>${breakdownTable('اخراجات کی قسم', report.expensesByCategory.map((e) => ({ name: tr(CATEGORY_UR, e.category), amount: e.amount })))}</div>
     </div>
+
+    ${purchasesBreakdownTable(report)}
 
     ${discountBreakdownTable(report.discountBreakdown)}
 

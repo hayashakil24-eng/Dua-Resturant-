@@ -13,7 +13,7 @@ import { IconPrint, IconCheck, IconAlert, IconClose } from '../components/Icons.
 const CLOSING_HISTORY_PAGE_SIZE = 20
 
 export default function Closing() {
-  const { orders, orderTotal, transactions, user, dailyClosings, lastClosingAt, saveDailyClosing, activeShift, inventory, recipes } = useApp()
+  const { orders, orderTotal, transactions, user, dailyClosings, lastClosingAt, saveDailyClosing, activeShift, inventory, recipes, purchases } = useApp()
   const canClose = user && canModify(user.role, 'closing')
   const todayStr = useMemo(() => toDayStr(new Date()), [])
 
@@ -22,8 +22,8 @@ export default function Closing() {
   // session). Same numbers the daily report / receipts show, re-shaped into the
   // client's cash-handover closing sheet.
   const report = useMemo(
-    () => buildClosingReport(orders, orderTotal, transactions, todayStr, inventory, recipes, lastClosingAt),
-    [orders, orderTotal, transactions, todayStr, inventory, recipes, lastClosingAt],
+    () => buildClosingReport(orders, orderTotal, transactions, todayStr, inventory, recipes, lastClosingAt, purchases),
+    [orders, orderTotal, transactions, todayStr, inventory, recipes, lastClosingAt, purchases],
   )
   const liveMeta = { closedBy: user?.name, closedByRole: user?.role, closingTime: new Date().toISOString() }
 

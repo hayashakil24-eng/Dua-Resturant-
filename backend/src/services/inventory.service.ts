@@ -6,6 +6,7 @@
 // structurally. Behavior (clamp at 0, dup-name reject, INV## id minting) is
 // otherwise unchanged.
 
+import type { Prisma } from '@prisma/client'
 import { prisma } from '../db/client.js'
 import { writeAudit } from '../lib/audit.js'
 import { ServiceError } from '../lib/errors.js'
@@ -71,11 +72,19 @@ export interface PurchaseInput {
   paid?: boolean
 }
 
-// Buying stock: raises the quantity AND books the money, so the purchase
-// reaches every report through the normal ledger. Kept separate from
-// adjustStock because that path also serves Admin *corrections* to a
-// miscount, where no money moved — booking those as expenses would invent spend.
-export async function recordPurchase(ctx: Ctx, id: string, input: PurchaseInput) {
+interface ParsedPurchase {
+  quantity: number
+  unitCost: number
+  totalCost: number
+  date: Date
+  paid: boolean
+  supplier: string | null
+}
+
+// Shared validation for both "Buy Stock" (existing item) and a new item's
+// optional initial-stock purchase — same rules either way, so they can never
+// drift (e.g. one path forgetting the "credit needs a supplier" check).
+function parsePurchaseInput(input: PurchaseInput): ParsedPurchase {
   const quantity = Number(input.quantity)
   if (!Number.isFinite(quantity) || quantity <= 0) throw new ServiceError('Purchase quantity must be greater than zero.')
 
@@ -97,80 +106,104 @@ export async function recordPurchase(ctx: Ctx, id: string, input: PurchaseInput)
   // Can't track "who it's owed to" without a name — the whole point of this path.
   if (!paid && !supplier) throw new ServiceError('Supplier name is required for a credit purchase.')
 
+  return { quantity, unitCost, totalCost, date, paid, supplier }
+}
+
+interface PurchasableItem {
+  id: string
+  name: string
+  unit: string
+  stock: number
+}
+
+// Buying stock: raises the quantity AND books the money, so the purchase
+// reaches every report through the normal ledger. Kept separate from
+// adjustStock because that path also serves Admin *corrections* to a
+// miscount, where no money moved — booking those as expenses would invent
+// spend. Takes the caller's own transaction client so it can run either as
+// its own standalone purchase (recordPurchase below) or atomically alongside
+// a brand-new item's creation (addInventoryItem) — one item never ends up
+// stocked without the purchase/payable that paid for it, or vice versa.
+async function applyPurchase(tx: Prisma.TransactionClient, ctx: Ctx, item: PurchasableItem, parsed: ParsedPurchase) {
+  const { quantity, unitCost, totalCost, date, paid, supplier } = parsed
+  const nextStock = Math.round((item.stock + quantity) * 1000) / 1000
+  // The latest purchase price becomes the item's cost — this is what recipe
+  // costing reads, so leaving it stale would price recipes off an old bill.
+  const effectiveUnitCost = unitCost > 0 ? unitCost : Math.round(totalCost / quantity)
+  const updated = await tx.inventoryItem.update({
+    where: { id: item.id },
+    data: { stock: nextStock, costPerUnit: effectiveUnitCost },
+  })
+
+  const purchase = await tx.stockPurchase.create({
+    data: {
+      inventoryItemId: item.id,
+      itemName: item.name,
+      quantity,
+      unit: item.unit,
+      unitCost: effectiveUnitCost,
+      totalCost,
+      supplier,
+      date,
+      paymentStatus: paid ? 'paid' : 'unpaid',
+      createdBy: ctx.actor.name,
+      createdByRole: ctx.actor.role,
+    },
+  })
+
+  let linked = purchase
+  if (paid) {
+    const txn = await createLedgerEntry(tx, {
+      type: 'expense',
+      category: PURCHASE_CATEGORY,
+      description: `${item.name} — ${quantity} ${item.unit}`,
+      amount: totalCost,
+      date,
+      source: 'purchase',
+      sourceId: purchase.id,
+    })
+    linked = await tx.stockPurchase.update({ where: { id: purchase.id }, data: { transactionId: txn.id } })
+  } else {
+    // No cash moved — charge a supplier Payable account instead of an
+    // expense, same shape as markOrderUdhaar charging a Receivable. Reopens
+    // a settled account under the same name rather than fragmenting one
+    // supplier's history across rows.
+    const account = await tx.payable.findFirst({ where: { name: supplier as string, status: { not: 'settled' } } })
+    const at = new Date()
+    const payable = account
+      ? await tx.payable.update({
+          where: { id: account.id },
+          data: { balance: account.balance + totalCost, status: 'open', ledger: { create: { type: 'purchase', amount: totalCost, purchaseId: purchase.id, by: ctx.actor.name, at } } },
+        })
+      : await tx.payable.create({
+          data: {
+            name: supplier as string,
+            balance: totalCost,
+            status: 'open',
+            notes: 'Opened from a credit stock purchase',
+            ledger: { create: { type: 'purchase', amount: totalCost, purchaseId: purchase.id, by: ctx.actor.name, at } },
+          },
+        })
+    linked = await tx.stockPurchase.update({ where: { id: purchase.id }, data: { payableId: payable.id } })
+    await enqueueOutbox(tx, 'Payable', payable.id, payable)
+  }
+
+  await writeAudit(tx, {
+    action: 'STOCK_PURCHASED',
+    actor: ctx.actor,
+    details: { inventoryItemId: item.id, name: item.name, quantity, unit: item.unit, totalCost, from: item.stock, to: nextStock, paymentStatus: paid ? 'paid' : 'unpaid', supplier },
+  })
+  await enqueueOutbox(tx, 'InventoryItem', updated.id, updated)
+  await enqueueOutbox(tx, 'StockPurchase', linked.id, linked)
+  return { item: updated, purchase: linked }
+}
+
+export async function recordPurchase(ctx: Ctx, id: string, input: PurchaseInput) {
+  const parsed = parsePurchaseInput(input)
   return prisma.$transaction(async (tx) => {
     const item = await tx.inventoryItem.findUnique({ where: { id } })
     if (!item) throw new ServiceError('Inventory item not found.', 404)
-
-    const nextStock = Math.round((item.stock + quantity) * 1000) / 1000
-    // The latest purchase price becomes the item's cost — this is what recipe
-    // costing reads, so leaving it stale would price recipes off an old bill.
-    const effectiveUnitCost = unitCost > 0 ? unitCost : Math.round(totalCost / quantity)
-    const updated = await tx.inventoryItem.update({
-      where: { id },
-      data: { stock: nextStock, costPerUnit: effectiveUnitCost },
-    })
-
-    const purchase = await tx.stockPurchase.create({
-      data: {
-        inventoryItemId: id,
-        itemName: item.name,
-        quantity,
-        unit: item.unit,
-        unitCost: effectiveUnitCost,
-        totalCost,
-        supplier,
-        date,
-        paymentStatus: paid ? 'paid' : 'unpaid',
-        createdBy: ctx.actor.name,
-        createdByRole: ctx.actor.role,
-      },
-    })
-
-    let linked = purchase
-    if (paid) {
-      const txn = await createLedgerEntry(tx, {
-        type: 'expense',
-        category: PURCHASE_CATEGORY,
-        description: `${item.name} — ${quantity} ${item.unit}`,
-        amount: totalCost,
-        date,
-        source: 'purchase',
-        sourceId: purchase.id,
-      })
-      linked = await tx.stockPurchase.update({ where: { id: purchase.id }, data: { transactionId: txn.id } })
-    } else {
-      // No cash moved — charge a supplier Payable account instead of an
-      // expense, same shape as markOrderUdhaar charging a Receivable. Reopens
-      // a settled account under the same name rather than fragmenting one
-      // supplier's history across rows.
-      const account = await tx.payable.findFirst({ where: { name: supplier as string, status: { not: 'settled' } } })
-      const at = new Date()
-      const payable = account
-        ? await tx.payable.update({
-            where: { id: account.id },
-            data: { balance: account.balance + totalCost, status: 'open', ledger: { create: { type: 'purchase', amount: totalCost, purchaseId: purchase.id, by: ctx.actor.name, at } } },
-          })
-        : await tx.payable.create({
-            data: {
-              name: supplier as string,
-              balance: totalCost,
-              status: 'open',
-              notes: 'Opened from a credit stock purchase',
-              ledger: { create: { type: 'purchase', amount: totalCost, purchaseId: purchase.id, by: ctx.actor.name, at } },
-            },
-          })
-      linked = await tx.stockPurchase.update({ where: { id: purchase.id }, data: { payableId: payable.id } })
-      await enqueueOutbox(tx, 'Payable', payable.id, payable)
-    }
-
-    await writeAudit(tx, {
-      action: 'STOCK_PURCHASED',
-      actor: ctx.actor,
-      details: { inventoryItemId: id, name: item.name, quantity, unit: item.unit, totalCost, from: item.stock, to: nextStock, paymentStatus: paid ? 'paid' : 'unpaid', supplier },
-    })
-    await enqueueOutbox(tx, 'InventoryItem', updated.id, updated)
-    await enqueueOutbox(tx, 'StockPurchase', linked.id, linked)
-    return { item: updated, purchase: linked }
+    return applyPurchase(tx, ctx, item, parsed)
   })
 }
 
@@ -182,11 +215,26 @@ export interface AddInventoryInput {
   stock?: number
   threshold?: number
   costPerUnit?: number
+  // Optional initial-stock purchase, recorded atomically with the item when
+  // stock > 0 — same fields recordPurchase takes for an existing item's Buy
+  // Stock. Ignored entirely when stock is 0 (nothing was bought, so nothing
+  // to log): see the initialStock guard below.
+  supplier?: string
+  paid?: boolean
 }
 
 export async function addInventoryItem(ctx: Ctx, input: AddInventoryInput) {
   const trimmed = (input.name ?? '').trim()
   if (!trimmed) throw new ServiceError('Item name is required.')
+  const initialStock = Math.max(0, Number(input.stock) || 0)
+
+  // Validate the initial purchase (if any) BEFORE writing anything — a bad
+  // Pay Later/supplier combination should fail with nothing created, not
+  // leave a stray item behind. Mirrors recordPurchase's own validate-first
+  // shape; parsePurchaseInput is the single source of truth for these rules.
+  const parsedPurchase = initialStock > 0
+    ? parsePurchaseInput({ quantity: initialStock, unitCost: Number(input.costPerUnit) || 0, supplier: input.supplier, paid: input.paid })
+    : null
 
   return prisma.$transaction(async (tx) => {
     const existing = await tx.inventoryItem.findFirst({ where: { name: { equals: trimmed } } })
@@ -197,13 +245,18 @@ export async function addInventoryItem(ctx: Ctx, input: AddInventoryInput) {
       throw new ServiceError(`“${trimmed}” already exists in inventory.`)
     }
     const id = await nextInvId()
+    // Always created at stock 0 — when there's an initial purchase, applyPurchase
+    // below raises it to `initialStock` in this same transaction, so the item is
+    // never visible at its final stock without the purchase/payable that paid
+    // for it, and a purchase failure can't leave a half-created item behind
+    // (either both commit or neither does).
     const item = await tx.inventoryItem.create({
       data: {
         id,
         name: trimmed,
         nameUr: (input.nameUr ?? '').trim() || null,
         category: (input.category ?? 'Other').trim() || 'Other',
-        stock: Math.max(0, Number(input.stock) || 0),
+        stock: 0,
         unit: input.unit || 'kg',
         threshold: Math.max(0, Number(input.threshold) || 0),
         costPerUnit: Math.max(0, Number(input.costPerUnit) || 0),
@@ -211,6 +264,9 @@ export async function addInventoryItem(ctx: Ctx, input: AddInventoryInput) {
       },
     })
     await writeAudit(tx, { action: 'INVENTORY_ITEM_CREATED', actor: ctx.actor, details: { inventoryItemId: id, name: item.name } })
-    return item
+
+    if (!parsedPurchase) return item
+    const { item: stocked } = await applyPurchase(tx, ctx, item, parsedPurchase)
+    return stocked
   })
 }

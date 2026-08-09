@@ -49,6 +49,27 @@ export interface ClosingTransaction {
   amount: number
   date: Date | string
   category?: string | null
+  // Which flow minted this row — 'purchase' (a same-day cash stock buy) vs
+  // 'payable_payment' (today settling a supplier credit booked on some
+  // EARLIER day) vs anything else (rent, salary, ...). Both purchase types
+  // already share one expensesByCategory bucket (PURCHASE_CATEGORY) for the
+  // cash-drawer math, which is correct — but distinguishing them here is what
+  // lets cashPurchases/supplierPayments below report accurately instead of
+  // conflating "bought today" with "paid off an old bill today" (see
+  // ../../../CLAUDE.md-adjacent accounting principle: purchase date ≠ payment date).
+  source?: string | null
+}
+
+// A stock purchase (paid or credit) — the source of truth for "how much did
+// we buy today", separate from ClosingTransaction because a CREDIT purchase
+// never creates a Transaction at all (no cash moved yet) — see
+// inventory.service.ts's recordPurchase. Cash purchases are counted from
+// here too, not from ClosingTransaction{source:'purchase'}, so both figures
+// come from one place and can never drift apart.
+export interface ClosingPurchase {
+  date: Date | string
+  totalCost: number
+  paymentStatus: string // 'paid' | 'unpaid'
 }
 
 export interface ClosingAccount {
@@ -170,6 +191,21 @@ export interface ClosingReport {
   complimentaryItems: ComplimentaryOrderLine[]
   complimentaryTotal: number
   itemsSold: ItemSoldLine[]
+  // Today's stock buying, split by how it was paid — see the accounting
+  // principle in ../../../CLAUDE.md-adjacent notes: a credit purchase must
+  // never reduce cash, and paying off an OLD credit purchase today must never
+  // be reported as a new purchase. cashPurchases + creditPurchases already
+  // both count toward `expenses`/expensesByCategory when cash purchases are
+  // involved (unchanged) — these are the same money, just broken out for
+  // legibility, not additional spend.
+  cashPurchases: number
+  creditPurchases: number
+  totalPurchases: number
+  // Today's payments against a supplier credit opened on some earlier day
+  // (payables.service.ts's recordPayablePayment) — real cash out today, but
+  // NOT a new purchase; kept out of cashPurchases/totalPurchases above for
+  // exactly that reason, even though it's already folded into `expenses`.
+  supplierPayments: number
 }
 
 // 'YYYY-MM-DD' local-day key — matches the Reports page's day bucketing so the
@@ -197,6 +233,7 @@ export function buildClosingReport(
   // second closing the same day only reports that session and the live figures
   // reset the moment a day is closed (demand.md #9). Null = legacy whole-day.
   sinceIso: string | null = null,
+  purchases: ClosingPurchase[] = [],
 ): ClosingReport {
   const sinceMs = sinceIso ? new Date(sinceIso).getTime() : null
   const inSession = (d: Date | string) =>
@@ -286,6 +323,18 @@ export function buildClosingReport(
     .sort((a, b) => b.amount - a.amount)
   const remainingHandover = netCashSales - expenses
 
+  // Purchases today, split by payment type — from StockPurchase rows
+  // directly (not derived from `transactions`), since a credit purchase never
+  // creates a Transaction at all (see ClosingPurchase's doc comment above).
+  const dayPurchases = purchases.filter((p) => inSession(p.date))
+  const cashPurchases = dayPurchases.filter((p) => p.paymentStatus === 'paid').reduce((s, p) => s + p.totalCost, 0)
+  const creditPurchases = dayPurchases.filter((p) => p.paymentStatus !== 'paid').reduce((s, p) => s + p.totalCost, 0)
+  const totalPurchases = cashPurchases + creditPurchases
+  // Today's cash paid AGAINST an old credit purchase — already inside
+  // `expenses` above (real cash out today), reported separately here so it
+  // never gets read as "today's purchases" (that figure is totalPurchases).
+  const supplierPayments = dayExpenses.filter((tx) => tx.source === 'payable_payment').reduce((s, tx) => s + tx.amount, 0)
+
   // Extras kept for the on-screen detail / saved record (not on the summary sheet).
   const gstCollected = settled.reduce((s, o) => s + totalOf(o).tax, 0)
   const materialLoss = cancelled.reduce((s, o) => s + (o.materialLoss || 0), 0)
@@ -362,5 +411,9 @@ export function buildClosingReport(
     complimentaryItems,
     complimentaryTotal,
     itemsSold,
+    cashPurchases,
+    creditPurchases,
+    totalPurchases,
+    supplierPayments,
   }
 }

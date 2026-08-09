@@ -68,6 +68,7 @@ export const PERMISSIONS = {
     closing: 'full', // end-of-day closing report (Admin/Manager)
     cashManagement: 'full', // cumulative cash/card/online totals + spend log (Admin/Manager)
     receivables: 'full', // credit accounts — view & settle
+    creditPurchase: 'full', // supplier credit accounts — view & settle
     departments: 'full', // create/edit counters + assign items to them
     drawer: 'full', // may run a cash drawer
     handovers: 'full', // review/accept/reject handovers addressed to Admin
@@ -109,6 +110,7 @@ export const PERMISSIONS = {
     closing: 'full', // end-of-day closing report (Admin/Manager)
     cashManagement: 'full', // cumulative cash/card/online totals + spend log (Admin/Manager)
     receivables: 'full', // Manager may view & settle credit accounts
+    creditPurchase: 'full', // Manager may view & settle supplier credit accounts
     departments: 'full', // Manager may create counters + assign items too
     drawer: 'none', // Manager RECEIVES cash; running a drawer too would defeat the chain
     handovers: 'full', // Manager may review/accept/reject handovers addressed to Manager
@@ -153,6 +155,7 @@ export const PERMISSIONS = {
     closing: 'hidden',
     cashManagement: 'hidden',
     receivables: 'hidden',
+    creditPurchase: 'hidden',
     departments: 'hidden', // Kitchen doesn't configure counters
     drawer: 'none',
     handovers: 'hidden',
@@ -197,6 +200,7 @@ export const PERMISSIONS = {
     closing: 'hidden',
     cashManagement: 'hidden',
     receivables: 'hidden',
+    creditPurchase: 'hidden',
     departments: 'hidden', // Cashier only places orders (auto-routed)
     drawer: 'full', // the cashier's own till
     handovers: 'hidden', // Cashier initiates handovers but doesn't approve them
@@ -240,6 +244,7 @@ export const PERMISSIONS = {
     closing: 'hidden',
     cashManagement: 'hidden',
     receivables: 'hidden',
+    creditPurchase: 'hidden',
     departments: 'hidden',
     drawer: 'none',
     handovers: 'hidden',

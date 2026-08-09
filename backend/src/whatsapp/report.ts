@@ -163,6 +163,10 @@ function normalizeReport(raw: Partial<ClosingReport>): ClosingReport {
     complimentaryItems: raw.complimentaryItems ?? [],
     complimentaryTotal: raw.complimentaryTotal ?? 0,
     itemsSold: raw.itemsSold ?? [],
+    cashPurchases: raw.cashPurchases ?? 0,
+    creditPurchases: raw.creditPurchases ?? 0,
+    totalPurchases: raw.totalPurchases ?? 0,
+    supplierPayments: raw.supplierPayments ?? 0,
   }
 }
 

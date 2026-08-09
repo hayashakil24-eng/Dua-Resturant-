@@ -5,7 +5,7 @@
 // day's orders + transactions so a saved closing can't be tampered with.
 
 import { prisma } from '../db/client.js'
-import { buildClosingReport, toDayStr, type ClosingOrder, type ClosingTransaction } from '../core/closing.js'
+import { buildClosingReport, toDayStr, type ClosingOrder, type ClosingTransaction, type ClosingPurchase } from '../core/closing.js'
 import type { InventoryItemLike, RecipeLike } from '../core/inventoryFlow.js'
 import { getActiveShift } from './shifts.service.js'
 import { writeAudit } from '../lib/audit.js'
@@ -19,11 +19,12 @@ interface Ctx {
 }
 
 async function gather() {
-  const [orders, transactions, inventory, recipes] = await Promise.all([
+  const [orders, transactions, inventory, recipes, purchases] = await Promise.all([
     prisma.order.findMany({ include: { items: true } }),
     prisma.transaction.findMany(),
     prisma.inventoryItem.findMany(),
     prisma.recipe.findMany({ where: { status: 'approved' }, include: { ingredients: true } }),
+    prisma.stockPurchase.findMany(),
   ])
 
   const closingOrders: ClosingOrder[] = orders.map((o) => ({
@@ -42,14 +43,15 @@ async function gather() {
     udhaarCustomerName: o.udhaarCustomerName,
     orderedBy: o.complimentaryOrderedBy,
   }))
-  const closingTxns: ClosingTransaction[] = transactions.map((t) => ({ type: t.type, amount: t.amount, date: t.date, category: t.category }))
+  const closingTxns: ClosingTransaction[] = transactions.map((t) => ({ type: t.type, amount: t.amount, date: t.date, category: t.category, source: t.source }))
   const inv: InventoryItemLike[] = inventory.map((i) => ({ id: i.id, unit: i.unit, stock: i.stock, threshold: i.threshold, costPerUnit: i.costPerUnit }))
   const rec: RecipeLike[] = recipes.map((r) => ({
     menuItemId: r.menuItemId,
     status: r.status,
     ingredients: r.ingredients.map((ing) => ({ inventoryItemId: ing.inventoryItemId, itemName: ing.itemName, quantity: ing.quantity, unit: ing.unit })),
   }))
-  return { closingOrders, closingTxns, inv, rec }
+  const closingPurchases: ClosingPurchase[] = purchases.map((p) => ({ date: p.date, totalCost: p.totalCost, paymentStatus: p.paymentStatus }))
+  return { closingOrders, closingTxns, inv, rec, closingPurchases }
 }
 
 // The business-day "session" boundary now lives in lib/businessDay.ts so
@@ -61,8 +63,8 @@ async function gather() {
 export async function buildReport(dateStr?: string) {
   const day = dateStr || toDayStr(new Date())
   const sinceIso = await getBoundaryIso()
-  const { closingOrders, closingTxns, inv, rec } = await gather()
-  return buildClosingReport(closingOrders, closingTxns, day, inv, rec, sinceIso)
+  const { closingOrders, closingTxns, inv, rec, closingPurchases } = await gather()
+  return buildClosingReport(closingOrders, closingTxns, day, inv, rec, sinceIso, closingPurchases)
 }
 
 // The most recent saved closing, raw (not merged with report fields the way
