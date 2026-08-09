@@ -110,6 +110,66 @@ async function createWindow() {
   }
 }
 
+// Silent receipt printing (src/utils/print.js's safePrint) — the renderer
+// used to call window.print(), which is Chromium's own print dialog
+// (Destination/Pages/Layout/Colour/Print/Cancel — the exact UI a cashier
+// should never see mid-shift). Electron can't silence that dialog from the
+// renderer; only the main process's webContents.print({ silent: true }) can.
+// The renderer has already toggled a body.print-x class (index.css's
+// @media print rules) to isolate the one #printable-x surface before either
+// of these fire — same DOM/CSS window.print() used, just triggered here
+// instead so no dialog ever renders. Only enumeration (read-only) + this
+// print trigger are exposed to the renderer — never raw webContents access.
+ipcMain.handle('list-printers', async () => {
+  if (!mainWindow) return []
+  try {
+    const printers = await mainWindow.webContents.getPrintersAsync()
+    return printers.map((p) => ({ name: p.name, displayName: p.displayName, description: p.description }))
+  } catch {
+    return []
+  }
+})
+
+// Guards against two print calls overlapping on the same webContents (e.g. a
+// stuck renderer retry landing mid-job) — belt-and-suspenders alongside
+// print.js's own renderer-side debounce, which already covers the common
+// rapid-double-click case per print surface.
+let printing = false
+ipcMain.handle('print-silent', async (_e, { deviceName } = {}) => {
+  if (!mainWindow) return { success: false, error: 'No window available.' }
+  if (printing) return { success: false, error: 'A print job is already in progress.' }
+  printing = true
+  try {
+    return await new Promise((resolve) => {
+      mainWindow.webContents.print(
+        {
+          silent: true,
+          printBackground: true,
+          // deviceName omitted (not just empty-string) when unset — Electron's
+          // own documented fallback is the system default printer in that
+          // case, never "Microsoft Print to PDF" or any other guess.
+          ...(deviceName ? { deviceName } : {}),
+          // Trust the target printer's OWN registered page size instead of
+          // hardcoding one — a real 80mm thermal driver reports its roll size
+          // here, so the receipt (which is CSS-sized at 80mm, see index.css)
+          // matches what the printer actually expects with no guessed number
+          // on this end. Cannot be combined with an explicit pageSize.
+          usePrinterDefaultPageSize: true,
+          // 'printableArea' (not 'default'/'none') asks Chromium to lay out
+          // against the printer's actual hardware-safe printable rectangle —
+          // the fix for content clipping at the left/right edges, which a
+          // flat 0-margin request can't account for on printers whose print
+          // head has its own fixed unprintable strip.
+          margins: { marginType: 'printableArea' },
+        },
+        (success, failureReason) => resolve({ success, error: success ? null : failureReason }),
+      )
+    })
+  } finally {
+    printing = false
+  }
+})
+
 // LAN server discovery (docs/04-phase-3-deployment-hardening.md) — a
 // new POS/KDS device finds the server PC's IP without a staff member typing
 // it in. UDP broadcast/reply is a `dgram` (Node) API, unavailable to the

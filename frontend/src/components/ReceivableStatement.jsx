@@ -42,7 +42,7 @@ export default function ReceivableStatement({ receivable, orderLabel, onClose })
                   Cafe Ali
                 </div>
               </div>
-              <p className="mt-2 text-[11px] text-[#5D4037]">Hawksbay Road, Karachi · 021-111-ALI</p>
+              <p className="mt-2 text-[11px] text-[#5D4037]">Main Hawksbay Beach, Zulfiqar Chowrangi, Maripur Road, Karachi · 0313-2870111</p>
             </div>
 
             <div className="my-4 border-t border-dashed border-[#E8DCC4]" />

@@ -9,6 +9,13 @@ import { contextBridge, ipcRenderer } from 'electron'
 contextBridge.exposeInMainWorld('electron', {
   platform: process.platform,
   discoverServer: () => ipcRenderer.invoke('discover-server'),
+  // Silent receipt printing (main.js) — src/utils/print.js's safePrint() uses
+  // these instead of window.print() so no Chromium print dialog ever shows.
+  // listPrinters is read-only enumeration for the Settings picker; printSilent
+  // takes only a printer NAME already returned by listPrinters, never raw
+  // print options — the renderer can't reach webContents.print() directly.
+  listPrinters: () => ipcRenderer.invoke('list-printers'),
+  printSilent: (deviceName) => ipcRenderer.invoke('print-silent', { deviceName }),
   // Auto-update (main.js's autoUpdater) — the renderer only ever hears about
   // an update that's already found/downloaded, never a failed/offline check,
   // so there's nothing here for a "no update" or "check failed" case.

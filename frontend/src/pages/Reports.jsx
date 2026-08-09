@@ -405,7 +405,7 @@ export default function Reports() {
             <div className="font-serif text-3xl font-bold" style={{ color: '#C9A961' }}>
               Cafe Ali
             </div>
-            <p className="mt-1 text-[11px] text-[#5D4037]">Hawksbay Road, Karachi · 021-111-ALI</p>
+            <p className="mt-1 text-[11px] text-[#5D4037]">Main Hawksbay Beach, Zulfiqar Chowrangi, Maripur Road, Karachi · 0313-2870111</p>
           </div>
 
           <div className="my-5 border-t-2 border-dashed border-[#E8DCC4]" />
