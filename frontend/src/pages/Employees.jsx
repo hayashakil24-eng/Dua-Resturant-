@@ -15,12 +15,6 @@ import {
   IconCheck,
 } from '../components/Icons.jsx'
 
-// Job titles selectable when adding/editing a staff record. Includes
-// 'Kitchen' so the Kitchen role (the one that actually gets recipe-creation
-// access via permissions.js) can be assigned — it was missing before, which
-// also broke editing the seeded Kitchen employee (no matching <option> for
-// their existing role).
-const ROLES = ['Manager', 'Cashier', 'Waiter', 'Chef', 'Kitchen']
 const SHIFTS = ['Morning', 'Evening']
 
 const ROLE_STYLE = {
@@ -98,7 +92,7 @@ function EmployeeModal({ employee, onSave, onClose }) {
   // payroll/attendance follow-ups dial it.
   const phoneDigits = (form.phone || '').replace(/\D/g, '')
   const phoneError = phoneDigits.length > 0 && phoneDigits.length !== 11
-  const valid = form.name.trim() && form.role && !phoneError
+  const valid = form.name.trim() && form.role.trim() && !phoneError
   useEscapeKey(onClose)
 
   return (
@@ -122,13 +116,12 @@ function EmployeeModal({ employee, onSave, onClose }) {
 
             <div className="grid grid-cols-2 gap-3">
               <Field label={`${t('employees.role')} *`}>
-                <select className="input py-2.5" value={form.role} onChange={(e) => set('role', e.target.value)}>
-                  {ROLES.map((r) => (
-                    <option key={r} value={r}>
-                      {t(`roles.${r}`, r)}
-                    </option>
-                  ))}
-                </select>
+                <input
+                  className="input"
+                  value={form.role}
+                  onChange={(e) => set('role', e.target.value)}
+                  placeholder={t('employees.rolePh')}
+                />
               </Field>
               <Field label={t('employees.shift')}>
                 <select className="input py-2.5" value={form.shift} onChange={(e) => onShiftChange(e.target.value)}>
@@ -240,6 +233,7 @@ function EmployeeModal({ employee, onSave, onClose }) {
                 onSave({
                   ...form,
                   name: form.name.trim(),
+                  role: form.role.trim(),
                   baseSalary: Number(form.baseSalary) || 0,
                   // "Day Closing" mode has no fixed time to store — null, not ''.
                   shiftEndTime: form.shiftEndMode === 'dayClosing' ? null : form.shiftEndTime || null,
