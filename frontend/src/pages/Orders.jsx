@@ -10,6 +10,7 @@ import PaymentModal from '../components/PaymentModal.jsx'
 import ShiftTableModal from '../components/ShiftTableModal.jsx'
 import MarkAsUdhaarModal from '../components/MarkAsUdhaarModal.jsx'
 import MarkAsComplimentaryModal from '../components/MarkAsComplimentaryModal.jsx'
+import DiscountModal from '../components/DiscountModal.jsx'
 // Reuse the same slip the POS/Billing pages print — a running (unpaid) order can
 // be printed as a "bill to pay" here without settling it (waiter takes it to the
 // table; cash is collected and Mark as Paid pressed later).
@@ -33,15 +34,35 @@ function CancelledBadge() {
 }
 
 // Admin-only cancel dialog — reason required, no PIN (role-gated).
-function CancelModal({ order, orderTotal, materialLoss = 0, onConfirm, onClose }) {
+function CancelModal({ order, orderTotal, materialLoss = 0, qtyItemLabel, onConfirm, onClose }) {
   const [reason, setReason] = useState('')
   const [notes, setNotes] = useState('')
   // Ingredients are only wasted if the dish was actually cooked. Defaults to the
   // order's ready state; the "Mark as Ready" button lets the Manager/Admin
   // confirm it was cooked (then the material loss applies).
   const [cooked, setCooked] = useState(order.kitchen === 'Ready')
+  // submitting guards against a rapid double-click firing two cancel requests;
+  // error surfaces a failed attempt (e.g. the order was paid/cancelled by
+  // another device a moment earlier) instead of the modal silently closing as
+  // if it had worked — same await + res?.error contract as ShiftTableModal /
+  // MarkAsUdhaarModal's onConfirm, just handled locally so the message shows.
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
   useEscapeKey(onClose)
   const { total } = orderTotal(order.items, order.discount?.amount, order.gstRate)
+
+  const submit = async () => {
+    if (!reason || submitting) return
+    setSubmitting(true)
+    setError('')
+    const res = await onConfirm({ reason, notes: notes.trim(), cooked })
+    if (res?.error) {
+      setError(res.error)
+      setSubmitting(false)
+    }
+    // On success the parent closes this modal (removes cancelTarget), so
+    // there's nothing left to reset here.
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -139,17 +160,21 @@ function CancelModal({ order, orderTotal, materialLoss = 0, onConfirm, onClose }
             />
           </div>
 
+          {error && (
+            <p className="mt-4 rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{error}</p>
+          )}
+
           <div className="mt-6 flex gap-3">
             <button onClick={onClose} className="btn-ghost flex-1 py-3">
               Keep Order
             </button>
             <button
-              onClick={() => onConfirm({ reason, notes: notes.trim(), cooked })}
-              disabled={!reason}
+              onClick={submit}
+              disabled={!reason || submitting}
               title={reason ? 'Cancel this order' : 'Select a reason first'}
               className="flex-1 rounded-xl bg-gradient-to-r from-rose-500 to-red-600 py-3 font-semibold text-white transition-all duration-200 hover:from-rose-400 hover:to-red-500 hover:shadow-lg hover:shadow-rose-500/40 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:shadow-none"
             >
-              Confirm Cancel
+              {submitting ? 'Cancelling…' : 'Confirm Cancel'}
             </button>
           </div>
         </div>
@@ -349,7 +374,7 @@ function CancelItemModal({ item, orderMaterialLoss, onConfirm, onClose }) {
 }
 
 export default function Orders() {
-  const { orders, orderTotal, markPaid, cancelOrder, cancelOrderItem, orderMaterialLoss, markOrderUdhaar, markOrderComplimentary, shiftOrderTable, onlineAccounts, auditLog, user, menu } = useApp()
+  const { orders, orderTotal, markPaid, cancelOrder, cancelOrderItem, orderMaterialLoss, markOrderUdhaar, markOrderComplimentary, shiftOrderTable, applyDiscount, removeDiscount, onlineAccounts, auditLog, user, menu, gstEnabled, gstRate, maxCashierDiscountPercent } = useApp()
   // Order items don't carry their own unit — only the menu item they were
   // sold from does.
   const unitOf = (menuItemId) => menu.find((m) => m.id === menuItemId)?.unit || 'pcs'
@@ -377,6 +402,9 @@ export default function Orders() {
   const canCancelItem = user && canModify(user.role, 'orderItemCancel')
   const canUdhaar = user && canModify(user.role, 'receivables') // Manager/Admin: put a bill on account
   const canComp = user && canModify(user.role, 'orderComplimentary') // Manager/Admin: free/on-the-house
+  // Same gate Billing.jsx uses — Cashier gets 'edit' (capped server-side by
+  // maxCashierDiscountPercent), Admin/Manager 'full' (uncapped).
+  const canDiscount = Boolean(user && canModify(user.role, 'discount'))
   const [filter, setFilter] = useState('All')
   const [query, setQuery] = useState('')
   const [cancelTarget, setCancelTarget] = useState(null)
@@ -386,7 +414,12 @@ export default function Orders() {
   const [billTarget, setBillTarget] = useState(null) // unpaid order → print bill only (no settle)
   const [udhaarTarget, setUdhaarTarget] = useState(null) // unpaid order → on-account
   const [compTarget, setCompTarget] = useState(null) // unpaid order → complimentary
-  const [detailTarget, setDetailTarget] = useState(null) // order details drawer
+  const [discountTarget, setDiscountTarget] = useState(null) // unpaid order → apply discount (same DiscountModal Billing.jsx uses)
+  // Order details drawer — holds the id, not a snapshot object, so it stays
+  // live when a mutation (e.g. applying a discount) happens without closing
+  // the drawer, same as Billing.jsx's activeId/active pattern.
+  const [detailTargetId, setDetailTargetId] = useState(null)
+  const detailTarget = detailTargetId ? orders.find((o) => o.id === detailTargetId) : null
   const [reprintOrder, setReprintOrder] = useState(null) // synthetic single-item order fed to KitchenSlips for a docket reprint
   const [visibleCount, setVisibleCount] = useState(ORDERS_PAGE_SIZE)
   const [logVisibleCount, setLogVisibleCount] = useState(ORDERS_PAGE_SIZE)
@@ -450,6 +483,16 @@ export default function Orders() {
     setTimeout(() => safePrint('print-kot'), 80)
   }
 
+  // Same handler shape as Billing.jsx's handleApplyDiscount. Returns the
+  // mutator's promise (not awaited/closed here) — DiscountModal itself awaits
+  // it and only calls onClose (setDiscountTarget(null)) on success, so a
+  // server-side rejection (Cashier cap, cancelled order, ...) surfaces inside
+  // the modal instead of it silently closing as if the discount had applied.
+  const handleApplyDiscount = (data) => {
+    if (!discountTarget) return
+    return applyDiscount(discountTarget.id, data)
+  }
+
   // Actions shown in the order details drawer. A flat stack of six identical
   // full-width buttons reads as a wall of buttons, not a designed UI — so
   // instead: one clear primary action (Mark as Paid), the alternate/utility
@@ -503,6 +546,38 @@ export default function Orders() {
 
     return (
       <div className="space-y-4">
+        {/* Discount — same control Billing.jsx's Receipt shows: an "Apply
+            Discount" button, or (once applied) the figure plus Remove. The
+            drawer is deliberately left open under the DiscountModal, same as
+            Billing does under its Receipt. */}
+        {canDiscount && (
+          <div>
+            {o.discount ? (
+              <div className="flex items-center justify-between rounded-xl border border-ink-line bg-ink-soft px-4 py-2.5">
+                <span className="text-xs text-cream-dim">
+                  Discount {o.discount.percent ? `${o.discount.percent}% · ` : ''}
+                  {money(o.discount.amount)} · by {o.discount.by}
+                </span>
+                <button
+                  onClick={() => removeDiscount(o.id)}
+                  className="text-xs font-semibold text-rose-300 hover:underline"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setDiscountTarget(o)}
+                className="w-full rounded-xl border border-gold/40 bg-gold/10 py-2.5 text-sm font-semibold text-gold transition hover:bg-gold/20"
+              >
+                <span className="inline-flex items-center justify-center gap-2">
+                  <IconWallet size={16} /> Apply Discount
+                </span>
+              </button>
+            )}
+          </div>
+        )}
+
         {canMarkPaid && (
           <button onClick={() => { setPayTarget(o); onClose() }} className="btn-gold w-full py-3 text-sm">
             <IconCheck size={16} /> Mark as Paid
@@ -744,7 +819,7 @@ export default function Orders() {
                   {shownRows.map((o) => (
                     <tr
                       key={o.id}
-                      onClick={() => setDetailTarget(o)}
+                      onClick={() => setDetailTargetId(o.id)}
                       className={`cursor-pointer transition hover:bg-white/[0.02] ${o.cancelled ? 'opacity-60' : ''}`}
                     >
                       <td className="px-5 py-4 font-semibold text-gold">{o.id}</td>
@@ -792,7 +867,7 @@ export default function Orders() {
             {shownRows.map((o) => (
               <button
                 key={o.id}
-                onClick={() => setDetailTarget(o)}
+                onClick={() => setDetailTargetId(o.id)}
                 className={`card w-full p-4 text-left transition hover:border-gold/40 ${o.cancelled ? 'opacity-60' : ''}`}
               >
                 <div className="flex items-center justify-between">
@@ -894,7 +969,7 @@ export default function Orders() {
       )}
 
       {detailTarget && (
-        <OrderDetailsDrawer order={detailTarget} onClose={() => setDetailTarget(null)} />
+        <OrderDetailsDrawer order={detailTarget} onClose={() => setDetailTargetId(null)} />
       )}
 
       {/* Single-item kitchen docket reprint — mounted unconditionally, same as
@@ -907,9 +982,11 @@ export default function Orders() {
           order={cancelTarget}
           orderTotal={orderTotal}
           materialLoss={orderMaterialLoss(cancelTarget.items)}
-          onConfirm={({ reason, notes, cooked }) => {
-            cancelOrder(cancelTarget.id, { reason, notes, cooked })
-            setCancelTarget(null)
+          qtyItemLabel={qtyItemLabel}
+          onConfirm={async ({ reason, notes, cooked }) => {
+            const res = await cancelOrder(cancelTarget.id, { reason, notes, cooked })
+            if (!res?.error) setCancelTarget(null)
+            return res
           }}
           onClose={() => setCancelTarget(null)}
         />
@@ -991,6 +1068,21 @@ export default function Orders() {
             setCompTarget(null)
           }}
           onClose={() => setCompTarget(null)}
+        />
+      )}
+
+      {/* Apply Discount → same DiscountModal + cap logic Billing.jsx uses. */}
+      {discountTarget && (
+        <DiscountModal
+          order={discountTarget}
+          // Pre-discount breakdown: GST is part of the base a percentage applies to.
+          bill={orderTotal(discountTarget.items, 0, discountTarget.gstRate)}
+          rate={typeof discountTarget.gstRate === 'number' ? discountTarget.gstRate : gstEnabled ? gstRate : 0}
+          // null = unlimited (Admin/Manager, 'full'); Cashier ('edit'/capped)
+          // gets the Admin-set ceiling — re-enforced server-side regardless.
+          maxPercent={user?.role === 'Cashier' ? maxCashierDiscountPercent : null}
+          onApply={handleApplyDiscount}
+          onClose={() => setDiscountTarget(null)}
         />
       )}
     </div>

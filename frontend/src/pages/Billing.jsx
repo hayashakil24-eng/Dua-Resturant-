@@ -417,9 +417,14 @@ export default function Billing() {
     { bill: 0, cost: 0, allKnown: true },
   )
 
+  // Returns the mutator's promise (not awaited/closed here) — DiscountModal
+  // itself awaits it and only calls onClose (setShowDiscount(false)) on
+  // success, so a server-side rejection (Cashier cap, cancelled order, ...)
+  // surfaces inside the modal instead of it silently closing as if the
+  // discount had applied.
   const handleApplyDiscount = (data) => {
-    if (activeId) applyDiscount(activeId, data)
-    setShowDiscount(false)
+    if (!activeId) return
+    return applyDiscount(activeId, data)
   }
 
   return (

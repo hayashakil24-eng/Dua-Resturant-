@@ -34,6 +34,13 @@ export default function DiscountModal({ order, bill, rate = 0, maxPercent = null
   const [reason, setReason] = useState('')
   const [notes, setNotes] = useState('')
   const [error, setError] = useState('')
+  // Guards a rapid double-click, and — the actual bug this fixes — the caller
+  // (Billing.jsx/Orders.jsx) used to fire onApply and close the modal in the
+  // same tick without checking the result, so a server-side rejection (the
+  // Cashier cap, a cancelled order, etc.) had nowhere to surface: the modal
+  // just closed as if it had worked. Awaiting here and only closing on
+  // success (via onClose, below) fixes that for both callers at once.
+  const [submitting, setSubmitting] = useState(false)
   useEscapeKey(onClose)
 
   const capped = maxPercent != null
@@ -45,7 +52,8 @@ export default function DiscountModal({ order, bill, rate = 0, maxPercent = null
   const amt = byPercent ? Math.round((gross * pct) / 100) : Number(amount) || 0
   const newTotal = Math.max(0, gross - amt)
 
-  const submit = () => {
+  const submit = async () => {
+    if (submitting) return
     if (byPercent) {
       if (!Number.isInteger(pct) || pct <= 0 || pct > 100) return setError('Enter a whole percentage between 1 and 100.')
       if (pct > percentCeiling) return setError(`You can discount up to ${percentCeiling}%.`)
@@ -55,11 +63,18 @@ export default function DiscountModal({ order, bill, rate = 0, maxPercent = null
       if (amt > amountCeiling) return setError(`You can discount up to ${money(amountCeiling)} (${percentCeiling}%).`)
     }
     setError('')
-    onApply({
+    setSubmitting(true)
+    const res = await onApply({
       ...(byPercent ? { percent: pct } : { amount: amt }),
       reason: reason || 'Manual Discount',
       notes: notes.trim(),
     })
+    setSubmitting(false)
+    // A server-side rejection (Cashier cap exceeded, cap never configured,
+    // order cancelled/paid by another device in the meantime, ...) — keep the
+    // modal open with the real reason instead of closing as if it worked.
+    if (res?.error) return setError(res.error)
+    onClose()
   }
 
   const switchMode = (next) => {
@@ -254,8 +269,12 @@ export default function DiscountModal({ order, bill, rate = 0, maxPercent = null
             <button onClick={onClose} className="btn-ghost flex-1 py-3">
               Cancel
             </button>
-            <button onClick={submit} className="btn-gold flex-1 py-3">
-              <IconWallet size={18} /> Apply Discount
+            <button
+              onClick={submit}
+              disabled={submitting}
+              className="btn-gold flex-1 py-3 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <IconWallet size={18} /> {submitting ? 'Applying…' : 'Apply Discount'}
             </button>
           </div>
         </div>
