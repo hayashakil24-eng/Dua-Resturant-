@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext.jsx'
 import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader, StatCard } from '../components/ui.jsx'
 import { money, dateShort, monthYear } from '../utils/format.js'
-import { monthAttendance, calcNetSalary } from '../utils/payroll.js'
+import { calcNetSalary } from '../utils/payroll.js'
 import { formatLateDuration } from '../utils/attendanceHelpers.js'
 import { apiGet } from '../api/client.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
@@ -22,7 +22,7 @@ import {
 const DAY_STYLES = {
   present: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/25',
   absent: 'bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/25',
-  off: 'bg-white/[0.03] text-cream-dim',
+  notHired: 'bg-white/[0.03] text-cream-dim/50',
   upcoming: 'border border-dashed border-ink-line text-cream-dim',
 }
 
@@ -86,7 +86,7 @@ function DetailsModal({ staff, att, gapDays, year, month, monthLabel, onClose })
               <span className="h-2.5 w-2.5 rounded bg-rose-400" /> {t('payroll.absent')} ({att.absent})
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded bg-white/20" /> {t('payroll.dayOff')}
+              <span className="h-2.5 w-2.5 rounded bg-white/20" /> {t('payroll.notHiredYet')}
             </span>
           </div>
 
@@ -133,23 +133,58 @@ function Row({ label, value }) {
   )
 }
 
-function EditModal({ staff, att, calculated, deductions, advances, onAddAdvance, onDeleteAdvance, onDone, onClose }) {
+function EditModal({
+  staff,
+  att,
+  proratedBase,
+  calculated,
+  deductions,
+  advances,
+  payment,
+  onAddAdvance,
+  onDeleteAdvance,
+  onMarkPaid,
+  onUnmarkPaid,
+  onDone,
+  onClose,
+}) {
   const t = useT()
   const [amount, setAmount] = useState('')
   const [reason, setReason] = useState('')
+  const [deductFromSalaryDate, setDeductFromSalaryDate] = useState('')
   const [error, setError] = useState('')
+  const [paidAt, setPaidAt] = useState(() => new Date().toISOString().slice(0, 10))
+  const [payError, setPayError] = useState('')
+  const [paying, setPaying] = useState(false)
   useEscapeKey(onClose)
 
   const advTotal = advances.reduce((s, a) => s + a.amount, 0)
   const final = Math.max(0, calculated - advTotal)
   const canAdd = Number(amount) > 0
+  const isProrated = proratedBase !== staff.baseSalary
+
+  const markPaid = async () => {
+    setPaying(true)
+    const res = await onMarkPaid({ amount: final, paidAt })
+    setPaying(false)
+    setPayError(res?.error || '')
+  }
+  const unmarkPaid = async () => {
+    setPaying(true)
+    await onUnmarkPaid()
+    setPaying(false)
+  }
 
   // No separate Add button by request — Done records whatever is typed in the
   // amount/reason fields and THEN closes, so one button does both. Returns
   // false on a server rejection so the caller keeps the modal open.
   const saveTyped = async () => {
     if (!canAdd) return true
-    const res = await onAddAdvance({ amount: Number(amount), reason: reason.trim() })
+    const res = await onAddAdvance({
+      amount: Number(amount),
+      reason: reason.trim(),
+      deductFromSalaryDate: deductFromSalaryDate ? new Date(deductFromSalaryDate).toISOString() : undefined,
+    })
     if (res?.error) {
       setError(res.error)
       return false
@@ -157,6 +192,7 @@ function EditModal({ staff, att, calculated, deductions, advances, onAddAdvance,
     setError('')
     setAmount('')
     setReason('')
+    setDeductFromSalaryDate('')
     return true
   }
 
@@ -188,7 +224,21 @@ function EditModal({ staff, att, calculated, deductions, advances, onAddAdvance,
           </div>
 
           <div className="mt-4 divide-y divide-ink-line">
-            <Row label={t('payroll.baseSalaryLocked')} value={money(staff.baseSalary)} />
+            <Row
+              label={isProrated ? t('payroll.proratedBase') : t('payroll.baseSalaryLocked')}
+              value={
+                isProrated ? (
+                  <span>
+                    {money(proratedBase)}{' '}
+                    <span className="text-xs font-normal text-cream-dim">
+                      ({t('payroll.of', 'of')} {money(staff.baseSalary)})
+                    </span>
+                  </span>
+                ) : (
+                  money(staff.baseSalary)
+                )
+              }
+            />
             <Row label={t('payroll.presentDays')} value={`${att.present} / ${att.workingDays}`} />
             {deductions.absenceDeduction > 0 && (
               <Row label={t('payroll.absenceDeduction')} value={<span className="text-rose-300">− {money(deductions.absenceDeduction)}</span>} />
@@ -224,6 +274,11 @@ function EditModal({ staff, att, calculated, deductions, advances, onAddAdvance,
                         <span className="text-xs font-normal text-cream-dim">· {dateShort(a.date)}</span>
                       </p>
                       {a.reason && <p className="truncate text-xs text-cream-dim">{a.reason}</p>}
+                      {a.deductFromSalaryDate && (
+                        <p className="truncate text-xs text-cream-dim">
+                          {t('payroll.deductFromSalaryDate')}: {dateShort(a.deductFromSalaryDate)}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`badge ring-1 ${ADV_STATUS[a.status] || ADV_STATUS.pending}`}>
@@ -264,6 +319,19 @@ function EditModal({ staff, att, calculated, deductions, advances, onAddAdvance,
                 onKeyDown={onKeyDown}
               />
             </div>
+            {/* Purely informational — the Advance Salary report shows it,
+                but recovery itself still happens via Done/payroll confirm. */}
+            <div className="mt-2">
+              <label className="mb-1 block text-[11px] uppercase tracking-wider text-cream-dim">
+                {t('payroll.deductFromSalaryDate')}
+              </label>
+              <input
+                type="date"
+                className="input py-2"
+                value={deductFromSalaryDate}
+                onChange={(e) => setDeductFromSalaryDate(e.target.value)}
+              />
+            </div>
             {/* Without an Add button there's no visible way to know how to
                 submit — say so, rather than leaving two boxes that look dead. */}
             {/* Only shown once something is typed — otherwise it's noise. */}
@@ -284,6 +352,48 @@ function EditModal({ staff, att, calculated, deductions, advances, onAddAdvance,
             </div>
           </div>
 
+          {/* Salary-paid record — when it was actually handed over, independent
+              of which month it covers (e.g. paid 5 Aug for July's salary). */}
+          <div className="mt-4 border-t border-ink-line pt-4">
+            <label className="mb-2 block text-[11px] uppercase tracking-wider text-cream-dim">
+              {t('payroll.payment')}
+            </label>
+            {payment ? (
+              <div className="flex items-center justify-between rounded-lg border border-emerald-500/25 bg-emerald-500/[0.06] px-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-emerald-300">
+                    {money(payment.amount)} · {dateShort(payment.paidAt)}
+                  </p>
+                  <p className="text-xs text-cream-dim">{t('payroll.paidBy')}: {payment.paidBy}</p>
+                </div>
+                <button
+                  onClick={unmarkPaid}
+                  disabled={paying}
+                  className="text-xs text-cream-dim transition hover:text-rose-300 disabled:opacity-50"
+                >
+                  {t('payroll.undoPaid')}
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  type="date"
+                  className="input py-2"
+                  value={paidAt}
+                  onChange={(e) => setPaidAt(e.target.value)}
+                />
+                <button
+                  onClick={markPaid}
+                  disabled={paying}
+                  className="whitespace-nowrap rounded-xl border border-gold/40 bg-gold/10 px-4 py-2 text-sm font-semibold text-gold transition hover:bg-gold/20 disabled:opacity-50"
+                >
+                  {t('payroll.markPaid')}
+                </button>
+              </div>
+            )}
+            {payError && <p className="mt-1.5 text-[11px] text-rose-300">{payError}</p>}
+          </div>
+
           <button onClick={done} className="btn-ghost mt-6 w-full py-3">
             <IconCheck size={18} /> {t('payroll.done')}
           </button>
@@ -296,9 +406,22 @@ function EditModal({ staff, att, calculated, deductions, advances, onAddAdvance,
 // ---------------------------------------------------------------------------
 // Staff payroll card
 // ---------------------------------------------------------------------------
-function PayrollCard({ staff, att, calculated, deductions, advTotal, final, onDetails, onEdit }) {
+function PaidBadge({ payment }) {
+  const t = useT()
+  if (!payment) {
+    return <span className="badge bg-amber-500/12 text-amber-300 ring-1 ring-amber-500/30">{t('payroll.unpaid')}</span>
+  }
+  return (
+    <span className="badge bg-emerald-500/12 text-emerald-300 ring-1 ring-emerald-500/30">
+      {t('payroll.paid')} · {dateShort(payment.paidAt)}
+    </span>
+  )
+}
+
+function PayrollCard({ staff, att, proratedBase, calculated, deductions, advTotal, final, payment, onDetails, onEdit }) {
   const t = useT()
   const pct = att.workingDays > 0 ? (att.present / att.workingDays) * 100 : 0
+  const isProrated = proratedBase !== staff.baseSalary
   return (
     <div className="card p-5">
       <div className="flex items-center gap-3">
@@ -310,6 +433,15 @@ function PayrollCard({ staff, att, calculated, deductions, advTotal, final, onDe
           <p className="text-xs text-cream-dim">{t(`roles.${staff.role}`, staff.role)}</p>
         </div>
         <span className="badge bg-gold/10 text-gold ring-1 ring-gold/20">{money(staff.baseSalary)}</span>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between">
+        {isProrated ? (
+          <span className="text-xs text-cream-dim">{t('payroll.proratedBase')}: {money(proratedBase)}</span>
+        ) : (
+          <span />
+        )}
+        <PaidBadge payment={payment} />
       </div>
 
       <div className="mt-4">
@@ -395,28 +527,38 @@ export default function Payroll() {
     return opts
   }, [today])
 
-  const { advances, addAdvance, deleteAdvance, recoverAdvances, staff } = useApp()
+  const { advances, addAdvance, deleteAdvance, recoverAdvances, markSalaryPaid, unmarkSalaryPaid, staff } = useApp()
   const [monthKey, setMonthKey] = useState(monthOptions[0].key)
   const [detailStaff, setDetailStaff] = useState(null)
   const [editStaff, setEditStaff] = useState(null)
   const [saved, setSaved] = useState(false)
-  // Real per-day late/early minutes for the selected month (GET /api/attendance/gaps)
-  // — month-scoped and on-demand, so it isn't part of AppContext's always-fetched state.
+  // Real per-day late/early minutes + presence (GET /api/attendance/gaps) and
+  // the salary-paid record (GET /api/payroll/paid) for the selected month —
+  // both month-scoped and on-demand, so neither is part of AppContext's
+  // always-fetched state.
   const [gaps, setGaps] = useState({})
+  const [paid, setPaid] = useState({})
 
   const [year, month] = monthKey.split('-').map(Number)
   const monthIndex = month - 1
   const monthLabel = monthOptions.find((m) => m.key === monthKey)?.label
 
+  const refetchPaid = () =>
+    apiGet(`/api/payroll/paid?year=${year}&month=${monthIndex}`)
+      .then((d) => setPaid(d.paid || {}))
+      .catch(() => setPaid({}))
+
   useEffect(() => {
     let cancelled = false
-    apiGet(`/api/attendance/gaps?year=${year}&month=${monthIndex}`)
-      .then((d) => {
-        if (!cancelled) setGaps(d.gaps || {})
-      })
-      .catch(() => {
-        if (!cancelled) setGaps({})
-      })
+    Promise.all([
+      apiGet(`/api/attendance/gaps?year=${year}&month=${monthIndex}`).then((d) => d.gaps || {}).catch(() => ({})),
+      apiGet(`/api/payroll/paid?year=${year}&month=${monthIndex}`).then((d) => d.paid || {}).catch(() => ({})),
+    ]).then(([g, p]) => {
+      if (!cancelled) {
+        setGaps(g)
+        setPaid(p)
+      }
+    })
     return () => {
       cancelled = true
     }
@@ -428,10 +570,24 @@ export default function Payroll() {
       staff
         .filter((s) => s.active !== false)
         .map((emp) => {
-          const att = monthAttendance(emp.id, year, monthIndex, today)
           const g = gaps[emp.id] || { days: [], totalLateMinutes: 0, totalEarlyMinutes: 0, avgShiftMinutes: 480 }
+          // Real attendance (machine + manual overrides) via GET /api/attendance/gaps
+          // — falls back to zeroed-out placeholders only until that fetch resolves.
+          const fullWorkingDays = g.fullWorkingDays ?? g.workingDays ?? 0
+          const att = {
+            daysInMonth: g.daysInMonth ?? new Date(year, monthIndex + 1, 0).getDate(),
+            workingDays: g.workingDays ?? 0,
+            present: g.present ?? 0,
+            absent: g.absent ?? 0,
+            statusByDay: g.statusByDay ?? {},
+          }
+          // A staff member hired mid-month has fewer real working days than
+          // the full month — their base salary is scaled to that share before
+          // the usual absence/late/early deductions apply. A no-op for anyone
+          // employed the whole month (workingDays === fullWorkingDays).
+          const proratedBase = fullWorkingDays > 0 ? Math.round((emp.baseSalary * att.workingDays) / fullWorkingDays) : 0
           const deductions = calcNetSalary({
-            base: emp.baseSalary,
+            base: proratedBase,
             workingDays: att.workingDays,
             absent: att.absent,
             lateMinutes: g.totalLateMinutes,
@@ -446,9 +602,20 @@ export default function Payroll() {
           })
           const advTotal = staffAdvances.reduce((s, a) => s + a.amount, 0)
           const final = Math.max(0, calculated - advTotal)
-          return { staff: emp, att, gapDays: g.days, deductions, calculated, advances: staffAdvances, advTotal, final }
+          return {
+            staff: emp,
+            att,
+            proratedBase,
+            gapDays: g.days,
+            deductions,
+            calculated,
+            advances: staffAdvances,
+            advTotal,
+            final,
+            payment: paid[emp.id] || null,
+          }
         }),
-    [staff, year, monthIndex, today, advances, gaps],
+    [staff, year, monthIndex, today, advances, gaps, paid],
   )
 
   // New advances land in the selected month (last day for past months).
@@ -511,10 +678,12 @@ export default function Payroll() {
             key={r.staff.id}
             staff={r.staff}
             att={r.att}
+            proratedBase={r.proratedBase}
             calculated={r.calculated}
             deductions={r.deductions}
             advTotal={r.advTotal}
             final={r.final}
+            payment={r.payment}
             onDetails={() => setDetailStaff(r.staff.id)}
             onEdit={() => setEditStaff(r.staff.id)}
           />
@@ -554,13 +723,24 @@ export default function Payroll() {
         <EditModal
           staff={editRow.staff}
           att={editRow.att}
+          proratedBase={editRow.proratedBase}
           calculated={editRow.calculated}
           deductions={editRow.deductions}
           advances={editRow.advances}
-          onAddAdvance={({ amount, reason }) =>
-            addAdvance({ staffId: editRow.staff.id, amount, reason, date: advanceDate() })
+          payment={editRow.payment}
+          onAddAdvance={({ amount, reason, deductFromSalaryDate }) =>
+            addAdvance({ staffId: editRow.staff.id, amount, reason, date: advanceDate(), deductFromSalaryDate })
           }
           onDeleteAdvance={deleteAdvance}
+          onMarkPaid={async ({ amount, paidAt }) => {
+            const res = await markSalaryPaid(editRow.staff.id, { year, month: monthIndex, amount, paidAt })
+            await refetchPaid()
+            return res
+          }}
+          onUnmarkPaid={async () => {
+            await unmarkSalaryPaid(editRow.staff.id, { year, month: monthIndex })
+            await refetchPaid()
+          }}
           onDone={() => {
             // "Done" confirms this staff's advances immediately (recovered),
             // without waiting for the whole-payroll "Save & Confirm".

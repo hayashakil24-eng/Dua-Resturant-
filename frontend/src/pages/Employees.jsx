@@ -53,6 +53,9 @@ function EmployeeModal({ employee, onSave, onClose }) {
         shiftStartTime: employee.shiftStartTime || SHIFT_START_TIMES[employee.shift] || SHIFT_START_TIMES.Morning,
         shiftEndMode: employee.shiftEndMode || (employee.shift === 'Evening' ? 'dayClosing' : 'fixed'),
         shiftEndTime: employee.shiftEndTime || (employee.shift === 'Evening' ? '' : DEFAULT_MORNING_CHECKOUT),
+        // `type="date"` needs a bare YYYY-MM-DD — the server sends a full ISO
+        // timestamp. Legacy staff (added before this field existed) have none.
+        hireDate: employee.hireDate ? employee.hireDate.slice(0, 10) : '',
       }
     }
     return {
@@ -66,6 +69,9 @@ function EmployeeModal({ employee, onSave, onClose }) {
       email: '',
       baseSalary: '',
       deviceUserId: '',
+      // Defaults to today — most staff are entered the day they start; edit
+      // if this employee's real first day was earlier.
+      hireDate: new Date().toISOString().slice(0, 10),
       active: true,
     }
   })
@@ -199,6 +205,15 @@ function EmployeeModal({ employee, onSave, onClose }) {
                 />
               </Field>
             </div>
+
+            <Field label={t('employees.hireDate')}>
+              <input
+                type="date"
+                className="input py-2.5"
+                value={form.hireDate || ''}
+                onChange={(e) => set('hireDate', e.target.value)}
+              />
+            </Field>
 
             <Field label={t('employees.email')}>
               <input className="input" value={form.email || ''} onChange={(e) => set('email', e.target.value)} placeholder={t('employees.emailPh')} />
