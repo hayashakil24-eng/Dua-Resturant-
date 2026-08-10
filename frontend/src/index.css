@@ -161,7 +161,8 @@
 /* Portaled print surfaces (kitchen slips) live on <body> but must never show
    on screen — only inside the print media query. */
 #printable-kots,
-#printable-closing {
+#printable-closing,
+#printable-khulasa {
   display: none;
 }
 
@@ -193,7 +194,9 @@
   body.print-kot #printable-kots,
   body.print-kot #printable-kots *,
   body.print-closing #printable-closing,
-  body.print-closing #printable-closing * {
+  body.print-closing #printable-closing *,
+  body.print-khulasa #printable-khulasa,
+  body.print-khulasa #printable-khulasa * {
     visibility: visible;
   }
 
@@ -212,6 +215,27 @@
     box-sizing: border-box;
     background: #fff !important;
     color: #3e2723 !important;
+  }
+
+  /* Khulasa (خلاصہ) bilingual summary sheet — same A4 treatment as the closing
+     slip, but this sheet intentionally does NOT use the app's brown/gold Cafe
+     Ali branding; every cell's real color comes from KhulasaSummary's own
+     inline styles (its own cream/beige/grey palette) — this is just the outer
+     fallback layer so the surface doesn't inherit the app's dark theme. */
+  body.print-khulasa #root {
+    height: 0 !important;
+    overflow: hidden !important;
+  }
+  body.print-khulasa #printable-khulasa {
+    display: block !important;
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 16mm;
+    box-sizing: border-box;
+    background: #fff !important;
+    color: #222 !important;
   }
 
   /* Department kitchen slips (KOT). The slips are portaled to <body>, so on a
