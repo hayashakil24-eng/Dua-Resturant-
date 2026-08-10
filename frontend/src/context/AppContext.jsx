@@ -21,7 +21,11 @@ const ACTION_REFETCH_MAP = {
   ORDER_ITEMS_ADDED: ['orders'],
   ORDER_QTY_UPDATED: ['orders'],
   ORDER_TABLE_SHIFTED: ['orders'],
-  CANCELLED: ['orders'],
+  // Cancelling the whole order restocks inventory exactly like cancelling one
+  // line does (both go through the same restock path in orders.service.ts) —
+  // 'inventory' was missing here, so another device's Inventory page went
+  // stale after a whole-order cancel even though its own restock did happen.
+  CANCELLED: ['orders', 'inventory'],
   ORDER_ITEM_CANCELLED: ['orders', 'inventory'],
   DISCOUNT: ['orders'],
   DISCOUNT_REMOVED: ['orders'],
@@ -937,9 +941,9 @@ export function AppProvider({ children }) {
     }
   }
 
-  const addAdvance = async ({ staffId, amount, reason = '', date }) => {
+  const addAdvance = async ({ staffId, amount, reason = '', date, deductFromSalaryDate }) => {
     try {
-      const { advance } = await apiPost('/api/advances', { staffId, amount, reason, date })
+      const { advance } = await apiPost('/api/advances', { staffId, amount, reason, date, deductFromSalaryDate })
       await refresh(['advances'])
       return advance
     } catch (e) {
@@ -960,6 +964,25 @@ export function AppProvider({ children }) {
     try {
       await apiPost('/api/advances/recover', { year, monthIndex, staffId })
       await refresh(['advances'])
+    } catch (e) {
+      return toError(e)
+    }
+  }
+
+  // Salary-paid record — distinct from advances above. Payroll.jsx fetches the
+  // month-scoped paid map itself (same pattern as its gaps fetch), so these
+  // mutators just post and let the caller refetch.
+  const markSalaryPaid = async (staffId, { year, month, amount, paidAt }) => {
+    try {
+      const { payment } = await apiPost(`/api/payroll/${staffId}/pay`, { year, month, amount, paidAt })
+      return payment
+    } catch (e) {
+      return toError(e)
+    }
+  }
+  const unmarkSalaryPaid = async (staffId, { year, month }) => {
+    try {
+      await apiPost(`/api/payroll/${staffId}/unpay`, { year, month })
     } catch (e) {
       return toError(e)
     }
@@ -1376,6 +1399,8 @@ export function AppProvider({ children }) {
     addAdvance,
     deleteAdvance,
     recoverAdvances,
+    markSalaryPaid,
+    unmarkSalaryPaid,
     shiftReconciliations,
     activeShift,
     startShift,

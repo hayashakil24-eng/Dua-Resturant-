@@ -3,11 +3,12 @@ import { useApp } from '../context/AppContext.jsx'
 import { useT, useLang } from '../i18n/LanguageContext.jsx'
 import { itemNameLabel, unitLabel } from '../i18n/dataDict.js'
 import { PageHeader } from '../components/ui.jsx'
-import { money, monthYear, dateLong, time } from '../utils/format.js'
+import { money, monthYear, dateLong, dateShort, time } from '../utils/format.js'
 import KOTView from '../components/KOTView.jsx'
 import SessionHistory from '../components/SessionHistory.jsx'
 import { monthFigures, isMaintenance } from '../utils/accounting.js'
 import { buildSessions, sessionLabel } from '../utils/sessions.js'
+import { buildClosingReport, toDayStr } from '../utils/closing.js'
 import { safePrint } from '../utils/print.js'
 import { calculateDeductions } from '../utils/inventoryFlow.js'
 import { IconPrint, IconWhatsApp } from '../components/Icons.jsx'
@@ -55,6 +56,43 @@ function estimateStockUsed(orderList, inventory, recipes) {
     .sort((a, b) => b.qty - a.qty)
 }
 
+// One Daily Ledger section — a titled table matching this page's existing
+// Item-Wise table styling, or an empty-state line when there's nothing to
+// show (e.g. no open receivables). `total`/`totalLabel` are omitted when
+// there are no rows, same as the rest of this page's sections.
+function LedgerTable({ title, subtitle, columns, rows, empty, totalLabel, total, renderRow }) {
+  return (
+    <div>
+      <h3 className="text-sm font-bold uppercase tracking-wide text-[#3E2723]/90">{title}</h3>
+      {subtitle && <p className="mt-0.5 text-xs text-[#8D6E63]">{subtitle}</p>}
+      {rows.length === 0 ? (
+        <p className="mt-2 text-sm text-[#8D6E63]">{empty}</p>
+      ) : (
+        <table className="mt-3 w-full text-sm">
+          <thead>
+            <tr className="border-b-2 border-[#E8DCC4] text-left text-[11px] uppercase tracking-wide text-[#8D6E63]">
+              {columns.map((c, i) => (
+                <th key={c} className={`py-2 font-semibold ${i === columns.length - 1 ? 'text-right' : ''}`}>
+                  {c}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(renderRow)}
+            <tr className="border-t-2 border-[#E8DCC4] font-bold">
+              <td colSpan={columns.length - 1} className="py-2 text-[#3E2723]">
+                {totalLabel}
+              </td>
+              <td className="py-2 text-right text-[#3498DB]">{money(total)}</td>
+            </tr>
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+}
+
 function Row({ label, value, tone = 'text-[#3498DB]', strong }) {
   return (
     <div
@@ -73,7 +111,7 @@ function Row({ label, value, tone = 'text-[#3498DB]', strong }) {
 }
 
 export default function Reports() {
-  const { orders, orderTotal, transactions, staff, inventory, recipes, dailyClosings, lastClosingAt } = useApp()
+  const { orders, orderTotal, transactions, staff, inventory, recipes, dailyClosings, lastClosingAt, purchases, receivables, advances } = useApp()
   const { t, lang } = useLang()
   const today = useMemo(() => new Date(), [])
 
@@ -105,6 +143,32 @@ export default function Reports() {
   // Falls back to the open session when the selected one disappears — e.g. a
   // day gets closed on another device and the list refetches under us.
   const selected = sessions.find((s) => s.id === sessionId) || sessions[0]
+
+  // Daily Ledger tab — Maintenance/Receivables/Advance Salary/Complimentary/
+  // Credit Settlement, reusing buildClosingReport (the same function Closing.jsx
+  // uses, and that backend/src/core/closing.ts saves into DailyClosing at close
+  // time) rather than recomputing this data a third way. A CLOSED session
+  // already has this exact output frozen in `selected.record` (spread onto the
+  // row by closing.service.ts's listClosings()) — reuse it directly instead of
+  // rebuilding, so a past session's Receivables/Advances reflect what was open
+  // AT THAT TIME, not live-today data. Only the still-open current session has
+  // no record yet, so that one is computed live.
+  const ledgerReport = useMemo(() => {
+    if (selected.record) return selected.record
+    return buildClosingReport(
+      orders,
+      orderTotal,
+      transactions,
+      toDayStr(new Date()),
+      inventory,
+      recipes,
+      selected.from,
+      purchases,
+      receivables,
+      advances,
+      staff,
+    )
+  }, [selected, orders, orderTotal, transactions, inventory, recipes, purchases, receivables, advances, staff])
 
   // Orders in the selected scope
   const scopeOrders = useMemo(() => {
@@ -302,15 +366,20 @@ export default function Reports() {
 
   // KOT is inherently a single-session report — it uses `selected` and doesn't
   // apply the session/monthly period toggle. History lists every past session,
-  // so it has no period scope of its own either.
-  const isSessionOnlyView = view === 'kot'
+  // so it has no period scope of its own either. Daily Ledger (Maintenance/
+  // Receivables/Advance Salary/Complimentary/Credit Settlement) is likewise
+  // always session-scoped — "this session's activity" or "the balance as of
+  // that session's close", never a calendar month — so it shares KOT's forced
+  // session-scope, just not KOT's separate full-page view.
+  const forcesSessionScope = view === 'kot' || view === 'ledger'
   const isHistoryView = view === 'history'
+  const hidesPrintableCard = view === 'kot' || isHistoryView
 
   return (
     <div>
       <PageHeader title={t('reports.title')} subtitle={t('reports.subtitle')}>
         <div className="flex flex-wrap items-center gap-2 no-print">
-          {!isSessionOnlyView && !isHistoryView && (
+          {!forcesSessionScope && !isHistoryView && (
             <div className="flex overflow-hidden rounded-xl border border-ink-line">
               {['session', 'monthly'].map((p) => (
                 <button
@@ -325,7 +394,7 @@ export default function Reports() {
               ))}
             </div>
           )}
-          {isHistoryView ? null : isSessionOnlyView || type === 'session' ? (
+          {isHistoryView ? null : forcesSessionScope || type === 'session' ? (
             /* Each option is one closing-to-closing recording window, newest
                first, so the period a report covers is always explicit. */
             <select
@@ -365,6 +434,7 @@ export default function Reports() {
           ['itemwise', 'reports.itemWise'],
           ['kot', 'nav.kot'],
           ['history', 'reports.history'],
+          ['ledger', 'reports.dailyLedger'],
         ].map(([key, labelKey]) => (
           <button
             key={key}
@@ -393,7 +463,7 @@ export default function Reports() {
         />
       )}
 
-      {!isSessionOnlyView && !isHistoryView && (
+      {!hidesPrintableCard && (
       <div className="mx-auto max-w-2xl">
         {/* Printable report (light "paper" — matches print output). Session
             Report, Summary and Item-Wise all share this one surface, toggling
@@ -405,23 +475,27 @@ export default function Reports() {
             <div className="font-serif text-3xl font-bold" style={{ color: '#C9A961' }}>
               Cafe Ali
             </div>
-            <p className="mt-1 text-[11px] text-[#5D4037]">Hawksbay Road, Karachi · 021-111-ALI</p>
+            <p className="mt-1 text-[11px] text-[#5D4037]">Main Hawksbay Beach, Zulfiqar Chowrangi, Maripur Road, Karachi · 0313-2870111</p>
           </div>
 
           <div className="my-5 border-t-2 border-dashed border-[#E8DCC4]" />
 
           <div className="flex items-baseline justify-between gap-3">
-            <h2 className="font-serif text-xl font-bold text-[#C9A961]">{t(report.titleKey)}</h2>
+            <h2 className="font-serif text-xl font-bold text-[#C9A961]">
+              {view === 'ledger' ? t('reports.dailyLedger') : t(report.titleKey)}
+            </h2>
             <span className="text-right text-sm font-semibold text-[#5D4037]" dir="ltr">
-              {report.rangeLabel}
+              {view === 'ledger' ? sessionLabel(selected, t) : report.rangeLabel}
             </span>
           </div>
           {/* Printed copies must state the exact window they cover — a sheet
               that only says "26 Jul" hides the half of the session that ran on
-              the 25th. */}
-          {type === 'session' && (
+              the 25th. Daily Ledger is always session-scoped (forcesSessionScope),
+              so it always gets this line, independent of the `type` toggle's
+              last-selected value. */}
+          {(view === 'ledger' || type === 'session') && (
             <p className="mt-1 text-[11px] font-semibold text-[#5D4037]" dir="ltr">
-              {t('reports.recordingPeriod')}: {report.rangeLabel}
+              {t('reports.recordingPeriod')}: {view === 'ledger' ? sessionLabel(selected, t) : report.rangeLabel}
             </p>
           )}
           <p className="mt-1 text-[11px] text-[#8D6E63]">
@@ -594,6 +668,117 @@ export default function Reports() {
                     </tr>
                   </tbody>
                 </table>
+              )}
+            </div>
+          )}
+
+          {/* Daily Ledger — Maintenance itemization, Receivables/Udhaar grand
+              total (with advance-against-dues netting), Advance Salary, and,
+              separately, Complimentary Orders and Credit Purchase Settlement.
+              All sourced from ledgerReport (buildClosingReport), matching the
+              Day Closing sheet's own underlying data. */}
+          {view === 'ledger' && (
+            <div className="mt-5 space-y-6">
+              {/* Per-account online payments — the admin-configured accounts
+                  (OnlineAccount model, e.g. JazzCash/Easypaisa; see Settings)
+                  each order's onlineAccountName is snapshotted against.
+                  ledgerReport.onlineByAccount already computes this exact
+                  breakdown (buildClosingReport, same source as the combined
+                  "Online" total on the Session Report tab) — not a new field. */}
+              <LedgerTable
+                title={t('reports.ledgerOnlineBreakdown')}
+                columns={[t('reports.colAccount'), t('reports.colRevenue')]}
+                rows={ledgerReport.onlineByAccount || []}
+                empty={t('reports.noOnlinePayments')}
+                totalLabel={t('reports.onlineTotal')}
+                total={ledgerReport.online}
+                renderRow={([name, amount]) => (
+                  <tr key={name} className="border-b border-[#E8DCC4]/50">
+                    <td className="py-2 text-[#3E2723]">{name}</td>
+                    <td className="py-2 text-right font-semibold text-[#3498DB]">{money(amount)}</td>
+                  </tr>
+                )}
+              />
+
+              <LedgerTable
+                title={t('reports.ledgerMaintenance')}
+                columns={[t('reports.date'), t('reports.colType'), t('reports.colVendor'), t('reports.colDescription'), t('reports.colRevenue')]}
+                rows={ledgerReport.maintenanceItems || []}
+                empty={t('reports.noMaintenanceItems')}
+                totalLabel={t('reports.maintenanceTotal')}
+                total={ledgerReport.maintenanceTotal}
+                renderRow={(m, i) => (
+                  <tr key={i} className="border-b border-[#E8DCC4]/50">
+                    <td className="py-2 text-[#3E2723]">{dateShort(m.date)}</td>
+                    <td className="py-2 text-[#3E2723]">{m.subCategory ? m.subCategory[0].toUpperCase() + m.subCategory.slice(1) : '-'}</td>
+                    <td className="py-2 text-[#3E2723]">{m.vendor || '-'}</td>
+                    <td className="py-2 text-[#3E2723]">{m.description || '-'}</td>
+                    <td className="py-2 text-right font-semibold text-[#3498DB]">{money(m.amount)}</td>
+                  </tr>
+                )}
+              />
+
+              <LedgerTable
+                title={t('reports.ledgerReceivables')}
+                columns={[t('reports.colAccount'), t('reports.colType'), t('reports.colAdvanceAgainstDues'), t('reports.colBalance')]}
+                rows={ledgerReport.openReceivables || []}
+                empty={t('reports.noReceivablesOpen')}
+                totalLabel={t('reports.grandTotalReceivables')}
+                total={ledgerReport.receivablesTotal}
+                renderRow={(r) => (
+                  <tr key={r.name} className="border-b border-[#E8DCC4]/50">
+                    <td className="py-2 text-[#3E2723]">{r.name}</td>
+                    <td className="py-2 text-[#3E2723]">{r.type ? r.type[0].toUpperCase() + r.type.slice(1) : '-'}</td>
+                    <td className="py-2 text-right text-[#8D6E63]">{r.advanceAgainstDues > 0 ? money(r.advanceAgainstDues) : '-'}</td>
+                    <td className="py-2 text-right font-semibold text-[#3498DB]">{money(r.balance)}</td>
+                  </tr>
+                )}
+              />
+
+              <LedgerTable
+                title={t('reports.ledgerAdvances')}
+                columns={[t('reports.colStaff'), t('reports.colRole'), t('reports.colDateGiven'), t('reports.colDeductFrom'), t('reports.colStatus'), t('reports.colRevenue')]}
+                rows={ledgerReport.openAdvances || []}
+                empty={t('reports.noAdvancesOpen')}
+                totalLabel={t('reports.totalAdvancesLedger')}
+                total={ledgerReport.advancesTotal}
+                renderRow={(a, i) => (
+                  <tr key={i} className="border-b border-[#E8DCC4]/50">
+                    <td className="py-2 text-[#3E2723]">{a.staffName}</td>
+                    <td className="py-2 text-[#3E2723]">{a.role || '-'}</td>
+                    <td className="py-2 text-[#3E2723]">{dateShort(a.date)}</td>
+                    <td className="py-2 text-[#3E2723]">{a.deductFromSalaryDate ? dateShort(a.deductFromSalaryDate) : '-'}</td>
+                    <td className="py-2 text-[#3E2723]">{a.status === 'recovered' ? t('reports.statusSettled') : t('reports.statusActive')}</td>
+                    <td className="py-2 text-right font-semibold text-[#3498DB]">{money(a.amount)}</td>
+                  </tr>
+                )}
+              />
+
+              <LedgerTable
+                title={t('reports.ledgerComplimentary')}
+                subtitle={t('reports.notCountedNetSale')}
+                columns={[t('reports.colRecipient'), t('reports.colDescription'), t('reports.colRevenue')]}
+                rows={ledgerReport.complimentaryItems || []}
+                empty={t('reports.noComplimentaryOrders')}
+                totalLabel={t('reports.complimentaryTotal')}
+                total={ledgerReport.complimentaryTotal}
+                renderRow={(c, i) => (
+                  <tr key={i} className="border-b border-[#E8DCC4]/50">
+                    <td className="py-2 text-[#3E2723]">{c.name}</td>
+                    <td className="py-2 text-[#3E2723]">{c.description}</td>
+                    <td className="py-2 text-right font-semibold text-[#3498DB]">{money(c.amount)}</td>
+                  </tr>
+                )}
+              />
+
+              {ledgerReport.supplierPayments > 0 && (
+                <div>
+                  <h3 className="text-sm font-bold uppercase tracking-wide text-[#3E2723]/90">
+                    {t('reports.ledgerCreditSettlement')}
+                  </h3>
+                  <p className="mt-0.5 text-xs text-[#8D6E63]">{t('reports.creditSettlementNote')}</p>
+                  <Row label={t('reports.ledgerCreditSettlement')} value={money(ledgerReport.supplierPayments)} tone="text-[#3498DB]" strong />
+                </div>
               )}
             </div>
           )}

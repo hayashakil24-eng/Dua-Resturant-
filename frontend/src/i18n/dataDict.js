@@ -64,6 +64,8 @@ export const CATEGORY_UR = {
   Supplies: 'سامان',
   Gas: 'گیس',
   Maintenance: 'دیکھ بھال',
+  'Cafe Ali Maintenance': 'مینٹیننس',
+  'Daily Wages': 'دیہاڑی',
   Marketing: 'مارکیٹنگ',
 }
 

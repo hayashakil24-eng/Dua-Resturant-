@@ -5,7 +5,15 @@
 // day's orders + transactions so a saved closing can't be tampered with.
 
 import { prisma } from '../db/client.js'
-import { buildClosingReport, toDayStr, type ClosingOrder, type ClosingTransaction } from '../core/closing.js'
+import {
+  buildClosingReport,
+  toDayStr,
+  type ClosingOrder,
+  type ClosingTransaction,
+  type ClosingPurchase,
+  type ClosingReceivable,
+  type ClosingAdvance,
+} from '../core/closing.js'
 import type { InventoryItemLike, RecipeLike } from '../core/inventoryFlow.js'
 import { getActiveShift } from './shifts.service.js'
 import { writeAudit } from '../lib/audit.js'
@@ -19,11 +27,14 @@ interface Ctx {
 }
 
 async function gather() {
-  const [orders, transactions, inventory, recipes] = await Promise.all([
+  const [orders, transactions, inventory, recipes, purchases, receivables, advances] = await Promise.all([
     prisma.order.findMany({ include: { items: true } }),
     prisma.transaction.findMany(),
     prisma.inventoryItem.findMany(),
     prisma.recipe.findMany({ where: { status: 'approved' }, include: { ingredients: true } }),
+    prisma.stockPurchase.findMany(),
+    prisma.receivable.findMany({ where: { status: 'open' } }),
+    prisma.advance.findMany({ where: { status: 'pending' }, include: { staff: true } }),
   ])
 
   const closingOrders: ClosingOrder[] = orders.map((o) => ({
@@ -42,14 +53,33 @@ async function gather() {
     udhaarCustomerName: o.udhaarCustomerName,
     orderedBy: o.complimentaryOrderedBy,
   }))
-  const closingTxns: ClosingTransaction[] = transactions.map((t) => ({ type: t.type, amount: t.amount, date: t.date, category: t.category }))
+  const closingTxns: ClosingTransaction[] = transactions.map((t) => ({
+    type: t.type,
+    amount: t.amount,
+    date: t.date,
+    category: t.category,
+    description: t.description,
+    subCategory: t.subCategory,
+    vendor: t.vendor,
+    source: t.source,
+  }))
   const inv: InventoryItemLike[] = inventory.map((i) => ({ id: i.id, unit: i.unit, stock: i.stock, threshold: i.threshold, costPerUnit: i.costPerUnit }))
   const rec: RecipeLike[] = recipes.map((r) => ({
     menuItemId: r.menuItemId,
     status: r.status,
     ingredients: r.ingredients.map((ing) => ({ inventoryItemId: ing.inventoryItemId, itemName: ing.itemName, quantity: ing.quantity, unit: ing.unit })),
   }))
-  return { closingOrders, closingTxns, inv, rec }
+  const closingPurchases: ClosingPurchase[] = purchases.map((p) => ({ date: p.date, totalCost: p.totalCost, paymentStatus: p.paymentStatus }))
+  const closingReceivables: ClosingReceivable[] = receivables.map((r) => ({ name: r.name, type: r.type, balance: r.balance, status: r.status }))
+  const closingAdvances: ClosingAdvance[] = advances.map((a) => ({
+    staffName: a.staff.name,
+    role: a.staff.role,
+    amount: a.amount,
+    date: a.date,
+    deductFromSalaryDate: a.deductFromSalaryDate,
+    status: a.status,
+  }))
+  return { closingOrders, closingTxns, inv, rec, closingPurchases, closingReceivables, closingAdvances }
 }
 
 // The business-day "session" boundary now lives in lib/businessDay.ts so
@@ -61,8 +91,8 @@ async function gather() {
 export async function buildReport(dateStr?: string) {
   const day = dateStr || toDayStr(new Date())
   const sinceIso = await getBoundaryIso()
-  const { closingOrders, closingTxns, inv, rec } = await gather()
-  return buildClosingReport(closingOrders, closingTxns, day, inv, rec, sinceIso)
+  const { closingOrders, closingTxns, inv, rec, closingPurchases, closingReceivables, closingAdvances } = await gather()
+  return buildClosingReport(closingOrders, closingTxns, day, inv, rec, sinceIso, closingPurchases, closingReceivables, closingAdvances)
 }
 
 // The most recent saved closing, raw (not merged with report fields the way

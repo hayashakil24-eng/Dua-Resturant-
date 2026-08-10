@@ -6,6 +6,17 @@ import { payrollTotal } from './payroll.js'
 export const MAINTENANCE_CATEGORY = 'Cafe Ali Maintenance'
 export const isMaintenance = (cat) => cat === MAINTENANCE_CATEGORY || cat === 'Maintenance'
 
+// Daily kitchen-staff wages (Butcher/Tandoor/Kitchen Double, etc.) — tracked
+// the same way Maintenance is (a type + who was paid), just under its own
+// category so it doesn't mix with repair/maintenance spend.
+export const DAILY_WAGE_CATEGORY = 'Daily Wages'
+export const isDailyWage = (cat) => cat === DAILY_WAGE_CATEGORY
+// Categories that itemize their entries with a type (subCategory) + vendor —
+// currently Maintenance and Daily Wages. Add a category here (and to
+// EXPENSE_CATEGORIES in data/mockData.js) if a future category needs the same
+// itemized type/vendor treatment.
+export const hasItemizedFields = (cat) => isMaintenance(cat) || isDailyWage(cat)
+
 // Ledger rows minted by other flows rather than typed into the Accounting form.
 // They are ordinary expenses everywhere — routing stock purchases and salary
 // advances through the same Transaction table is what makes them show up in the

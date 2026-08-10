@@ -49,6 +49,109 @@ export interface ClosingTransaction {
   amount: number
   date: Date | string
   category?: string | null
+  description?: string | null
+  // Populated only on Maintenance-category rows — see accounting.service.ts's
+  // isMaintenance/MAINTENANCE_CATEGORY. Feeds the itemized Maintenance section
+  // below, distinct from the existing per-category expensesByCategory total.
+  subCategory?: string | null
+  vendor?: string | null
+  // Which flow minted this row — 'purchase' (a same-day cash stock buy) vs
+  // 'payable_payment' (today settling a supplier credit booked on some
+  // EARLIER day) vs anything else (rent, salary, ...). Both purchase types
+  // already share one expensesByCategory bucket (PURCHASE_CATEGORY) for the
+  // cash-drawer math, which is correct — but distinguishing them here is what
+  // lets cashPurchases/supplierPayments below report accurately instead of
+  // conflating "bought today" with "paid off an old bill today" (see
+  // ../../../CLAUDE.md-adjacent accounting principle: purchase date ≠ payment date).
+  source?: string | null
+}
+
+// A named credit account — the same shape as Receivable, trimmed to what the
+// closing sheet needs. Passed in already filtered to status:'open' by the
+// caller (closing.service.ts); filtered again here defensively since the
+// frontend mirror (utils/closing.js) passes AppContext's full `receivables`
+// array (both open and settled).
+export interface ClosingReceivable {
+  name: string
+  type: string // 'customer' | 'hotel' | 'business'
+  balance: number
+  status: string
+}
+
+// A staff salary advance, pre-joined to the staff member's name/role — the
+// closing sheet has no reason to know about Staff beyond display fields.
+// Passed in already filtered to status:'pending' by the caller; filtered
+// again here for the same reason as ClosingReceivable above.
+export interface ClosingAdvance {
+  staffName: string
+  role: string
+  amount: number
+  date: Date | string
+  deductFromSalaryDate?: Date | string | null
+  status: string // 'pending' | 'recovered'
+}
+
+// One itemized Maintenance-category expense — the client's Excel ledger
+// breaks these out by type (labour/material/rent/fuel/other) and who was
+// paid, not just a lump "Maintenance" total.
+export interface MaintenanceLine {
+  date: string | Date
+  subCategory: string | null
+  vendor: string | null
+  description: string | null
+  amount: number
+}
+
+// Every session-scoped expense transaction, itemized with its category —
+// generalizes MaintenanceLine (which is Maintenance-only, kept as-is since
+// other consumers already rely on it) to every category, so a consumer that
+// wants an itemized breakdown per category (e.g. the Khulasa summary sheet's
+// "Expenses by Type" section — Purchasing items, per-vendor Maintenance rows,
+// Daily Wages rows, etc., not just one lump total per category) can group
+// this flat list itself instead of the report inventing a per-category shape.
+export interface ExpenseTransactionLine {
+  date: string | Date
+  category: string
+  subCategory: string | null
+  vendor: string | null
+  description: string | null
+  amount: number
+}
+
+// One open credit account for the Receivables/Udhaar report section — same
+// data as an `accounts` line, but this is every OPEN account balance (a
+// running position), not today's session activity.
+export interface OpenReceivableLine {
+  name: string
+  type: string
+  balance: number
+  // The matching open advance for this name, if any (case-insensitive name
+  // match) — display-only netting per the client's request to see when
+  // someone's advance offsets their dues; no balance/schema change, just
+  // shown side by side on the report.
+  advanceAgainstDues: number
+}
+
+// One pending salary advance for the Advance Salary report section.
+export interface OpenAdvanceLine {
+  staffName: string
+  role: string
+  amount: number
+  date: string | Date
+  deductFromSalaryDate: string | Date | null
+  status: string
+}
+
+// A stock purchase (paid or credit) — the source of truth for "how much did
+// we buy today", separate from ClosingTransaction because a CREDIT purchase
+// never creates a Transaction at all (no cash moved yet) — see
+// inventory.service.ts's recordPurchase. Cash purchases are counted from
+// here too, not from ClosingTransaction{source:'purchase'}, so both figures
+// come from one place and can never drift apart.
+export interface ClosingPurchase {
+  date: Date | string
+  totalCost: number
+  paymentStatus: string // 'paid' | 'unpaid'
 }
 
 export interface ClosingAccount {
@@ -134,6 +237,13 @@ function describeItems(items: { name: string; qty: number }[]): string {
   return items.map((it) => `${it.qty}x ${it.name}`).join(', ')
 }
 
+// core/ never imports from services/ (one-way dependency), so this can't
+// import accounting.service.ts's isMaintenance/MAINTENANCE_CATEGORY directly
+// — kept in lockstep with it by hand instead.
+function isMaintenanceCategory(category: string | null | undefined): boolean {
+  return category === 'Cafe Ali Maintenance' || category === 'Maintenance'
+}
+
 export interface ClosingReport {
   date: string
   // The recording window this report actually covers. `date` is only a label —
@@ -161,6 +271,7 @@ export interface ClosingReport {
   netCashSales: number
   expenses: number
   expensesByCategory: ExpenseCategoryLine[]
+  expenseTransactions: ExpenseTransactionLine[]
   remainingHandover: number
   gstCollected: number
   materialLoss: number
@@ -170,6 +281,34 @@ export interface ClosingReport {
   complimentaryItems: ComplimentaryOrderLine[]
   complimentaryTotal: number
   itemsSold: ItemSoldLine[]
+  // Today's stock buying, split by how it was paid — see the accounting
+  // principle in ../../../CLAUDE.md-adjacent notes: a credit purchase must
+  // never reduce cash, and paying off an OLD credit purchase today must never
+  // be reported as a new purchase. cashPurchases + creditPurchases already
+  // both count toward `expenses`/expensesByCategory when cash purchases are
+  // involved (unchanged) — these are the same money, just broken out for
+  // legibility, not additional spend.
+  cashPurchases: number
+  creditPurchases: number
+  totalPurchases: number
+  // Today's payments against a supplier credit opened on some earlier day
+  // (payables.service.ts's recordPayablePayment) — real cash out today, but
+  // NOT a new purchase; kept out of cashPurchases/totalPurchases above for
+  // exactly that reason, even though it's already folded into `expenses`.
+  supplierPayments: number
+  // Itemized Maintenance-category expenses for this session (already inside
+  // `expenses`/`expensesByCategory` — this is a breakdown, not additional
+  // spend), plus a subtotal matching the category's own bucket.
+  maintenanceItems: MaintenanceLine[]
+  maintenanceTotal: number
+  // Live snapshot of every open credit account (not session-scoped — a
+  // running balance, not a day event), plus the grand total the client's own
+  // ledger always shows as the sum of every named account.
+  openReceivables: OpenReceivableLine[]
+  receivablesTotal: number
+  // Live snapshot of every pending salary advance (not session-scoped).
+  openAdvances: OpenAdvanceLine[]
+  advancesTotal: number
 }
 
 // 'YYYY-MM-DD' local-day key — matches the Reports page's day bucketing so the
@@ -197,6 +336,9 @@ export function buildClosingReport(
   // second closing the same day only reports that session and the live figures
   // reset the moment a day is closed (demand.md #9). Null = legacy whole-day.
   sinceIso: string | null = null,
+  purchases: ClosingPurchase[] = [],
+  receivables: ClosingReceivable[] = [],
+  advances: ClosingAdvance[] = [],
 ): ClosingReport {
   const sinceMs = sinceIso ? new Date(sinceIso).getTime() : null
   const inSession = (d: Date | string) =>
@@ -286,6 +428,70 @@ export function buildClosingReport(
     .sort((a, b) => b.amount - a.amount)
   const remainingHandover = netCashSales - expenses
 
+  // Every session expense, itemized — see ExpenseTransactionLine's doc comment.
+  const expenseTransactions: ExpenseTransactionLine[] = dayExpenses
+    .map((tx) => ({
+      date: tx.date,
+      category: tx.category || 'Other',
+      subCategory: tx.subCategory ?? null,
+      vendor: tx.vendor ?? null,
+      description: tx.description ?? null,
+      amount: tx.amount,
+    }))
+    .sort((a, b) => a.category.localeCompare(b.category) || +new Date(b.date) - +new Date(a.date))
+
+  // Itemized Maintenance-category expenses this session — a breakdown of the
+  // "Cafe Ali Maintenance" bucket already inside expensesByCategory above,
+  // not additional spend.
+  const maintenanceItems: MaintenanceLine[] = dayExpenses
+    .filter((tx) => isMaintenanceCategory(tx.category))
+    .map((tx) => ({
+      date: tx.date,
+      subCategory: tx.subCategory ?? null,
+      vendor: tx.vendor ?? null,
+      description: tx.description ?? null,
+      amount: tx.amount,
+    }))
+    .sort((a, b) => +new Date(b.date) - +new Date(a.date))
+  const maintenanceTotal = maintenanceItems.reduce((s, m) => s + m.amount, 0)
+
+  // Live snapshot of every open credit account — a running position, not
+  // scoped to this session — matching the client's own ledger, which always
+  // shows the grand total as the sum of every named account.
+  const openReceivablesRaw = receivables.filter((r) => r.status === 'open')
+  const openAdvancesRaw = advances.filter((a) => a.status === 'pending')
+  const openReceivables: OpenReceivableLine[] = openReceivablesRaw
+    .map((r) => {
+      const advance = openAdvancesRaw.find((a) => a.staffName.trim().toLowerCase() === r.name.trim().toLowerCase())
+      return { name: r.name, type: r.type, balance: r.balance, advanceAgainstDues: advance?.amount ?? 0 }
+    })
+    .sort((a, b) => b.balance - a.balance)
+  const receivablesTotal = openReceivables.reduce((s, r) => s + r.balance, 0)
+
+  const openAdvances: OpenAdvanceLine[] = openAdvancesRaw
+    .map((a) => ({
+      staffName: a.staffName,
+      role: a.role,
+      amount: a.amount,
+      date: a.date,
+      deductFromSalaryDate: a.deductFromSalaryDate ?? null,
+      status: a.status,
+    }))
+    .sort((a, b) => +new Date(b.date) - +new Date(a.date))
+  const advancesTotal = openAdvances.reduce((s, a) => s + a.amount, 0)
+
+  // Purchases today, split by payment type — from StockPurchase rows
+  // directly (not derived from `transactions`), since a credit purchase never
+  // creates a Transaction at all (see ClosingPurchase's doc comment above).
+  const dayPurchases = purchases.filter((p) => inSession(p.date))
+  const cashPurchases = dayPurchases.filter((p) => p.paymentStatus === 'paid').reduce((s, p) => s + p.totalCost, 0)
+  const creditPurchases = dayPurchases.filter((p) => p.paymentStatus !== 'paid').reduce((s, p) => s + p.totalCost, 0)
+  const totalPurchases = cashPurchases + creditPurchases
+  // Today's cash paid AGAINST an old credit purchase — already inside
+  // `expenses` above (real cash out today), reported separately here so it
+  // never gets read as "today's purchases" (that figure is totalPurchases).
+  const supplierPayments = dayExpenses.filter((tx) => tx.source === 'payable_payment').reduce((s, tx) => s + tx.amount, 0)
+
   // Extras kept for the on-screen detail / saved record (not on the summary sheet).
   const gstCollected = settled.reduce((s, o) => s + totalOf(o).tax, 0)
   const materialLoss = cancelled.reduce((s, o) => s + (o.materialLoss || 0), 0)
@@ -353,6 +559,7 @@ export function buildClosingReport(
     netCashSales,
     expenses,
     expensesByCategory,
+    expenseTransactions,
     remainingHandover,
     gstCollected,
     materialLoss,
@@ -362,5 +569,15 @@ export function buildClosingReport(
     complimentaryItems,
     complimentaryTotal,
     itemsSold,
+    cashPurchases,
+    creditPurchases,
+    totalPurchases,
+    supplierPayments,
+    maintenanceItems,
+    maintenanceTotal,
+    openReceivables,
+    receivablesTotal,
+    openAdvances,
+    advancesTotal,
   }
 }

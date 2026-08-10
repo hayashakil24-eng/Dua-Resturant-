@@ -13,6 +13,7 @@ import { getRecipeStock, getStockShortfall } from '../utils/inventoryFlow.js'
 import { canModify } from '../config/permissions.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import { tableLabel } from '../data/mockData.js'
+import AddTransactionModal from '../components/AddTransactionModal.jsx'
 import {
   IconPlus,
   IconMinus,
@@ -264,6 +265,7 @@ export default function POS() {
     getMostOrderedItems,
     onlineAccounts,
     gstRate,
+    addTransaction,
   } = useApp()
 
   // Recipe-based stock status per menu item (only items with an approved recipe
@@ -298,8 +300,14 @@ export default function POS() {
   const [showManageMostOrdered, setShowManageMostOrdered] = useState(false)
   const [deliveryDetails, setDeliveryDetails] = useState(null)
   const [showDeliveryModal, setShowDeliveryModal] = useState(false)
+  const [showAddExpense, setShowAddExpense] = useState(false)
   const mostOrderedItems = getMostOrderedItems()
   const canManageMostOrdered = user ? canModify(user.role, 'mostOrderedManage') : false
+  // Cashier's quick-add-expense: a narrow create-only slice of 'accounting'
+  // (see config/permissions.js's expenseEntry) so Cashier can log a daily
+  // expense/maintenance entry without seeing the full ledger (Accounting
+  // page stays hidden to them).
+  const canAddExpense = user ? canModify(user.role, 'expenseEntry') : false
 
   // Running bill: when arriving with a continueOrderId, we append to that
   // existing unpaid order instead of starting a fresh one.
@@ -697,7 +705,17 @@ export default function POS() {
             ? `${tableLabel(continuingOrder.table)} · new items append to this running bill.`
             : 'Build the order, assign a table & waiter, then checkout.'
         }
-      />
+      >
+        {canAddExpense && (
+          <button onClick={() => setShowAddExpense(true)} className="btn-ghost px-4 py-2 text-sm">
+            <IconCash size={16} /> Add Expense
+          </button>
+        )}
+      </PageHeader>
+
+      {showAddExpense && (
+        <AddTransactionModal onClose={() => setShowAddExpense(false)} onSave={addTransaction} />
+      )}
 
       {isContinuing && (
         <div className="mb-6 rounded-2xl border border-gold/25 bg-gold/[0.06] p-4">

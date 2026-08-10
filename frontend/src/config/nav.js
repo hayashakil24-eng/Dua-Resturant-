@@ -65,6 +65,7 @@ export const NAV = [
   { to: '/payroll', label: 'Payroll', labelKey: 'nav.payroll', icon: IconWallet, pageKey: 'payroll', group: 'people' },
   { to: '/accounting', label: 'Accounting', labelKey: 'nav.accounting', icon: IconChart, pageKey: 'accounting', group: 'finance' },
   { to: '/receivables', label: 'Receivables', labelKey: 'nav.receivables', icon: IconWallet, pageKey: 'receivables', group: 'finance' },
+  { to: '/credit-purchase', label: 'Credit Purchase', labelKey: 'nav.creditPurchase', icon: IconInventory, pageKey: 'creditPurchase', group: 'finance' },
   { to: '/handovers', label: 'Handover Approvals', labelKey: 'nav.handovers', icon: IconCash, pageKey: 'handovers', group: 'finance' },
   { to: '/billing', label: 'Billing', labelKey: 'nav.billing', icon: IconReceipt, pageKey: 'billing', group: 'finance' },
   { to: '/reports', label: 'Reports', labelKey: 'nav.reports', icon: IconReport, pageKey: 'reports', group: 'reports' },

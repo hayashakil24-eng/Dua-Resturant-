@@ -154,6 +154,7 @@ function normalizeReport(raw: Partial<ClosingReport>): ClosingReport {
     netCashSales: raw.netCashSales ?? 0,
     expenses: raw.expenses ?? 0,
     expensesByCategory: raw.expensesByCategory ?? [],
+    expenseTransactions: raw.expenseTransactions ?? [],
     remainingHandover: raw.remainingHandover ?? 0,
     gstCollected: raw.gstCollected ?? 0,
     materialLoss: raw.materialLoss ?? 0,
@@ -163,6 +164,16 @@ function normalizeReport(raw: Partial<ClosingReport>): ClosingReport {
     complimentaryItems: raw.complimentaryItems ?? [],
     complimentaryTotal: raw.complimentaryTotal ?? 0,
     itemsSold: raw.itemsSold ?? [],
+    cashPurchases: raw.cashPurchases ?? 0,
+    creditPurchases: raw.creditPurchases ?? 0,
+    totalPurchases: raw.totalPurchases ?? 0,
+    supplierPayments: raw.supplierPayments ?? 0,
+    maintenanceItems: raw.maintenanceItems ?? [],
+    maintenanceTotal: raw.maintenanceTotal ?? 0,
+    openReceivables: raw.openReceivables ?? [],
+    receivablesTotal: raw.receivablesTotal ?? 0,
+    openAdvances: raw.openAdvances ?? [],
+    advancesTotal: raw.advancesTotal ?? 0,
   }
 }
 

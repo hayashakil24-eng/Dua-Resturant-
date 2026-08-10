@@ -1,7 +1,7 @@
 {
   "name": "cafe-ali",
   "private": true,
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Cafe Ali restaurant/hotel management desktop app",
   "author": "Cafe Ali",
   "type": "module",
@@ -13,6 +13,7 @@
     "dist": "vite build && electron-builder"
   },
   "dependencies": {
+    "electron-log": "^5.4.4",
     "electron-serve": "^3.0.1",
     "electron-updater": "^6.8.9",
     "react": "^18.3.1",

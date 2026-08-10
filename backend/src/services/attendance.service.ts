@@ -25,15 +25,23 @@ export async function listAttendance() {
   return prisma.attendanceRecord.findMany({ where: { date: startOfToday() } })
 }
 
-// Real per-day late-arrival/early-departure minutes for every active staff
-// member in a given month — used by Payroll's per-minute deduction. Absence
-// counting (present/workingDays) intentionally stays on the frontend's mock
-// monthAttendance() for now (see payroll.ts's TODO) — this endpoint only
-// covers what the client asked to be computed from real data: how late/early,
-// per day, not just a cumulative total.
+// Real per-day late-arrival/early-departure minutes, plus real present/absent
+// day counts and a day-by-day calendar status, for every active staff member
+// in a given month — used by Payroll's per-minute deduction and its calendar
+// "Details" view. Both used to be split (gaps real, absence-counting mock —
+// see git history) but now that the ZKTeco machine is actually connected,
+// there is real AttendanceRecord data to count from, so both come from the
+// same query here instead of Payroll faking present/absent client-side.
 export async function getMonthlyAttendanceGaps(year: number, month: number) {
   const monthStart = new Date(year, month, 1)
   const monthEnd = new Date(year, month + 1, 1)
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const now = new Date()
+  const isCurrentMonth = year === now.getFullYear() && month === now.getMonth()
+  // Days after "today" (or the whole month, for a past month) aren't counted
+  // yet — mirrors the frontend mock's same lastCounted convention so a
+  // future day reads as "upcoming", not a false absence.
+  const lastCounted = isCurrentMonth ? now.getDate() : daysInMonth
 
   const [staffList, records, closings] = await Promise.all([
     prisma.staff.findMany({ where: { active: true } }),
@@ -42,16 +50,26 @@ export async function getMonthlyAttendanceGaps(year: number, month: number) {
   ])
 
   const recordsByStaff = new Map<string, typeof records>()
+  // Day-of-month -> record, per staff, for the presence calendar below.
+  const recordByStaffDay = new Map<string, Map<number, (typeof records)[number]>>()
   for (const r of records) {
     const list = recordsByStaff.get(r.staffId)
     if (list) list.push(r)
     else recordsByStaff.set(r.staffId, [r])
+
+    let dayMap = recordByStaffDay.get(r.staffId)
+    if (!dayMap) {
+      dayMap = new Map()
+      recordByStaffDay.set(r.staffId, dayMap)
+    }
+    dayMap.set(r.date.getDate(), r)
   }
   // Last closing wins if a date somehow has more than one (re-closed) — matches
   // getLatestClosing()'s "most recent" convention elsewhere in this service.
   const closingByDate = new Map<string, Date>()
   for (const c of closings) closingByDate.set(c.date, c.closingTime)
 
+  type DayStatus = 'present' | 'absent' | 'upcoming' | 'notHired'
   const result: Record<
     string,
     {
@@ -59,6 +77,17 @@ export async function getMonthlyAttendanceGaps(year: number, month: number) {
       totalLateMinutes: number
       totalEarlyMinutes: number
       avgShiftMinutes: number
+      daysInMonth: number
+      // Tenure-scoped: only days from this staff member's hireDate (or day 1
+      // if unset/before this month) through lastCounted. fullWorkingDays is
+      // the same figure with no hireDate restriction — every staff member's
+      // workingDays equals it unless they were hired mid-month — used by the
+      // caller to prorate baseSalary by (workingDays / fullWorkingDays).
+      workingDays: number
+      fullWorkingDays: number
+      present: number
+      absent: number
+      statusByDay: Record<number, DayStatus>
     }
   > = {}
 
@@ -95,7 +124,52 @@ export async function getMonthlyAttendanceGaps(year: number, month: number) {
       ? Math.round(shiftMinuteSamples.reduce((a, b) => a + b, 0) / shiftMinuteSamples.length)
       : 480 // no real sample yet this month — 8h fallback, see payroll.ts calcNetSalary
 
-    result[s.id] = { days, totalLateMinutes, totalEarlyMinutes, avgShiftMinutes }
+    // Real presence calendar: this restaurant has no weekly off day (every
+    // day is a working day), days after today are "upcoming", days before
+    // this staff member's hireDate are "notHired" (not an absence — they
+    // didn't exist yet), and every other day is present only if a real
+    // AttendanceRecord (machine or manual) has a check-in — no record on a
+    // working day genuinely means absent, not "no data yet".
+    let tenureStart = 1
+    if (s.hireDate) {
+      if (s.hireDate >= monthEnd) tenureStart = daysInMonth + 1 // hired after this month entirely
+      else if (s.hireDate >= monthStart) tenureStart = s.hireDate.getDate()
+    }
+
+    const dayMap = recordByStaffDay.get(s.id)
+    const statusByDay: Record<number, DayStatus> = {}
+    let workingDays = 0
+    let present = 0
+    for (let d = 1; d <= daysInMonth; d++) {
+      if (d > lastCounted) {
+        statusByDay[d] = 'upcoming'
+        continue
+      }
+      if (d < tenureStart) {
+        statusByDay[d] = 'notHired'
+        continue
+      }
+      workingDays++
+      if (dayMap?.get(d)?.checkIn) {
+        statusByDay[d] = 'present'
+        present++
+      } else {
+        statusByDay[d] = 'absent'
+      }
+    }
+
+    result[s.id] = {
+      days,
+      totalLateMinutes,
+      totalEarlyMinutes,
+      avgShiftMinutes,
+      daysInMonth,
+      workingDays,
+      fullWorkingDays: lastCounted,
+      present,
+      absent: workingDays - present,
+      statusByDay,
+    }
   }
 
   return result

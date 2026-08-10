@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { authenticate, requirePermission, requireRole } from '../auth/guard.js'
 import * as staff from '../services/staff.service.js'
 import { listLoginAccounts, setStaffPassword } from '../services/auth.service.js'
+import { ServiceError } from '../lib/errors.js'
 
 export async function staffRoutes(app: FastifyInstance): Promise<void> {
   const ctx = (req: FastifyRequest) => ({ actor: req.actor })
@@ -65,5 +66,25 @@ export async function staffRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/advances/recover', { preHandler: requirePermission('payroll') }, async (req) => {
     const { year, monthIndex, staffId } = (req.body ?? {}) as { year?: number; monthIndex?: number; staffId?: string }
     return await staff.recoverAdvances(ctx(req), Number(year), Number(monthIndex), staffId || undefined)
+  })
+
+  // Salary payments (payroll permission) — per-employee "salary paid" record,
+  // distinct from advances above.
+  app.get('/api/payroll/paid', { preHandler: requirePermission('payroll', 'access') }, async (req) => {
+    const { year, month } = req.query as { year?: string; month?: string }
+    const y = Number(year)
+    const m = Number(month)
+    if (!Number.isFinite(y) || !Number.isFinite(m)) throw new ServiceError('A valid year and month are required.')
+    return { paid: await staff.listSalaryPayments(y, m) }
+  })
+  app.post('/api/payroll/:staffId/pay', { preHandler: requirePermission('payroll') }, async (req) => {
+    const { staffId } = req.params as { staffId: string }
+    const { year, month, amount, paidAt } = (req.body ?? {}) as { year?: number; month?: number; amount?: number; paidAt?: string }
+    return { payment: await staff.markSalaryPaid(ctx(req), staffId, { year: Number(year), month: Number(month), amount: Number(amount), paidAt }) }
+  })
+  app.post('/api/payroll/:staffId/unpay', { preHandler: requirePermission('payroll') }, async (req) => {
+    const { staffId } = req.params as { staffId: string }
+    const { year, month } = (req.body ?? {}) as { year?: number; month?: number }
+    return await staff.unmarkSalaryPaid(ctx(req), staffId, Number(year), Number(month))
   })
 }

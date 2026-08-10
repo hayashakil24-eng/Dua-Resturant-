@@ -15,7 +15,7 @@ import { hashPassword } from '../auth/password.js'
 import { VALID_ROLES } from './auth.service.js'
 import type { Role } from '../core/permissions.js'
 import { enqueueOutbox } from '../sync/outbox.js'
-import { createLedgerEntry, deleteLedgerEntry, ADVANCE_CATEGORY } from './accounting.service.js'
+import { createLedgerEntry, deleteLedgerEntry, ADVANCE_CATEGORY, SALARY_CATEGORY } from './accounting.service.js'
 
 interface Ctx {
   actor: Actor
@@ -43,6 +43,7 @@ export interface StaffInput {
   email?: string
   baseSalary?: number
   deviceUserId?: string | null
+  hireDate?: string | null
 }
 
 // The uFace 950 enrolls each person under a numeric ID entered on the device
@@ -94,6 +95,7 @@ export async function addStaff(ctx: Ctx, emp: StaffInput) {
           email: emp.email ?? null,
           baseSalary: Number(emp.baseSalary) || 0,
           deviceUserId,
+          hireDate: emp.hireDate ? new Date(emp.hireDate) : null,
           active: true,
         },
       })
@@ -120,6 +122,7 @@ export async function updateStaff(_ctx: Ctx, id: string, updates: StaffInput) {
     data.shiftStartTime = SHIFT_START_TIMES[updates.shift] || current.shiftStartTime
   }
   if (updates.baseSalary != null) data.baseSalary = Number(updates.baseSalary) || 0
+  if (updates.hireDate !== undefined) data.hireDate = updates.hireDate ? new Date(updates.hireDate) : null
   if (updates.deviceUserId !== undefined) {
     const deviceUserId = updates.deviceUserId?.trim() || null
     if (deviceUserId) await checkDeviceUserIdAvailable(deviceUserId, id)
@@ -251,11 +254,18 @@ export async function listAdvances() {
 // it is salary paid early, so monthFigures() nets the month's advances back out
 // of that month's payroll (see frontend utils/accounting.js) to avoid counting
 // the same rupee twice.
-export async function addAdvance(ctx: Ctx, input: { staffId?: string; amount?: number; reason?: string; date?: string }) {
+export async function addAdvance(
+  ctx: Ctx,
+  input: { staffId?: string; amount?: number; reason?: string; date?: string; deductFromSalaryDate?: string },
+) {
   if (!input.staffId) throw new ServiceError('A staff member is required.')
   const amount = Number(input.amount) || 0
   const date = input.date ? new Date(input.date) : new Date()
   if (Number.isNaN(date.getTime())) throw new ServiceError('A valid advance date is required.')
+  // Purely informational for the Advance Salary report — not validated against
+  // payroll periods, so an invalid/blank value is just left unset.
+  const deductFromSalaryDate = input.deductFromSalaryDate ? new Date(input.deductFromSalaryDate) : null
+  if (deductFromSalaryDate && Number.isNaN(deductFromSalaryDate.getTime())) throw new ServiceError('Invalid deduct-from-salary date.')
 
   return prisma.$transaction(async (tx) => {
     const member = await tx.staff.findUnique({ where: { id: input.staffId as string } })
@@ -268,6 +278,7 @@ export async function addAdvance(ctx: Ctx, input: { staffId?: string; amount?: n
         reason: input.reason ?? '',
         date,
         status: 'pending',
+        deductFromSalaryDate,
       },
     })
 
@@ -323,4 +334,87 @@ export async function recoverAdvances(_ctx: Ctx, year: number, monthIndex: numbe
     data: { status: 'recovered' },
   })
   return { recovered: result.count }
+}
+
+// Records that a staff member's salary for (year, month) was actually paid.
+// paidAt is a real-world date entered by the caller (defaults to now if
+// omitted), independent of which period it covers — a payment made on 5 Aug
+// can be for July's salary. Re-marking the same (staffId, year, month) is a
+// correction: retract the old ledger row before minting the new one, same as
+// deleteAdvance + addAdvance would, rather than leaving an orphaned expense.
+export async function markSalaryPaid(
+  ctx: Ctx,
+  staffId: string,
+  opts: { year: number; month: number; amount: number; paidAt?: string },
+) {
+  const member = await prisma.staff.findUnique({ where: { id: staffId } })
+  if (!member) throw new ServiceError('Employee not found.', 404)
+  const amount = Math.round(Number(opts.amount) || 0)
+  const paidAt = opts.paidAt ? new Date(opts.paidAt) : new Date()
+  if (Number.isNaN(paidAt.getTime())) throw new ServiceError('A valid payment date is required.')
+
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.salaryPayment.findUnique({
+      where: { staffId_year_month: { staffId, year: opts.year, month: opts.month } },
+    })
+    if (existing) await deleteLedgerEntry(tx, existing.transactionId)
+
+    let txn = null
+    if (amount > 0) {
+      txn = await createLedgerEntry(tx, {
+        type: 'expense',
+        category: SALARY_CATEGORY,
+        description: `${member.name} — ${opts.year}-${String(opts.month + 1).padStart(2, '0')} salary`,
+        amount,
+        date: paidAt,
+        source: 'salary',
+        sourceId: staffId,
+      })
+    }
+
+    const payment = await tx.salaryPayment.upsert({
+      where: { staffId_year_month: { staffId, year: opts.year, month: opts.month } },
+      create: {
+        staffId,
+        year: opts.year,
+        month: opts.month,
+        amount,
+        paidAt,
+        paidBy: ctx.actor.name,
+        paidByRole: ctx.actor.role,
+        transactionId: txn?.id ?? null,
+      },
+      update: { amount, paidAt, paidBy: ctx.actor.name, paidByRole: ctx.actor.role, transactionId: txn?.id ?? null },
+    })
+    await writeAudit(tx, {
+      action: existing ? 'SALARY_PAID_UPDATED' : 'SALARY_PAID',
+      actor: ctx.actor,
+      details: { staffId, staffName: member.name, year: opts.year, month: opts.month, amount },
+    })
+    await enqueueOutbox(tx, 'SalaryPayment', payment.id, payment)
+    return payment
+  })
+}
+
+// Undo a mark-paid — a correction path, mirrors deleteAdvance exactly.
+export async function unmarkSalaryPaid(ctx: Ctx, staffId: string, year: number, month: number) {
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.salaryPayment.findUnique({ where: { staffId_year_month: { staffId, year, month } } })
+    if (!existing) throw new ServiceError('No salary payment recorded for this month.', 404)
+    await deleteLedgerEntry(tx, existing.transactionId)
+    await tx.salaryPayment.delete({ where: { id: existing.id } })
+    await writeAudit(tx, {
+      action: 'SALARY_PAID_UNDONE',
+      actor: ctx.actor,
+      details: { staffId, year, month, amount: existing.amount },
+    })
+    return { success: true }
+  })
+}
+
+export async function listSalaryPayments(year: number, month: number) {
+  const rows = await prisma.salaryPayment.findMany({ where: { year, month } })
+  const map: Record<string, (typeof rows)[number]> = {}
+  for (const r of rows) map[r.staffId] = r
+  return map
 }

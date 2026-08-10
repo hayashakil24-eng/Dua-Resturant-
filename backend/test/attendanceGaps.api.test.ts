@@ -96,6 +96,47 @@ describe('attendance gaps', () => {
     expect(gaps[staff.id].totalEarlyMinutes).toBe(30)
   })
 
+  it('marks pre-hire days as notHired and scopes workingDays to real tenure', async () => {
+    // A fixed past month (not "this month") so lastCounted is always the
+    // whole month regardless of what day the test suite happens to run on —
+    // deterministic without needing to fake the clock.
+    const anchor = new Date()
+    anchor.setDate(1)
+    anchor.setMonth(anchor.getMonth() - 1)
+    const year = anchor.getFullYear()
+    const month = anchor.getMonth()
+    const daysInMonth = new Date(year, month + 1, 0).getDate()
+    const hireDate = new Date(year, month, 10)
+
+    const staffMember = await prisma.staff.create({
+      data: { name: 'Mid-Month Hire', role: 'Waiter', shift: 'Morning', shiftStartTime: '09:00', active: true, hireDate },
+    })
+
+    const admin = await tokenFor('admin')
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/attendance/gaps?year=${year}&month=${month}`,
+      headers: auth(admin),
+    })
+    expect(res.statusCode).toBe(200)
+    const { gaps } = JSON.parse(res.body)
+    const g = gaps[staffMember.id]
+
+    // No attendance machine or manual override ever ran for this staff member
+    // in that month — every day of their real tenure reads as a genuine
+    // absence, not "notHired", and every day before hireDate reads the other
+    // way around.
+    expect(g.statusByDay[1]).toBe('notHired')
+    expect(g.statusByDay[9]).toBe('notHired')
+    expect(g.statusByDay[10]).toBe('absent')
+    expect(g.statusByDay[daysInMonth]).toBe('absent')
+    expect(Object.values(g.statusByDay)).not.toContain('off') // no weekly off day at this restaurant
+    expect(g.fullWorkingDays).toBe(daysInMonth)
+    expect(g.workingDays).toBe(daysInMonth - 10 + 1)
+    expect(g.present).toBe(0)
+    expect(g.absent).toBe(daysInMonth - 10 + 1)
+  })
+
   it('rejects a missing/invalid year or month (400)', async () => {
     const admin = await tokenFor('admin')
     const res = await app.inject({ method: 'GET', url: '/api/attendance/gaps', headers: auth(admin) })

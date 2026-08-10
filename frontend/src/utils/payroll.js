@@ -26,12 +26,12 @@ export function monthAttendance(staffId, year, month, today) {
   const seedNum = Number(staffId.replace(/\D/g, '')) * 1000 + year * 13 + month
   const rng = mulberry32(seedNum)
 
+  // No weekly off day at this restaurant — every day up to lastCounted is a
+  // working day.
   const workingDayNums = []
   const statusByDay = {}
   for (let d = 1; d <= daysInMonth; d++) {
-    const dow = new Date(year, month, d).getDay()
     if (d > lastCounted) statusByDay[d] = 'upcoming'
-    else if (dow === 0) statusByDay[d] = 'off'
     else {
       statusByDay[d] = 'present'
       workingDayNums.push(d)

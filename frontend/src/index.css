@@ -161,7 +161,8 @@
 /* Portaled print surfaces (kitchen slips) live on <body> but must never show
    on screen — only inside the print media query. */
 #printable-kots,
-#printable-closing {
+#printable-closing,
+#printable-khulasa {
   display: none;
 }
 
@@ -193,7 +194,9 @@
   body.print-kot #printable-kots,
   body.print-kot #printable-kots *,
   body.print-closing #printable-closing,
-  body.print-closing #printable-closing * {
+  body.print-closing #printable-closing *,
+  body.print-khulasa #printable-khulasa,
+  body.print-khulasa #printable-khulasa * {
     visibility: visible;
   }
 
@@ -212,6 +215,27 @@
     box-sizing: border-box;
     background: #fff !important;
     color: #3e2723 !important;
+  }
+
+  /* Khulasa (خلاصہ) bilingual summary sheet — same A4 treatment as the closing
+     slip, but this sheet intentionally does NOT use the app's brown/gold Cafe
+     Ali branding; every cell's real color comes from KhulasaSummary's own
+     inline styles (its own cream/beige/grey palette) — this is just the outer
+     fallback layer so the surface doesn't inherit the app's dark theme. */
+  body.print-khulasa #root {
+    height: 0 !important;
+    overflow: hidden !important;
+  }
+  body.print-khulasa #printable-khulasa {
+    display: block !important;
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 16mm;
+    box-sizing: border-box;
+    background: #fff !important;
+    color: #222 !important;
   }
 
   /* Department kitchen slips (KOT). The slips are portaled to <body>, so on a
@@ -248,6 +272,15 @@
     font-size: 16px;
     font-weight: 700;
     letter-spacing: 1px;
+  }
+  .kot-reprint {
+    text-align: center;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    border: 1px solid #000;
+    padding: 2px 0;
+    margin: 4px 0;
   }
   .kot-dept {
     text-align: center;
@@ -299,12 +332,36 @@
     left: 0;
     right: 0;
     top: 0;
-    width: 384px; /* matches the on-screen max-w-sm slip */
+    width: 80mm; /* matches the 80mm thermal roll, not the on-screen slip width — a
+       wider box clips right-aligned amounts off the physical paper */
     margin: 0 auto;
+    padding: 3mm 4mm;
     background: #fff !important;
     color: #000 !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
     page-break-inside: avoid;
     break-inside: avoid;
+  }
+  /* The on-screen slip uses the brand's gold/brown palette (Billing.jsx's
+     Receipt component) — every one of those is a color set DIRECTLY on that
+     element, so it wins over the inherited #000 above (inheritance is always
+     the lowest-priority source in the cascade, `!important` or not) and the
+     thermal driver dithers a light gold/tan into a barely-visible fade. This
+     is the actual cause of "printing too lightly" — not a printer/driver
+     problem. Forcing every descendant to pure black/solid borders here is
+     what fixes it; on-screen the brand colors are untouched. */
+  body.print-receipt #printable-receipt * {
+    color: #000 !important;
+    border-color: #000 !important;
+    box-shadow: none !important;
+  }
+  /* The logo keeps its own pixel colors (color/currentColor doesn't affect
+     raster images) — boosted contrast so the thermal driver's dithering has
+     a cleaner black/white source instead of the softer on-screen cream/gold. */
+  body.print-receipt #printable-receipt img {
+    filter: grayscale(1) contrast(1.35);
   }
 
   /* Account Statement (ReceivableStatement.jsx) — same fixed/centered/single-
@@ -318,7 +375,7 @@
     left: 0;
     right: 0;
     top: 0;
-    width: 384px;
+    width: 80mm; /* matches the 80mm thermal roll — see #printable-receipt above */
     margin: 0 auto;
     background: #fff !important;
     color: #000 !important;

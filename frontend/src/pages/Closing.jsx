@@ -8,12 +8,14 @@ import { buildClosingReport, toDayStr } from '../utils/closing.js'
 import { buildSessions, sessionLabel } from '../utils/sessions.js'
 import ClosingSummaryTable from '../components/ClosingSummaryTable.jsx'
 import ClosingSlip from '../components/ClosingSlip.jsx'
+import KhulasaSummary from '../components/KhulasaSummary.jsx'
+import KhulasaSlip from '../components/KhulasaSlip.jsx'
 import { IconPrint, IconCheck, IconAlert, IconClose } from '../components/Icons.jsx'
 
 const CLOSING_HISTORY_PAGE_SIZE = 20
 
 export default function Closing() {
-  const { orders, orderTotal, transactions, user, dailyClosings, lastClosingAt, saveDailyClosing, activeShift, inventory, recipes } = useApp()
+  const { orders, orderTotal, transactions, user, dailyClosings, lastClosingAt, saveDailyClosing, activeShift, inventory, recipes, purchases } = useApp()
   const canClose = user && canModify(user.role, 'closing')
   const todayStr = useMemo(() => toDayStr(new Date()), [])
 
@@ -22,8 +24,8 @@ export default function Closing() {
   // session). Same numbers the daily report / receipts show, re-shaped into the
   // client's cash-handover closing sheet.
   const report = useMemo(
-    () => buildClosingReport(orders, orderTotal, transactions, todayStr, inventory, recipes, lastClosingAt),
-    [orders, orderTotal, transactions, todayStr, inventory, recipes, lastClosingAt],
+    () => buildClosingReport(orders, orderTotal, transactions, todayStr, inventory, recipes, lastClosingAt, purchases),
+    [orders, orderTotal, transactions, todayStr, inventory, recipes, lastClosingAt, purchases],
   )
   const liveMeta = { closedBy: user?.name, closedByRole: user?.role, closingTime: new Date().toISOString() }
 
@@ -63,7 +65,7 @@ export default function Closing() {
   const nothingToClose = report.totalOrders === 0 && report.expenses === 0
   const blocked = pendingOrders.length > 0 || drawerOpen || nothingToClose
 
-  const [slip, setSlip] = useState(null) // { report, meta } currently armed for printing
+  const [slip, setSlip] = useState(null) // { report, meta, surface } currently armed for printing
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -77,13 +79,18 @@ export default function Closing() {
   const savingRef = useRef(false)
   const [historyVisibleCount, setHistoryVisibleCount] = useState(CLOSING_HISTORY_PAGE_SIZE)
 
-  const armAndPrint = (rep, meta) => {
-    setSlip({ report: rep, meta })
-    setTimeout(() => safePrint('print-closing'), 60)
+  // `surface` picks which of the two print portals below actually receives
+  // the armed report — 'closing' (the plain cash-reconciliation sheet) or
+  // 'khulasa' (the bilingual summary sheet). Only one is ever fed data at a
+  // time, matching safePrint's own "only one print surface active" invariant.
+  const armAndPrint = (rep, meta, surface = 'closing') => {
+    setSlip({ report: rep, meta, surface })
+    setTimeout(() => safePrint(`print-${surface}`), 60)
   }
-  const printCurrent = () => armAndPrint(report, liveMeta)
+  const printCurrent = () => armAndPrint(report, liveMeta, 'closing')
+  const printKhulasaCurrent = () => armAndPrint(report, liveMeta, 'khulasa')
   const printRecord = (rec) =>
-    armAndPrint(rec, { closedBy: rec.closedBy, closedByRole: rec.closedByRole, closingTime: rec.closingTime })
+    armAndPrint(rec, { closedBy: rec.closedBy, closedByRole: rec.closedByRole, closingTime: rec.closingTime }, 'closing')
 
   // A rapid double-click on "Yes, Save Closing" (no guard existed here
   // before) fired this twice before either request's effect was visible to
@@ -187,6 +194,25 @@ export default function Closing() {
         <ClosingSummaryTable report={report} meta={liveMeta} />
       </div>
 
+      {/* Khulasa (خلاصہ) — a second, additive consolidated bilingual sheet,
+          alongside the plain sheet above (not replacing it). Wider than the
+          plain sheet's card since it has a genuine two-column grid section.
+          Title/button live in the page's own dark theme, same as the plain
+          sheet's Print button in the PageHeader above — not inside the white
+          card itself, which (like ClosingSummaryTable's) has no button of
+          its own to match against. */}
+      <div className="mx-auto mt-6 flex max-w-3xl items-center justify-between">
+        <h3 className="font-serif text-lg text-cream">Khulasa Summary (خلاصہ)</h3>
+        {canClose && (
+          <button onClick={printKhulasaCurrent} className="btn-ghost px-4 py-2 text-sm">
+            <IconPrint size={16} /> Print Khulasa
+          </button>
+        )}
+      </div>
+      <div className="mx-auto mt-3 max-w-3xl rounded-xl bg-white p-4 shadow-lift sm:p-6">
+        <KhulasaSummary report={report} meta={liveMeta} />
+      </div>
+
       {/* Closing history */}
       <div className="card mx-auto mt-6 max-w-2xl p-6">
         <h3 className="mb-4 font-serif text-lg text-cream">Closing History</h3>
@@ -233,8 +259,11 @@ export default function Closing() {
         )}
       </div>
 
-      {/* Hidden print surface — armed by the Print buttons above. */}
-      <ClosingSlip report={slip?.report} meta={slip?.meta} />
+      {/* Hidden print surfaces — armed by the Print buttons above. Each only
+          receives data when it's the currently-armed surface; both already
+          return null on a falsy report, so only one ever mounts content. */}
+      <ClosingSlip report={slip?.surface === 'closing' ? slip.report : null} meta={slip?.meta} />
+      <KhulasaSlip report={slip?.surface === 'khulasa' ? slip.report : null} meta={slip?.meta} />
 
       {confirmOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">

@@ -83,6 +83,11 @@ model Staff {
   // matched back to a Staff row.
   deviceUserId   String?   @unique
   baseSalary     Int      @default(0)
+  // The employee's actual first working day — distinct from createdAt (when
+  // the row was entered into the system, which can lag a few days). Nullable
+  // for legacy staff added before this field existed; getMonthlyAttendanceGaps
+  // treats a null hireDate as "always employed" rather than excluding days.
+  hireDate       DateTime?
   active         Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -91,6 +96,7 @@ model Staff {
   attendanceRecords AttendanceRecord[]
   shifts            ShiftReconciliation[]
   auditEntries      AuditLogEntry[]
+  salaryPayments    SalaryPayment[]
 
   @@index([active])
 }
@@ -132,9 +138,36 @@ model Advance {
   // the day it was handed over). Kept so deleting the advance can retract the
   // matching expense instead of orphaning it. See accounting.service.ts.
   transactionId String?
+  // Optional target date this advance is meant to be deducted against — purely
+  // informational for the Advance Salary report; recovery itself still happens
+  // via recoverAdvances (status flips to "recovered"), not by this date.
+  deductFromSalaryDate DateTime?
   createdAt DateTime @default(now())
 
   @@index([staffId, status])
+}
+
+// One row per staff member per salary period actually paid out. paidAt is the
+// real-world date cash changed hands — independent of (year, month), which is
+// the period the salary covers (e.g. paid 5 Aug for July's salary) — so it's
+// a plain user-entered date, not a createdAt-style audit stamp.
+model SalaryPayment {
+  id      String   @id @default(cuid())
+  staffId String
+  staff   Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  year    Int
+  month   Int // 0-indexed, matching Payroll.jsx's monthIndex convention
+  amount  Int
+  paidAt     DateTime
+  paidBy     String
+  paidByRole String
+  // The ledger expense row minted alongside this payment. Kept so re-marking
+  // or unmarking can retract/replace it instead of orphaning it — same
+  // pattern as Advance.transactionId. See accounting.service.ts.
+  transactionId String?
+  createdAt     DateTime @default(now())
+
+  @@unique([staffId, year, month])
 }
 
 // ---------------------------------------------------------------------------
@@ -662,6 +695,12 @@ model Transaction {
   // label it and so the originating record can retract its own row.
   source      String?
   sourceId    String?
+  // Populated only for the Maintenance expense category — the client's Excel
+  // ledger itemizes maintenance by type (labour/material/rent/fuel/other) and
+  // who was paid, which a bare category string can't express. Left null for
+  // every other Transaction.
+  subCategory String?
+  vendor      String?
   createdAt   DateTime @default(now())
 
   @@index([type, date])

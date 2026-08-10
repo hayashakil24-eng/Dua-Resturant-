@@ -73,96 +73,127 @@ export function Receipt({
             overflow-y-auto actually kicks in inside the flex column. */}
         <div className="min-h-0 overflow-y-auto">
           <div className={order.complimentary ? 'flex flex-col gap-4 lg:flex-row lg:items-start' : ''}>
-          {/* Printable slip */}
+          {/* Printable slip — deliberately plain/bordered (client reference:
+              a real ESC/POS thermal receipt photo, ruled black lines, boxed
+              order number, ALL-CAPS section labels), not a soft "web card"
+              look. Every border/rule below is solid black by design, not a
+              light theme color needing a print-time override. */}
           <div
             id="printable-receipt"
-            className="w-full shrink-0 rounded-2xl bg-white p-6 text-[#3E2723] shadow-lift border border-[#E8DCC4] lg:w-[384px]"
-            style={{ fontFamily: 'ui-monospace, monospace' }}
+            className="w-full shrink-0 bg-white text-black shadow-lift border border-black lg:w-[384px]"
+            style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
           >
-            <div className="text-center">
-              <div className="flex justify-center">
-                <div className="font-serif text-2xl font-bold tracking-wide" style={{ color: '#C9A961' }}>
-                  Cafe Ali
-                </div>
-              </div>
-              <p className="mt-2 text-[11px] text-[#5D4037]">
-                Hawksbay Road, Karachi · 021-111-ALI
+            <div className="border-b-2 border-black px-4 py-3 text-center">
+              <img
+                src="/Cafe Ali Logo -final.png"
+                alt="Cafe Ali"
+                className="mx-auto h-16 w-16 shrink-0 rounded-full object-contain"
+              />
+              <p className="mt-1.5 text-lg font-extrabold tracking-wide">CAFE ALI</p>
+              <p className="mt-0.5 text-[11px]">Main Hawksbay Beach, Zulfiqar Chowrangi, Maripur Road, Karachi</p>
+              <p className="text-[11px]">0313-2870111</p>
+            </div>
+
+            <p className="border-b-2 border-black py-2 text-center text-base font-extrabold tracking-wide">
+              SALE RECEIPT
+            </p>
+
+            {/* Boxed order number — the one thing a customer/kitchen glances at
+                first, same as the reference's boxed "47". Derived from the
+                existing order id, nothing invented. */}
+            <div className="mx-4 mt-3 border-2 border-black py-2 text-center">
+              <p className="text-2xl font-extrabold tracking-wide">
+                Order # {(order.id.match(/\d+/) || [order.id])[0]}
               </p>
             </div>
 
-            <div className="my-4 border-t border-dashed border-[#E8DCC4]" />
-
-            <div className="grid grid-cols-2 gap-1 text-xs text-[#3E2723]">
-              {/* An unpaid order prints as a "Bill" (to be settled), not a paid
-                  "Receipt" — so a customer can't mistake it for proof of payment. */}
-              <span>{order.payment === 'Unpaid' ? 'Bill' : 'Receipt'}</span>
-              <span className="text-right font-bold">{order.id}</span>
-              <span>Date</span>
-              <span className="text-right">{new Date(order.createdAt).toLocaleDateString('en-PK')}</span>
-              <span>Time</span>
-              <span className="text-right">{time(order.createdAt)}</span>
-              <span>Table</span>
-              <span className="text-right">{tableLabel(order.table)}</span>
+            <div className="space-y-1 px-4 py-3 text-[11px]">
+              <div className="flex justify-between">
+                <span className="font-bold">Date :</span>
+                <span>{new Date(order.createdAt).toLocaleDateString('en-PK')}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-bold">Time :</span>
+                <span>{time(order.createdAt)}</span>
+              </div>
               {isDelivery ? (
                 <>
-                  <span>Rider</span>
-                  <span className="text-right">{order.deliveryRiderName || '—'}</span>
-                  <span>Customer</span>
-                  <span className="text-right">{order.deliveryCustomerName || '—'}</span>
-                  <span>Phone</span>
-                  <span className="text-right">{order.deliveryPhone || '—'}</span>
-                  <span>Address</span>
-                  <span className="text-right">{order.deliveryAddress || '—'}</span>
-                  <span>Delivery Charges</span>
-                  <span className="text-right">{money(order.deliveryCharge)}</span>
+                  <div className="flex justify-between">
+                    <span className="font-bold">Rider :</span>
+                    <span>{order.deliveryRiderName || '—'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-bold">Customer :</span>
+                    <span>{order.deliveryCustomerName || '—'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-bold">Phone :</span>
+                    <span>{order.deliveryPhone || '—'}</span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span className="font-bold">Address :</span>
+                    <span className="text-right">{order.deliveryAddress || '—'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-bold">Delivery Charges :</span>
+                    <span>{money(order.deliveryCharge)}</span>
+                  </div>
                 </>
               ) : (
                 <>
-                  <span>Waiter</span>
-                  <span className="text-right">{order.waiter || '—'}</span>
+                  <div className="flex justify-between">
+                    <span className="font-bold">Server :</span>
+                    <span>{order.waiter || '—'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-bold">Table :</span>
+                    <span>{tableLabel(order.table)}</span>
+                  </div>
                 </>
               )}
             </div>
 
-            <div className="my-4 border-t border-dashed border-[#E8DCC4]" />
-
-            <table className="w-full text-xs text-[#3E2723]">
+            <table className="w-full border-y-2 border-black text-[11px]">
               <thead>
-                <tr className="text-left text-[#3E2723]/80">
-                  <th className="pb-1 font-medium">Item</th>
-                  <th className="pb-1 text-center font-medium">Qty</th>
-                  <th className="pb-1 text-right font-medium">Amount</th>
+                <tr className="border-b border-black text-left">
+                  <th className="py-1.5 pl-4 font-bold">Qty</th>
+                  <th className="py-1.5 font-bold">Item</th>
+                  <th className="py-1.5 text-right font-bold">Rate</th>
+                  <th className="py-1.5 pr-4 text-right font-bold">Amount</th>
                 </tr>
               </thead>
               <tbody>
                 {order.items.map((it) => (
                   <tr key={it.id} className={`align-top ${it.cancelled ? 'line-through opacity-50' : ''}`}>
-                    <td className="py-0.5 pr-2">
+                    <td className="py-1 pl-4 whitespace-nowrap">{formatQty(it.qty, unitOf(it.menuItemId))}</td>
+                    {/* break-words + min-w-0 let a long, unbroken item name wrap
+                        onto extra lines within its own column instead of ever
+                        pushing the Amount column past the paper's edge —
+                        Rate/Amount stay nowrap so they're never the ones that wrap. */}
+                    <td className="py-1 pr-2 min-w-0 break-words">
                       {it.name}
                       {/* A struck-through line still needs to say WHY it doesn't
                           count toward the total — otherwise the printed bill
                           looks like a math error, not a cancelled item. */}
                       {it.cancelled && (
-                        <div className="text-[10px] font-normal not-italic">Cancelled by {it.cancellation?.by || '—'}</div>
+                        <div className="text-[9px] font-normal not-italic">Cancelled by {it.cancellation?.by || '—'}</div>
                       )}
                     </td>
-                    <td className="py-0.5 text-center">{formatQty(it.qty, unitOf(it.menuItemId))}</td>
-                    <td className="py-0.5 text-right font-bold">{money(Math.round(it.price * it.qty))}</td>
+                    <td className="py-1 text-right whitespace-nowrap">{money(Math.round(it.price))}</td>
+                    <td className="py-1 pr-4 text-right font-bold whitespace-nowrap">{money(Math.round(it.price * it.qty))}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
 
-            <div className="my-4 border-t border-dashed border-[#E8DCC4]" />
-
-            <div className="space-y-1 text-xs text-[#3E2723]">
+            <div className="space-y-1 px-4 py-3 text-[11px]">
               <div className="flex justify-between">
-                <span>Subtotal</span>
+                <span>Subtotal :</span>
                 <span className="font-bold">{money(subtotal)}</span>
               </div>
               {tax > 0 && (
                 <div className="flex justify-between">
-                  <span>GST ({Math.round(rate * 100)}%)</span>
+                  <span>GST ({Math.round(rate * 100)}%) :</span>
                   <span className="font-bold">{money(tax)}</span>
                 </div>
               )}
@@ -173,42 +204,58 @@ export function Receipt({
                   <span>
                     Discount
                     {order.discount?.percent ? ` ${order.discount.percent}%` : ''}
-                    {order.discount?.reason ? ` (${order.discount.reason})` : ''}
+                    {order.discount?.reason ? ` (${order.discount.reason})` : ''} :
                   </span>
                   <span className="font-bold">- {money(discount)}</span>
                 </div>
               )}
-              <div className="mt-1 flex justify-between border-t border-[#E8DCC4] pt-1 text-sm font-bold">
-                <span>TOTAL</span>
-                <span>{money(total)}</span>
-              </div>
+            </div>
+
+            {/* The one figure a customer actually looks for — stronger
+                typography (size + weight + its own ruled box) than every other
+                row, not a decorative color, so it stays this prominent on
+                monochrome thermal paper too. */}
+            <div className="flex justify-between border-y-2 border-black px-4 py-2.5 text-base font-extrabold tracking-wide">
+              <span>NET BILL :</span>
+              <span>{money(total)}</span>
+            </div>
+
+            <div className="space-y-1 px-4 py-3 text-[11px]">
               {order.complimentary && (
-                <div className="mt-2 rounded border border-[#C9A961] bg-[#C9A961]/15 px-2 py-1.5 text-center">
-                  <p className="text-[11px] font-bold tracking-wide text-[#5D4037]">🎁 COMPLIMENTARY</p>
-                  <p className="text-[10px] text-[#5D4037]">
+                <div className="mb-1 border border-black py-1.5 text-center">
+                  <p className="font-bold tracking-wide">🎁 COMPLIMENTARY</p>
+                  <p className="text-[10px]">
                     By {order.complimentary.orderedBy}
                     {order.complimentary.reason ? ` · ${order.complimentary.reason}` : ''}
                   </p>
                 </div>
               )}
-              <div className="flex justify-between pt-1">
-                <span>Payment</span>
-                <span className="font-bold">
+              <div className="flex justify-between">
+                <span className="font-bold">Payment Mode :</span>
+                <span>
                   {order.payment === 'Paid' && order.method === 'Online' && order.onlineAccountName
-                    ? `Paid via ${order.onlineAccountName}`
-                    : `${order.payment}${order.payment === 'Paid' ? ` · ${order.method}` : ''}`}
+                    ? `Online · ${order.onlineAccountName}`
+                    : order.payment === 'Paid'
+                      ? order.method
+                      : order.payment}
                 </span>
               </div>
+              {order.payment === 'Paid' && (
+                <div className="flex justify-between">
+                  <span className="font-bold">Cash Received :</span>
+                  <span>{money(total)}</span>
+                </div>
+              )}
               {/* Udhaar recovered so far against THIS order (derived — see
                   paidAgainstCharge), and what's still owed on it. */}
               {order.payment === 'Udhaar' && udhaarPaid > 0 && (
                 <>
                   <div className="flex justify-between">
-                    <span></span>
+                    <span>Recovered :</span>
                     <span className="font-bold">- {money(udhaarPaid)}</span>
                   </div>
-                  <div className="mt-1 flex justify-between border-t border-[#E8DCC4] pt-1 text-sm font-bold">
-                    <span>Balance Due</span>
+                  <div className="flex justify-between border-t-2 border-black pt-1 font-extrabold">
+                    <span>Balance Due :</span>
                     <span>{money(udhaarRemaining)}</span>
                   </div>
                 </>
@@ -216,9 +263,9 @@ export function Receipt({
               {/* Which online account the money landed in — printed for the
                   customer and for daily reconciliation of each account. */}
               {order.method === 'Online' && order.onlineAccountName && (
-                <div className="flex justify-between text-[11px]">
-                  <span>Account</span>
-                  <span>
+                <div className="flex justify-between gap-3">
+                  <span className="font-bold">Account :</span>
+                  <span className="text-right">
                     {[order.onlineAccountName, order.onlineAccountBank, order.onlineAccountType]
                       .filter(Boolean)
                       .join(' · ')}
@@ -227,18 +274,13 @@ export function Receipt({
               )}
             </div>
 
-            <div className="my-4 border-t border-dashed border-[#E8DCC4]" />
-            <p className="text-center text-[11px] text-[#5D4037]">
-              Thank you for dining with us!
-              <br />
-              Please come again — Cafe Ali
-            </p>
-
-            {/* Software credit — subtle, kept small so it never competes with the bill. */}
-            <div className="mt-3 border-t border-dashed border-[#E8DCC4] pt-2 text-center">
-              <p className="text-[12px] text-[#8D6E63]">
-                Software by SoftDap
-              </p>
+            <div className="border-t-2 border-black px-4 py-3 text-center text-[11px]">
+              <p className="font-bold tracking-wide">!!!! THANK YOU FOR DINING WITH US !!!!</p>
+              <p className="mt-0.5">Please visit again</p>
+              {/* Software credit — subtle by size alone (not a faded color,
+                  which a thermal printer would dither into near-invisibility
+                  anyway), so it never competes with Cafe Ali's own branding. */}
+              <p className="mt-2.5 text-[9px] tracking-wide">Powered by Softdap</p>
             </div>
           </div>
 
@@ -375,9 +417,14 @@ export default function Billing() {
     { bill: 0, cost: 0, allKnown: true },
   )
 
+  // Returns the mutator's promise (not awaited/closed here) — DiscountModal
+  // itself awaits it and only calls onClose (setShowDiscount(false)) on
+  // success, so a server-side rejection (Cashier cap, cancelled order, ...)
+  // surfaces inside the modal instead of it silently closing as if the
+  // discount had applied.
   const handleApplyDiscount = (data) => {
-    if (activeId) applyDiscount(activeId, data)
-    setShowDiscount(false)
+    if (!activeId) return
+    return applyDiscount(activeId, data)
   }
 
   return (

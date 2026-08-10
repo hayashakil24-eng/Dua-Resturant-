@@ -99,12 +99,32 @@ export default function ClosingSummaryTable({ report, meta }) {
             <td style={cell}>LESS : EXPENSES ( اخراجات / ایکسپینس )</td>
             <td style={amt}>{fmt(report.expenses)}</td>
           </tr>
-          {(report.expensesByCategory || []).map((e) => (
-            <tr key={e.category}>
-              <td style={{ ...cell, paddingLeft: 26, fontSize: 12, color: '#333' }}>{e.category}</td>
-              <td style={{ ...amt, fontSize: 12, color: '#333' }}>{fmt(e.amount)}</td>
-            </tr>
-          ))}
+          {(() => {
+            const categories = report.expensesByCategory || []
+            // Credit (udhar) purchases never book a cash expense, so they never
+            // appear in expensesByCategory's "Inventory Purchase" figure — shown
+            // as its own sub-line right underneath so the sheet still states what
+            // was bought on credit today, not just what was paid. Matches
+            // PURCHASE_CATEGORY in backend/src/services/accounting.service.ts.
+            const creditRow = report.creditPurchases > 0 && (
+              <tr key="credit-purchase">
+                <td style={{ ...cell, paddingLeft: 26, fontSize: 12, color: '#333' }}>Credit Purchase (Udhaar)</td>
+                <td style={{ ...amt, fontSize: 12, color: '#333' }}>{fmt(report.creditPurchases)}</td>
+              </tr>
+            )
+            const hasInventoryCategory = categories.some((e) => e.category === 'Inventory Purchase')
+            return categories
+              .flatMap((e) => [
+                <tr key={e.category}>
+                  <td style={{ ...cell, paddingLeft: 26, fontSize: 12, color: '#333' }}>{e.category}</td>
+                  <td style={{ ...amt, fontSize: 12, color: '#333' }}>{fmt(e.amount)}</td>
+                </tr>,
+                ...(e.category === 'Inventory Purchase' && creditRow ? [creditRow] : []),
+              ])
+              // No cash purchase today, only credit — there's no "Inventory
+              // Purchase" row to sit under, so append it on its own.
+              .concat(!hasInventoryCategory && creditRow ? [creditRow] : [])
+          })()}
           <tr>
             <td style={{ ...cell, textAlign: 'center', fontWeight: 700, fontSize: 15 }}>
               REMAINING CASH HAND OVER TO ZAMAN A/C

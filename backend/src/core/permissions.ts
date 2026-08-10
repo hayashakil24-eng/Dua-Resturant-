@@ -67,6 +67,11 @@ export type PageKey =
   | 'employees'
   | 'payroll'
   | 'accounting'
+  // Narrow create-only slice of 'accounting': lets Cashier log a daily
+  // expense/maintenance entry (POST /api/transactions) without granting the
+  // full ledger view/delete that 'accounting' implies. Admin/Manager already
+  // have 'accounting':'full', which covers this too.
+  | 'expenseEntry'
   | 'reports'
   | 'closing'
   | 'receivables'
@@ -107,6 +112,7 @@ export const PERMISSIONS: Record<Role, Record<PageKey, AccessLevel>> = {
     employees: 'full',
     payroll: 'full',
     accounting: 'full',
+    expenseEntry: 'full',
     reports: 'full',
     closing: 'full', // end-of-day closing report (Admin/Manager)
     receivables: 'full', // credit accounts — view & settle
@@ -147,6 +153,7 @@ export const PERMISSIONS: Record<Role, Record<PageKey, AccessLevel>> = {
     employees: 'full',
     payroll: 'full',
     accounting: 'full',
+    expenseEntry: 'full',
     reports: 'full',
     closing: 'full', // end-of-day closing report (Admin/Manager)
     receivables: 'full', // Manager may view & settle credit accounts
@@ -194,6 +201,7 @@ export const PERMISSIONS: Record<Role, Record<PageKey, AccessLevel>> = {
     employees: 'hidden',
     payroll: 'hidden',
     accounting: 'hidden',
+    expenseEntry: 'none',
     reports: 'hidden',
     closing: 'hidden',
     receivables: 'hidden',
@@ -237,6 +245,9 @@ export const PERMISSIONS: Record<Role, Record<PageKey, AccessLevel>> = {
     employees: 'hidden',
     payroll: 'hidden',
     accounting: 'hidden',
+    // Cashier can add a daily expense/maintenance entry, but never see or
+    // delete the ledger — 'accounting' itself stays 'hidden'.
+    expenseEntry: 'create',
     reports: 'hidden',
     closing: 'hidden',
     receivables: 'hidden',
@@ -280,6 +291,7 @@ export const PERMISSIONS: Record<Role, Record<PageKey, AccessLevel>> = {
     employees: 'hidden',
     payroll: 'hidden',
     accounting: 'hidden',
+    expenseEntry: 'none',
     reports: 'hidden',
     closing: 'hidden',
     receivables: 'hidden',

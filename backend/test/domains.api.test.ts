@@ -86,10 +86,15 @@ describe('inventory + separation of duties', () => {
     expect(bad.statusCode).toBe(400)
   })
 
-  it('forbids Admin from purchasing stock (inventoryAdd is Manager-only)', async () => {
+  // permissions.ts: inventoryAdd is 'full' for both Admin and Manager (client
+  // asked for Buy Stock on the Admin table too) — Cashier/Kitchen stay denied,
+  // covered by the 403 case in the first test in this describe block.
+  it('lets Admin purchase stock too (inventoryAdd is not Manager-only)', async () => {
     const admin = await tokenFor('admin')
+    const before = await prisma.inventoryItem.findUniqueOrThrow({ where: { id: 'INV03' } })
     const res = await post('/api/inventory/INV03/purchase', admin, { quantity: 1, unitCost: 100 })
-    expect(res.statusCode).toBe(403)
+    expect(res.statusCode).toBe(200)
+    expect(JSON.parse(res.body).item.stock).toBe(before.stock + 1)
   })
 
   // A credit ("udhar") purchase moves stock the same as a paid one, but must
@@ -312,14 +317,22 @@ describe('settings → order GST lock', () => {
 })
 
 describe('accounting', () => {
-  it('adds a transaction (Admin) and denies a Cashier', async () => {
+  it('adds a transaction (Admin)', async () => {
     const admin = await tokenFor('admin')
-    const cashier = await tokenFor('cashier')
     const ok = await post('/api/transactions', admin, { type: 'expense', category: 'Supplies', amount: 5000, description: 'Test' })
     expect(ok.statusCode).toBe(200)
     expect(JSON.parse(ok.body).transaction.txnNumber).toBeGreaterThan(0)
+  })
 
-    const denied = await post('/api/transactions', cashier, { type: 'expense', category: 'x', amount: 1 })
+  // A Cashier reaches POST /api/transactions via the narrower 'expenseEntry'
+  // permission (quick-add-expense, see expense-entry.api.test.ts), but must
+  // still never see or delete the ledger itself.
+  it('lets a Cashier add a transaction via expenseEntry, but forbids reading or deleting the ledger', async () => {
+    const cashier = await tokenFor('cashier')
+    const allowed = await post('/api/transactions', cashier, { type: 'expense', category: 'x', amount: 1 })
+    expect(allowed.statusCode).toBe(200)
+
+    const denied = await app.inject({ method: 'GET', url: '/api/transactions', headers: auth(cashier) })
     expect(denied.statusCode).toBe(403)
   })
 })

@@ -4,7 +4,7 @@ import { useT } from '../i18n/LanguageContext.jsx'
 import { PageHeader, PasswordInput } from '../components/ui.jsx'
 import { canModify } from '../config/permissions.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
-import { IconSettings, IconReceipt, IconWallet, IconPlus, IconClose, IconCheck, IconClock, IconRefresh, IconWhatsApp, IconLock, IconAttendance } from '../components/Icons.jsx'
+import { IconSettings, IconReceipt, IconWallet, IconPlus, IconClose, IconCheck, IconClock, IconRefresh, IconWhatsApp, IconLock, IconAttendance, IconPrint } from '../components/Icons.jsx'
 import { apiGet, apiPost } from '../api/client.js'
 import { WALLET_TYPES, PK_BANKS, BANK_OTHER, ERR_WALLET, ERR_BANK, accountFieldsFor, sanitizeAccountNumber, sanitizeIban, validateAccount } from '../utils/accountNumber.js'
 
@@ -27,6 +27,45 @@ function ServerHealthPanel() {
   const [attSyncing, setAttSyncing] = useState(false)
   const [attSyncMsg, setAttSyncMsg] = useState('')
   const [attSyncErr, setAttSyncErr] = useState('')
+
+  // App auto-update — Priority-2 fix from the update-reliability investigation.
+  // Electron-only (no window.electron in the NO_ELECTRON=1 browser dev loop);
+  // 'idle' | 'checking' | 'available' | 'not-available' | 'error'. Listens to
+  // the same main.js events electron/preload.js exposes for this button
+  // specifically (see preload.js) — the ordinary silent scheduled checks
+  // don't drive this UI unless this panel happens to be open when one fires,
+  // which is fine for an admin diagnostics panel.
+  const [appVersion, setAppVersion] = useState('')
+  const [updateStatus, setUpdateStatus] = useState('idle')
+  const [updateMessage, setUpdateMessage] = useState('')
+  useEffect(() => {
+    if (!window.electron) return
+    window.electron.getAppVersion?.().then(setAppVersion)
+    window.electron.onUpdateChecking?.(() => {
+      setUpdateStatus('checking')
+      setUpdateMessage('')
+    })
+    window.electron.onUpdateAvailable?.(({ version }) => {
+      setUpdateStatus('available')
+      setUpdateMessage(version)
+    })
+    window.electron.onUpdateNotAvailable?.(() => setUpdateStatus('not-available'))
+    window.electron.onUpdateError?.(({ message }) => {
+      setUpdateStatus('error')
+      setUpdateMessage(message)
+    })
+  }, [])
+  const checkForUpdatesNow = async () => {
+    setUpdateStatus('checking')
+    setUpdateMessage('')
+    const res = await window.electron.checkForUpdatesNow()
+    if (!res.ok) {
+      setUpdateStatus('error')
+      setUpdateMessage(res.message)
+    }
+    // On success, the terminal state (available / not-available / error)
+    // arrives via the event listeners above, dispatched by electron-updater.
+  }
 
   const load = () => {
     setLoading(true)
@@ -228,6 +267,141 @@ function ServerHealthPanel() {
                 </div>
               </>
             )}
+          </>
+        )}
+        {window.electron && (
+          <div className="border-t border-ink-line pt-3">
+            <div className="flex items-center justify-between">
+              <span className="text-cream-dim">{t('settings.appVersion', 'App version')}</span>
+              <span className="text-cream">{appVersion || '—'}</span>
+            </div>
+            <div className="mt-3 flex items-center gap-3">
+              <button
+                onClick={checkForUpdatesNow}
+                disabled={updateStatus === 'checking'}
+                className="btn-ghost px-4 py-2 text-xs disabled:opacity-60"
+              >
+                <IconRefresh size={14} className={updateStatus === 'checking' ? 'animate-spin' : ''} />
+                {updateStatus === 'checking'
+                  ? t('settings.checkingForUpdates', 'Checking…')
+                  : t('settings.checkForUpdates', 'Check for Updates Now')}
+              </button>
+              {updateStatus === 'not-available' && (
+                <span className="text-xs text-emerald-300">{t('settings.upToDate', "You're on the latest version.")}</span>
+              )}
+              {updateStatus === 'available' && (
+                <span className="text-xs text-gold">
+                  {t('settings.updateFoundDownloading', 'Update v{version} found — downloading…').replace('{version}', updateMessage)}
+                </span>
+              )}
+              {updateStatus === 'error' && <span className="text-xs text-rose-300">{updateMessage}</span>}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Which physical printer silent Electron printing (src/utils/print.js's
+// safePrint) targets. Enumeration is read-only, via electron/main.js's
+// list-printers IPC handler — the renderer never touches webContents
+// directly. The choice itself is a client-side preference, stored the same
+// way LanguageContext.jsx already stores `lang`: a plain localStorage key
+// print.js reads synchronously, not app/domain data through AppContext.
+// Electron-only (window.electron.listPrinters) — in a browser dev session
+// (NO_ELECTRON=1) there's no IPC to enumerate against, so the panel says so
+// instead of showing an empty picker.
+const PRINTER_STORAGE_KEY = 'receiptPrinter'
+
+function PrinterSettingsPanel() {
+  const t = useT()
+  const isElectron = typeof window !== 'undefined' && Boolean(window.electron?.listPrinters)
+  const [printers, setPrinters] = useState([])
+  const [selected, setSelected] = useState(() => (typeof window !== 'undefined' && localStorage.getItem(PRINTER_STORAGE_KEY)) || '')
+  const [loading, setLoading] = useState(isElectron)
+  const [error, setError] = useState('')
+  const [saved, setSaved] = useState(false)
+
+  const load = () => {
+    if (!isElectron) return
+    setLoading(true)
+    setError('')
+    window.electron
+      .listPrinters()
+      .then((list) => setPrinters(list || []))
+      .catch((err) => setError(err?.message || t('settings.printerListFailed', 'Could not list printers.')))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const choose = (name) => {
+    setSelected(name)
+    if (name) localStorage.setItem(PRINTER_STORAGE_KEY, name)
+    else localStorage.removeItem(PRINTER_STORAGE_KEY)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  return (
+    <div className="card max-w-2xl p-6">
+      <div className="flex items-center justify-between gap-3 border-b border-ink-line pb-4">
+        <div className="flex items-center gap-3">
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-gold/10 text-gold ring-1 ring-gold/25">
+            <IconPrint size={20} />
+          </span>
+          <div>
+            <h3 className="font-serif text-xl text-cream">{t('settings.printerSection', 'Receipt Printer')}</h3>
+            <p className="text-xs text-cream-dim">
+              {t('settings.printerDesc', 'Bills print directly to this printer — no dialog, no preview.')}
+            </p>
+          </div>
+        </div>
+        {isElectron && (
+          <button
+            onClick={load}
+            title={t('common.refresh', 'Refresh')}
+            className="grid h-9 w-9 place-items-center rounded-lg border border-ink-line text-cream-dim transition hover:text-cream"
+          >
+            <IconRefresh size={16} className={loading ? 'animate-spin' : ''} />
+          </button>
+        )}
+      </div>
+
+      <div className="mt-5 space-y-3 text-sm">
+        {!isElectron ? (
+          <p className="text-cream-dim">
+            {t('settings.printerElectronOnly', 'Printer selection is only available in the desktop app.')}
+          </p>
+        ) : error ? (
+          <p className="text-rose-300">{error}</p>
+        ) : loading ? (
+          <p className="text-cream-dim">{t('common.loading', 'Loading…')}</p>
+        ) : (
+          <>
+            <div>
+              <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+                {t('settings.printerLabel', 'Printer')}
+              </label>
+              <select className="input py-2.5" value={selected} onChange={(e) => choose(e.target.value)}>
+                <option value="">{t('settings.printerSystemDefault', 'System default')}</option>
+                {printers.map((p) => (
+                  <option key={p.name} value={p.name}>
+                    {p.displayName || p.name}
+                  </option>
+                ))}
+              </select>
+              {printers.length === 0 && (
+                <p className="mt-1.5 text-xs text-cream-dim">
+                  {t('settings.printerNone', 'No printers detected — check Windows printer settings.')}
+                </p>
+              )}
+            </div>
+            {saved && <p className="text-xs text-emerald-300">{t('settings.printerSaved', 'Saved.')}</p>}
           </>
         )}
       </div>
@@ -742,6 +916,7 @@ export default function Settings() {
     { key: 'whatsapp', label: t('settings.whatsappSection', 'WhatsApp Daily Report'), icon: IconWhatsApp },
     { key: 'attendance', label: t('settings.attendanceSection', 'Attendance Machine'), icon: IconAttendance },
     { key: 'accounts', label: t('settings.onlineAccounts', 'Online Payment Accounts'), icon: IconWallet },
+    ...(canEdit ? [{ key: 'printer', label: t('settings.printerSection', 'Receipt Printer'), icon: IconPrint }] : []),
     ...(canEdit ? [{ key: 'server', label: t('settings.serverHealth', 'Server Health'), icon: IconClock }] : []),
     ...(canEdit ? [{ key: 'password', label: t('settings.passwords', 'Login Passwords'), icon: IconLock }] : []),
   ]
@@ -1400,6 +1575,9 @@ export default function Settings() {
         )}
       </div>
       )}
+
+      {/* Receipt printer — Admin-only, same gate as the rest of this page */}
+      {section === 'printer' && canEdit && <PrinterSettingsPanel />}
 
       {/* Server health — Admin-only, same gate as the rest of this page */}
       {section === 'server' && canEdit && <ServerHealthPanel />}

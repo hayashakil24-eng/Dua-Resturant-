@@ -742,6 +742,38 @@ export async function cancelOrderItem(ctx: Ctx, orderId: string, itemKey: string
       },
     })
 
+    // If that was the last active line, the order itself has nothing left to
+    // collect — without this it stays "Unpaid" at a Rs. 0 total forever, which
+    // surfaced Mark as Paid/Udhaar/Complimentary on a bill with nothing on it.
+    // Stock/loss were already applied per-line above, so this only flips the
+    // order's own status fields (mirrors cancelOrder's data shape) — no second
+    // restock pass.
+    const remainingItems = await tx.orderItem.findMany({ where: { orderId } })
+    if (remainingItems.every((it) => it.cancelled)) {
+      const totalMaterialLoss = remainingItems.reduce((s, it) => s + (it.materialLoss || 0), 0)
+      const updatedOrder = await tx.order.update({
+        where: { id: orderId },
+        data: {
+          cancelled: true,
+          cancellationReason: reason,
+          cancellationNotes: notes,
+          cancellationBy: ctx.actor.name,
+          cancellationRole: ctx.actor.role,
+          cancellationAt: at,
+          materialLoss: totalMaterialLoss || null,
+        },
+        include: { items: true },
+      })
+      const { items: _orderItems, ...orderRow } = updatedOrder
+      await enqueueOutbox(tx, 'Order', updatedOrder.id, orderRow)
+      await writeAudit(tx, {
+        action: 'CANCELLED',
+        actor: ctx.actor,
+        at,
+        details: { orderId, orderNumber: o.orderNumber, reason, notes, materialLoss: totalMaterialLoss },
+      })
+    }
+
     return serializeOrder(await fetchOrder(tx, orderId))
   })
 }

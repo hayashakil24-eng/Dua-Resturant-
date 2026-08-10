@@ -18,6 +18,7 @@ import Employees from './pages/Employees.jsx'
 import Payroll from './pages/Payroll.jsx'
 import Accounting from './pages/Accounting.jsx'
 import ReceivablesManagement from './pages/ReceivablesManagement.jsx'
+import CreditPurchase from './pages/CreditPurchase.jsx'
 import HandoverApprovals from './pages/HandoverApprovals.jsx'
 import Reports from './pages/Reports.jsx'
 import Closing from './pages/Closing.jsx'
@@ -27,6 +28,7 @@ import Kitchen from './pages/Kitchen.jsx'
 import Billing from './pages/Billing.jsx'
 import Settings from './pages/Settings.jsx'
 import UpdateBanner from './components/UpdateBanner.jsx'
+import PrintErrorToast from './components/PrintErrorToast.jsx'
 
 // Guards a route: must be logged in and role must allow the path.
 // `fullscreen` renders the page without the sidebar/header Layout (used by KDS).
@@ -61,6 +63,7 @@ export default function App() {
   return (
     <>
       <UpdateBanner />
+      <PrintErrorToast />
       <Routes>
         <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/signup" element={user ? <Navigate to="/" replace /> : <Signup />} />
@@ -84,6 +87,7 @@ export default function App() {
       <Route path="/payroll" element={<Protected path="/payroll"><Payroll /></Protected>} />
       <Route path="/accounting" element={<Protected path="/accounting"><Accounting /></Protected>} />
       <Route path="/receivables" element={<Protected path="/receivables"><ReceivablesManagement /></Protected>} />
+      <Route path="/credit-purchase" element={<Protected path="/credit-purchase"><CreditPurchase /></Protected>} />
       <Route path="/handovers" element={<Protected path="/handovers"><HandoverApprovals /></Protected>} />
       <Route path="/reports" element={<Protected path="/reports"><Reports /></Protected>} />
       <Route path="/closing" element={<Protected path="/closing"><Closing /></Protected>} />
