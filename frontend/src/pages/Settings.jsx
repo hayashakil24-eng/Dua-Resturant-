@@ -28,6 +28,45 @@ function ServerHealthPanel() {
   const [attSyncMsg, setAttSyncMsg] = useState('')
   const [attSyncErr, setAttSyncErr] = useState('')
 
+  // App auto-update — Priority-2 fix from the update-reliability investigation.
+  // Electron-only (no window.electron in the NO_ELECTRON=1 browser dev loop);
+  // 'idle' | 'checking' | 'available' | 'not-available' | 'error'. Listens to
+  // the same main.js events electron/preload.js exposes for this button
+  // specifically (see preload.js) — the ordinary silent scheduled checks
+  // don't drive this UI unless this panel happens to be open when one fires,
+  // which is fine for an admin diagnostics panel.
+  const [appVersion, setAppVersion] = useState('')
+  const [updateStatus, setUpdateStatus] = useState('idle')
+  const [updateMessage, setUpdateMessage] = useState('')
+  useEffect(() => {
+    if (!window.electron) return
+    window.electron.getAppVersion?.().then(setAppVersion)
+    window.electron.onUpdateChecking?.(() => {
+      setUpdateStatus('checking')
+      setUpdateMessage('')
+    })
+    window.electron.onUpdateAvailable?.(({ version }) => {
+      setUpdateStatus('available')
+      setUpdateMessage(version)
+    })
+    window.electron.onUpdateNotAvailable?.(() => setUpdateStatus('not-available'))
+    window.electron.onUpdateError?.(({ message }) => {
+      setUpdateStatus('error')
+      setUpdateMessage(message)
+    })
+  }, [])
+  const checkForUpdatesNow = async () => {
+    setUpdateStatus('checking')
+    setUpdateMessage('')
+    const res = await window.electron.checkForUpdatesNow()
+    if (!res.ok) {
+      setUpdateStatus('error')
+      setUpdateMessage(res.message)
+    }
+    // On success, the terminal state (available / not-available / error)
+    // arrives via the event listeners above, dispatched by electron-updater.
+  }
+
   const load = () => {
     setLoading(true)
     apiGet('/api/system/health')
@@ -229,6 +268,35 @@ function ServerHealthPanel() {
               </>
             )}
           </>
+        )}
+        {window.electron && (
+          <div className="border-t border-ink-line pt-3">
+            <div className="flex items-center justify-between">
+              <span className="text-cream-dim">{t('settings.appVersion', 'App version')}</span>
+              <span className="text-cream">{appVersion || '—'}</span>
+            </div>
+            <div className="mt-3 flex items-center gap-3">
+              <button
+                onClick={checkForUpdatesNow}
+                disabled={updateStatus === 'checking'}
+                className="btn-ghost px-4 py-2 text-xs disabled:opacity-60"
+              >
+                <IconRefresh size={14} className={updateStatus === 'checking' ? 'animate-spin' : ''} />
+                {updateStatus === 'checking'
+                  ? t('settings.checkingForUpdates', 'Checking…')
+                  : t('settings.checkForUpdates', 'Check for Updates Now')}
+              </button>
+              {updateStatus === 'not-available' && (
+                <span className="text-xs text-emerald-300">{t('settings.upToDate', "You're on the latest version.")}</span>
+              )}
+              {updateStatus === 'available' && (
+                <span className="text-xs text-gold">
+                  {t('settings.updateFoundDownloading', 'Update v{version} found — downloading…').replace('{version}', updateMessage)}
+                </span>
+              )}
+              {updateStatus === 'error' && <span className="text-xs text-rose-300">{updateMessage}</span>}
+            </div>
+          </div>
         )}
       </div>
     </div>
