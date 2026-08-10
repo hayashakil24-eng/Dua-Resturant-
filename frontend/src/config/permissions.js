@@ -64,6 +64,7 @@ export const PERMISSIONS = {
     employees: 'full',
     payroll: 'full',
     accounting: 'full',
+    expenseEntry: 'full', // narrow create-only slice of 'accounting' — Cashier's quick-add-expense
     reports: 'full',
     closing: 'full', // end-of-day closing report (Admin/Manager)
     cashManagement: 'full', // cumulative cash/card/online totals + spend log (Admin/Manager)
@@ -106,6 +107,7 @@ export const PERMISSIONS = {
     employees: 'full',
     payroll: 'full',
     accounting: 'full',
+    expenseEntry: 'full',
     reports: 'full',
     closing: 'full', // end-of-day closing report (Admin/Manager)
     cashManagement: 'full', // cumulative cash/card/online totals + spend log (Admin/Manager)
@@ -151,6 +153,7 @@ export const PERMISSIONS = {
     employees: 'hidden',
     payroll: 'hidden',
     accounting: 'hidden',
+    expenseEntry: 'none',
     reports: 'hidden',
     closing: 'hidden',
     cashManagement: 'hidden',
@@ -196,6 +199,10 @@ export const PERMISSIONS = {
     employees: 'hidden',
     payroll: 'hidden',
     accounting: 'hidden',
+    // Cashier can add a daily expense/maintenance entry from a narrow
+    // quick-add form, but never see or delete the ledger — 'accounting'
+    // itself stays 'hidden'. Mirrors backend/src/core/permissions.ts exactly.
+    expenseEntry: 'create',
     reports: 'hidden',
     closing: 'hidden',
     cashManagement: 'hidden',
@@ -240,6 +247,7 @@ export const PERMISSIONS = {
     employees: 'hidden',
     payroll: 'hidden',
     accounting: 'hidden',
+    expenseEntry: 'none',
     reports: 'hidden',
     closing: 'hidden',
     cashManagement: 'hidden',

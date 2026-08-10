@@ -317,14 +317,22 @@ describe('settings → order GST lock', () => {
 })
 
 describe('accounting', () => {
-  it('adds a transaction (Admin) and denies a Cashier', async () => {
+  it('adds a transaction (Admin)', async () => {
     const admin = await tokenFor('admin')
-    const cashier = await tokenFor('cashier')
     const ok = await post('/api/transactions', admin, { type: 'expense', category: 'Supplies', amount: 5000, description: 'Test' })
     expect(ok.statusCode).toBe(200)
     expect(JSON.parse(ok.body).transaction.txnNumber).toBeGreaterThan(0)
+  })
 
-    const denied = await post('/api/transactions', cashier, { type: 'expense', category: 'x', amount: 1 })
+  // A Cashier reaches POST /api/transactions via the narrower 'expenseEntry'
+  // permission (quick-add-expense, see expense-entry.api.test.ts), but must
+  // still never see or delete the ledger itself.
+  it('lets a Cashier add a transaction via expenseEntry, but forbids reading or deleting the ledger', async () => {
+    const cashier = await tokenFor('cashier')
+    const allowed = await post('/api/transactions', cashier, { type: 'expense', category: 'x', amount: 1 })
+    expect(allowed.statusCode).toBe(200)
+
+    const denied = await app.inject({ method: 'GET', url: '/api/transactions', headers: auth(cashier) })
     expect(denied.statusCode).toBe(403)
   })
 })

@@ -8,6 +8,7 @@ import { writeAudit } from '../lib/audit.js'
 import { ServiceError } from '../lib/errors.js'
 import type { Actor } from '../lib/actor.js'
 import { enqueueOutbox } from '../sync/outbox.js'
+import { canModify } from '../core/permissions.js'
 
 interface Ctx {
   actor: Actor
@@ -22,6 +23,20 @@ export async function listTransactions() {
 // same Transaction table is that no reporting code has to learn about them.
 export const PURCHASE_CATEGORY = 'Inventory Purchase'
 export const ADVANCE_CATEGORY = 'Staff Advance'
+export const SALARY_CATEGORY = 'Staff Salary'
+// Mirrors frontend/src/utils/accounting.js's MAINTENANCE_CATEGORY/isMaintenance
+// — "Cafe Ali Maintenance" is its own itemized bucket (type/vendor), not just
+// another expense category. Old rows saved as plain "Maintenance" (before the
+// rename) still count.
+export const MAINTENANCE_CATEGORY = 'Cafe Ali Maintenance'
+export const isMaintenance = (category: string | null | undefined): boolean =>
+  category === MAINTENANCE_CATEGORY || category === 'Maintenance'
+// Daily kitchen-staff wages (Butcher/Tandoor/Kitchen Double, ...) — tracked
+// the same way Maintenance is (a type + who was paid), under its own category.
+// Mirrors frontend/src/utils/accounting.js's DAILY_WAGE_CATEGORY/isDailyWage.
+export const DAILY_WAGE_CATEGORY = 'Daily Wages'
+export const isDailyWage = (category: string | null | undefined): boolean => category === DAILY_WAGE_CATEGORY
+export const hasItemizedFields = (category: string | null | undefined): boolean => isMaintenance(category) || isDailyWage(category)
 
 type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
 
@@ -58,20 +73,31 @@ export async function deleteLedgerEntry(tx: Tx, transactionId: string | null | u
   await tx.transaction.deleteMany({ where: { id: transactionId } })
 }
 
-export async function addTransaction(ctx: Ctx, input: { type?: string; category?: string; description?: string; amount?: number; date?: string }) {
-  if (input.type !== 'income' && input.type !== 'expense') throw new ServiceError('Transaction type must be income or expense.')
+export async function addTransaction(
+  ctx: Ctx,
+  input: { type?: string; category?: string; description?: string; amount?: number; date?: string; subCategory?: string; vendor?: string },
+) {
+  // Cashier reaches this route via 'expenseEntry' (create-only quick-add), not
+  // full 'accounting' — the route only checks "is either permission granted",
+  // so re-check here: an expenseEntry-only actor can never post income, no
+  // matter what the request body says.
+  const type = canModify(ctx.actor.role, 'accounting') ? input.type : 'expense'
+  if (type !== 'income' && type !== 'expense') throw new ServiceError('Transaction type must be income or expense.')
   const amount = Number(input.amount)
   if (!Number.isFinite(amount)) throw new ServiceError('A valid amount is required.')
+  const category = input.category || 'Other'
   return prisma.$transaction(async (tx) => {
     const txnNumber = await nextSequence(tx, 'transaction')
     const txn = await tx.transaction.create({
       data: {
         txnNumber,
-        type: input.type as string,
-        category: input.category || 'Other',
+        type,
+        category,
         description: input.description ?? null,
         amount: Math.round(amount),
         date: input.date ? new Date(input.date) : new Date(),
+        subCategory: hasItemizedFields(category) ? input.subCategory || null : null,
+        vendor: hasItemizedFields(category) ? input.vendor || null : null,
       },
     })
     await writeAudit(tx, {

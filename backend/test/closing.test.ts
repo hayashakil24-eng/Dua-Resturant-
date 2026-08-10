@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { buildClosingReport, toDayStr, type ClosingOrder, type ClosingTransaction } from '../src/core/closing.js'
+import {
+  buildClosingReport,
+  toDayStr,
+  type ClosingOrder,
+  type ClosingTransaction,
+  type ClosingReceivable,
+  type ClosingAdvance,
+} from '../src/core/closing.js'
 import type { InventoryItemLike, RecipeLike } from '../src/core/inventoryFlow.js'
 
 const dateStr = '2026-07-18'
@@ -336,5 +343,67 @@ describe('buildClosingReport complimentary items ("Aafshal Bill")', () => {
     const report = buildClosingReport(complimentaryOrders, [], dateStr, [], [])
     expect(report.netSale).toBe(150) // only the one Paid/Cash order
     expect(report.totalOrders).toBe(3) // still counted as an order (active, not cancelled)
+  })
+})
+
+// Itemized Maintenance expenses (labour/material/rent/fuel/other + who was
+// paid) — a breakdown of the existing "Cafe Ali Maintenance" expensesByCategory
+// bucket, not additional spend.
+describe('buildClosingReport maintenance itemization', () => {
+  const maintenanceTxns: ClosingTransaction[] = [
+    { type: 'expense', amount: 1500, date: todayAt(9, 0), category: 'Cafe Ali Maintenance', subCategory: 'labour', vendor: 'Saleem Carpenter', description: 'Fixed chair' },
+    { type: 'expense', amount: 800, date: todayAt(10, 0), category: 'Cafe Ali Maintenance', subCategory: 'fuel', vendor: 'Generator', description: 'Petrol' },
+    // Legacy category spelling (before the rename) still counts.
+    { type: 'expense', amount: 200, date: todayAt(10, 30), category: 'Maintenance', subCategory: 'other', vendor: null, description: null },
+    // Non-maintenance expense must not leak into maintenanceItems.
+    { type: 'expense', amount: 5000, date: todayAt(11, 0), category: 'Rent' },
+  ]
+
+  it('itemizes same-day Maintenance transactions with type/vendor, separate from other expenses', () => {
+    const report = buildClosingReport([], maintenanceTxns, dateStr, [], [])
+    expect(report.maintenanceItems).toHaveLength(3)
+    expect(report.maintenanceTotal).toBe(1500 + 800 + 200)
+    const labour = report.maintenanceItems.find((m) => m.vendor === 'Saleem Carpenter')
+    expect(labour).toMatchObject({ subCategory: 'labour', vendor: 'Saleem Carpenter', description: 'Fixed chair', amount: 1500 })
+    // The plain expense total/category breakdown still includes maintenance too.
+    expect(report.expenses).toBe(1500 + 800 + 200 + 5000)
+  })
+})
+
+// Live snapshots (not session-scoped) for the Receivables/Udhaar and Advance
+// Salary report sections — matching the client's own ledger, which always
+// shows a grand total across every named account/advance.
+describe('buildClosingReport receivables + advance salary snapshot', () => {
+  const receivables: ClosingReceivable[] = [
+    { name: 'Ali Kakar Account', type: 'customer', balance: 53834, status: 'open' },
+    { name: 'Hotel Account', type: 'hotel', balance: 43500, status: 'open' },
+    { name: 'Settled Account', type: 'business', balance: 0, status: 'settled' }, // excluded
+  ]
+  const advances: ClosingAdvance[] = [
+    { staffName: 'Mirza Ali Waiter', role: 'Waiter', amount: 5000, date: todayAt(9, 0), deductFromSalaryDate: todayAt(9, 0), status: 'pending' },
+    { staffName: 'Umar Delivery', role: 'Delivery', amount: 2000, date: todayAt(9, 0), deductFromSalaryDate: null, status: 'pending' },
+    { staffName: 'Recovered Staff', role: 'Waiter', amount: 999, date: todayAt(9, 0), status: 'recovered' }, // excluded
+  ]
+
+  it('lists every open receivable with a grand total matching the sum of accounts', () => {
+    const report = buildClosingReport([], [], dateStr, [], [], null, [], receivables, [])
+    expect(report.openReceivables).toHaveLength(2)
+    expect(report.receivablesTotal).toBe(53834 + 43500)
+  })
+
+  it('lists every pending advance with a grand total', () => {
+    const report = buildClosingReport([], [], dateStr, [], [], null, [], [], advances)
+    expect(report.openAdvances).toHaveLength(2)
+    expect(report.advancesTotal).toBe(5000 + 2000)
+  })
+
+  it('nets an advance against a same-named open receivable (display-only, no balance change)', () => {
+    const withMatch: ClosingReceivable[] = [...receivables, { name: 'Mirza Ali Waiter', type: 'business', balance: 1200, status: 'open' }]
+    const report = buildClosingReport([], [], dateStr, [], [], null, [], withMatch, advances)
+    const line = report.openReceivables.find((r) => r.name === 'Mirza Ali Waiter')
+    expect(line?.advanceAgainstDues).toBe(5000)
+    expect(line?.balance).toBe(1200) // the receivable's own balance is untouched
+    // No matching advance for Hotel Account — nets to 0.
+    expect(report.openReceivables.find((r) => r.name === 'Hotel Account')?.advanceAgainstDues).toBe(0)
   })
 })
