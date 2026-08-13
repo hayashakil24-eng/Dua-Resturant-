@@ -26,6 +26,15 @@
 !ifndef CP_EXE
   !define CP_EXE "Cafe Ali Control Panel.exe"
 !endif
+; Pre-built reference database (Menu incl. kg-billing + Tables, transactional/
+; test data stripped) for this specific client — see assets\cafe-ali.CLIENT-
+; TEMPLATE.db's own provenance notes. Override per-client with
+; /DSEED_DB=path\to\other.db, or /DSEED_DB="" is not supported — just omit
+; the SEC_SEEDDB checkbox at install time instead for a client that needs a
+; blank menu.
+!ifndef SEED_DB
+  !define SEED_DB "assets\cafe-ali.CLIENT-TEMPLATE.db"
+!endif
 
 Name "Cafe Ali"
 OutFile "..\release-suite\Cafe Ali Suite Setup 1.0.0.exe"
@@ -106,6 +115,29 @@ Section "Cafe Ali Control Panel" SEC_CP_SHORTCUT
 SectionEnd
 SubSectionEnd
 
+Section "Pre-load Cafe Ali Menu & Tables" SEC_SEEDDB
+  ; Places the reference database (Menu incl. kg-billing, Tables/Halls;
+  ; transactional/test data already stripped — see assets\cafe-ali.CLIENT-
+  ; TEMPLATE.db) exactly where Control Panel looks for its database on first
+  ; launch, so its setup wizard finds a real menu instead of starting blank.
+  ;
+  ; Two guards, both required:
+  ; - Skip entirely if Control Panel itself isn't being installed (nothing
+  ;   would ever read this file otherwise).
+  ; - Skip if a cafe-ali.db already exists at that path. This installer is
+  ;   also used for reinstalls/repairs on a machine that's already live —
+  ;   overwriting a real client's actual orders/staff/inventory with this
+  ;   reference snapshot would be a serious data-loss bug, not a convenience.
+  ${IfNot} ${SectionIsSelected} ${SEC_CP}
+    Goto seeddb_done
+  ${EndIf}
+  IfFileExists "$APPDATA\@cafe-ali\control-panel\cafe-ali.db" seeddb_done
+    CreateDirectory "$APPDATA\@cafe-ali\control-panel"
+    SetOutPath "$APPDATA\@cafe-ali\control-panel"
+    File "/oname=cafe-ali.db" "${SEED_DB}"
+  seeddb_done:
+SectionEnd
+
 Section "Allow app to run (disable Smart App Control)" SEC_SAC
   ; Unsigned apps are hard-blocked by Windows 11's Smart App Control, with
   ; no per-file "run anyway" bypass. The Windows Security UI only lets you
@@ -155,6 +187,7 @@ SectionEnd
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_APP_SHORTCUT_GROUP} "Add a Cafe Ali icon to the Desktop."
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_CP} "The local server admin tool: start/stop the backend, view connected devices, manage backups."
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_CP_SHORTCUT_GROUP} "Add a Cafe Ali Control Panel icon to the Desktop."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_SEEDDB} "Starts Control Panel with Cafe Ali's real Menu (including kg-billed Karahi/Handi/BBQ items) and Tables already set up, instead of empty. Only takes effect on a genuinely new install — automatically skipped if this PC already has a Cafe Ali database (never overwrites real data)."
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_SAC} "Required on most Windows 11 PCs: turns off Smart App Control, which otherwise blocks this app from running since it isn't signed by a paid certificate. Requires a restart to take effect. Uninstalling Cafe Ali restores this PC's original setting automatically. Uncheck only if you've already handled this yourself."
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 

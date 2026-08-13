@@ -15,6 +15,7 @@ export default function AddTransactionModal({ onClose, onSave }) {
   const t = useT()
   const type = 'expense'
   const [category, setCategory] = useState(EXPENSE_CATEGORIES[0])
+  const [customCategory, setCustomCategory] = useState('')
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
   const [subCategory, setSubCategory] = useState(MAINTENANCE_TYPES[0])
@@ -27,7 +28,13 @@ export default function AddTransactionModal({ onClose, onSave }) {
   useEscapeKey(onClose)
 
   const showVendorFields = hasItemizedFields(category)
+  const isOther = category === 'Other'
   const cats = EXPENSE_CATEGORIES
+  // "Other" + a typed name (e.g. "Tandoor") is saved as that literal category
+  // string instead of the bare word "Other" — same resolved-value idiom as
+  // Inventory.jsx/MenuManagement.jsx's NEW_CAT dropdown, just backend-free
+  // here since accounting.service.ts's category column takes any string.
+  const resolvedCategory = isOther && customCategory.trim() ? customCategory.trim() : category
   const valid = Number(amount) > 0 && description.trim()
 
   return (
@@ -54,6 +61,15 @@ export default function AddTransactionModal({ onClose, onSave }) {
                   </option>
                 ))}
               </select>
+              {isOther && (
+                <input
+                  className="input mt-2"
+                  placeholder={t('accounting.customCategoryPh', 'e.g. Tandoor, Generator…')}
+                  value={customCategory}
+                  onChange={(e) => setCustomCategory(e.target.value)}
+                  autoFocus
+                />
+              )}
             </div>
             <div>
               <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
@@ -135,7 +151,7 @@ export default function AddTransactionModal({ onClose, onSave }) {
               onClick={() => {
                 onSave({
                   type,
-                  category,
+                  category: resolvedCategory,
                   description: description.trim(),
                   amount: Number(amount),
                   date: new Date(date).toISOString(),

@@ -27,7 +27,7 @@ export function Receipt({
   onApplyDiscount = () => {},
   onRemoveDiscount = () => {},
 }) {
-  const { gstRate, gstEnabled, receivables, menu } = useApp()
+  const { gstRate, gstEnabled, receivables, menu, user } = useApp()
   // Order items don't carry their own unit — only the menu item they were
   // sold from does.
   const unitOf = (menuItemId) => menu.find((m) => m.id === menuItemId)?.unit || 'pcs'
@@ -309,12 +309,19 @@ export function Receipt({
                     Discount {order.discount.percent ? `${order.discount.percent}% · ` : ''}
                     {money(order.discount.amount)} · by {order.discount.by}
                   </span>
-                  <button
-                    onClick={() => onRemoveDiscount(order.id)}
-                    className="text-xs font-semibold text-rose-300 hover:underline"
-                  >
-                    Remove
-                  </button>
+                  {/* Separation of duties: a Cashier can undo their own discount
+                      entry but not override one an Admin/Manager applied — same
+                      rule the server re-enforces (orders.service.ts's
+                      removeDiscount), so hiding this isn't the only thing
+                      stopping it, just keeps a Cashier from seeing a dead end. */}
+                  {(user?.role !== 'Cashier' || order.discount.role === 'Cashier') && (
+                    <button
+                      onClick={() => onRemoveDiscount(order.id)}
+                      className="text-xs font-semibold text-rose-300 hover:underline"
+                    >
+                      Remove
+                    </button>
+                  )}
                 </div>
               ) : (
                 <button
