@@ -14,6 +14,7 @@ import {
   renderCancelledSection,
   renderComplimentarySection,
   renderItemsSection,
+  renderExtrasSection,
 } from '../reports/whatsappReport.js'
 import { sendReportImage } from './client.js'
 import { karachiHourMinute } from './karachiTime.js'
@@ -249,7 +250,7 @@ export async function listRecentClosingDays(): Promise<ClosingDayGroup[]> {
 // whatsappReport.ts can render independently. 'all' sends every non-empty
 // section as its own image (an album), same as the client's own habit of
 // sending several separate photos for one day's closing.
-export type ReportSection = 'summary' | 'ledgers' | 'cancelled' | 'complimentary' | 'items' | 'all'
+export type ReportSection = 'summary' | 'ledgers' | 'cancelled' | 'complimentary' | 'items' | 'extras' | 'all'
 
 const SECTION_RENDERERS: Record<Exclude<ReportSection, 'all'>, (report: ClosingReport, dayNameUr: string) => Promise<Buffer | null>> = {
   summary: renderSummarySection,
@@ -257,6 +258,7 @@ const SECTION_RENDERERS: Record<Exclude<ReportSection, 'all'>, (report: ClosingR
   cancelled: renderCancelledSection,
   complimentary: renderComplimentarySection,
   items: renderItemsSection,
+  extras: renderExtrasSection,
 }
 
 const SECTION_CAPTION: Record<Exclude<ReportSection, 'all'>, string> = {
@@ -265,6 +267,7 @@ const SECTION_CAPTION: Record<Exclude<ReportSection, 'all'>, string> = {
   cancelled: 'کینسل بل',
   complimentary: 'آفشل بل',
   items: 'چیز کی بنیاد پر فروخت',
+  extras: 'مینٹیننس، باقی اور ایڈوانس',
 }
 
 async function sendSection(recipient: string, loaded: LoadedClosing, section: Exclude<ReportSection, 'all'>): Promise<boolean> {

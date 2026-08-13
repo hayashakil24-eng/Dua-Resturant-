@@ -170,6 +170,7 @@ const REPORT_SECTIONS: { key: Exclude<ReportSection, 'all'>; label: string }[] =
   { key: 'cancelled', label: 'کینسل بل' },
   { key: 'complimentary', label: 'آفشل بل' },
   { key: 'items', label: 'چیز کی بنیاد پر فروخت' },
+  { key: 'extras', label: 'مینٹیننس، باقی اور ایڈوانس' },
 ]
 const ALL_SECTIONS_OPTION = REPORT_SECTIONS.length + 1 // 6 now — stays derived, not hardcoded
 const BACK_OPTION = 0

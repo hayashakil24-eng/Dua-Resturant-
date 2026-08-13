@@ -284,6 +284,102 @@ function discountBreakdownTable(rows: { table: number | null; amount: number; re
     </table>`
 }
 
+// Client-requested addition: itemized Maintenance spend, open Receivables/
+// Udhaar balances, and open salary Advances — the three "Daily Ledger"
+// sections (frontend Reports.jsx) that had no WhatsApp equivalent. Same
+// column labels/translations as that page (frontend/src/i18n/ur.json,
+// "reports.ledgerMaintenance" etc.) so the WhatsApp image and the admin
+// dashboard read identically. Bundled into one page rather than three
+// separate images — same "related blocks share one photo" reasoning as
+// renderItemsSection — since none of the three run long enough on a typical
+// day to need their own.
+function cap(s: string | null): string {
+  if (!s) return '—'
+  return s[0]!.toUpperCase() + s.slice(1)
+}
+
+function maintenanceTable(rows: { date: string | Date; subCategory: string | null; vendor: string | null; description: string | null; amount: number }[], total: number): string {
+  if (rows.length === 0) return ''
+  return `
+    <table class="breakdown">
+      <thead>
+        <tr><th colspan="5">مینٹیننس</th></tr>
+        <tr><th>تاریخ</th><th class="colhead">قسم</th><th>کس کو ادا کیا</th><th>تفصیل</th><th class="amount">رقم</th></tr>
+      </thead>
+      <tbody>
+        ${rows
+          .map(
+            (m) => `<tr>
+              <td dir="ltr">${dateOnlyEn(m.date)}</td>
+              <td>${escapeHtml(cap(m.subCategory))}</td>
+              <td>${escapeHtml(m.vendor || '—')}</td>
+              <td>${escapeHtml(m.description || '—')}</td>
+              <td class="amount">${money(m.amount)}</td>
+            </tr>`,
+          )
+          .join('')}
+        <tr class="total"><td colspan="4">کل مینٹیننس</td><td class="amount">${money(total)}</td></tr>
+      </tbody>
+    </table>`
+}
+
+// Open Receivables/Udhaar — a live running position (not scoped to this
+// session), same "advanceAgainstDues shown side by side" netting as the
+// admin dashboard (core/closing.ts's OpenReceivableLine doc comment).
+function receivablesTable(rows: { name: string; type: string; balance: number; advanceAgainstDues: number }[], total: number): string {
+  if (rows.length === 0) return ''
+  return `
+    <table class="breakdown">
+      <thead>
+        <tr><th colspan="4">باقی / ادھار</th></tr>
+        <tr><th>کھاتہ</th><th class="colhead">قسم</th><th>بقایا کے مقابلے ایڈوانس</th><th class="amount">بقایا</th></tr>
+      </thead>
+      <tbody>
+        ${rows
+          .map(
+            (r) => `<tr>
+              <td>${escapeHtml(r.name)}</td>
+              <td>${escapeHtml(cap(r.type))}</td>
+              <td class="amount">${r.advanceAgainstDues > 0 ? money(r.advanceAgainstDues) : '—'}</td>
+              <td class="amount">${money(r.balance)}</td>
+            </tr>`,
+          )
+          .join('')}
+        <tr class="total"><td colspan="3">کل باقی</td><td class="amount">${money(total)}</td></tr>
+      </tbody>
+    </table>`
+}
+
+// Open salary Advances (status 'pending') — same "Settled"/"Active" wording
+// as the admin dashboard (Reports.jsx: a.status === 'recovered' ? Settled :
+// Active), though in practice this list is always 'pending' since
+// core/closing.ts filters to open advances before building it.
+function advancesTable(rows: { staffName: string; role: string; amount: number; date: string | Date; deductFromSalaryDate: string | Date | null; status: string }[], total: number): string {
+  if (rows.length === 0) return ''
+  return `
+    <table class="breakdown">
+      <thead>
+        <tr><th colspan="6">تنخواہ ایڈوانس</th></tr>
+        <tr><th>عملہ</th><th class="colhead">عہدہ</th><th>تاریخ</th><th>کٹوتی کی تاریخ</th><th>حیثیت</th><th class="amount">رقم</th></tr>
+      </thead>
+      <tbody>
+        ${rows
+          .map(
+            (a) => `<tr>
+              <td>${escapeHtml(a.staffName)}</td>
+              <td>${escapeHtml(a.role || '—')}</td>
+              <td dir="ltr">${dateOnlyEn(a.date)}</td>
+              <td dir="ltr">${a.deductFromSalaryDate ? dateOnlyEn(a.deductFromSalaryDate) : '—'}</td>
+              <td>${a.status === 'recovered' ? 'ادا شدہ' : 'فعال'}</td>
+              <td class="amount">${money(a.amount)}</td>
+            </tr>`,
+          )
+          .join('')}
+        <tr class="total"><td colspan="5">کل ایڈوانس</td><td class="amount">${money(total)}</td></tr>
+      </tbody>
+    </table>`
+}
+
 // One page per section (client feedback: wants the client's own habit of
 // sending several separate photos for one closing — a summary photo, a
 // ledger photo, a cancelled-bill photo — reproduced as separate WhatsApp
@@ -302,6 +398,13 @@ function stampEn(iso: string): string {
   const { year, month, date, hour, minute } = karachiDateParts(new Date(iso))
   const h12 = hour % 12 === 0 ? 12 : hour % 12
   return `${date} ${MONTHS_EN[month - 1]} ${year}, ${String(h12).padStart(2, '0')}:${String(minute).padStart(2, '0')} ${hour < 12 ? 'AM' : 'PM'}`
+}
+// "22 Jul 2026" — date-only counterpart to stampEn (no time component; the
+// Maintenance/Advances rows are calendar dates, not timestamps). Same
+// Karachi-explicit + Latin-digit reasoning as stampEn above.
+function dateOnlyEn(d: string | Date): string {
+  const { year, month, date } = karachiDateParts(new Date(d))
+  return `${date} ${MONTHS_EN[month - 1]} ${year}`
 }
 function periodLabel(report: ClosingReport): string | null {
   if (!report.periodStart) return null
@@ -337,6 +440,8 @@ function pageShell(dayNameUr: string, date: string, title: string, bodyHtml: str
   table.breakdown th { border: 1px solid #ccc; background: #f3f3f3; padding: 8px 10px; text-align: right; font-weight: 700; }
   table.breakdown td { border: 1px solid #e2e2e2; padding: 7px 10px; text-align: right; }
   table.breakdown td.amount, table.breakdown th:nth-child(2) { text-align: left; direction: ltr; font-variant-numeric: tabular-nums; width: 110px; font-family: -apple-system, Segoe UI, Arial, sans-serif; }
+  table.breakdown th.amount { text-align: left; direction: ltr; font-family: -apple-system, Segoe UI, Arial, sans-serif; }
+  table.breakdown th.colhead { text-align: right; direction: rtl; }
   table.breakdown tr.total td { font-weight: 700; background: #faf6ec; }
   .breakdowns { display: flex; gap: 16px; }
   .breakdowns > div { flex: 1; }
@@ -432,4 +537,15 @@ export async function renderItemsSection(report: ClosingReport, dayNameUr: strin
   if (report.itemsSold.length === 0) return null
   const body = `${topSellingTable(report.itemsSold)}${itemsSoldTable(report.itemsSold)}`
   return renderHtmlToPng(pageShell(dayNameUr, report.date, 'چیز کی بنیاد پر فروخت', body, periodLabel(report)))
+}
+
+// Maintenance + Receivables/Udhaar + Advance Salary, bundled (see comment
+// above maintenanceTable). Null when all three are empty — nothing to send.
+export async function renderExtrasSection(report: ClosingReport, dayNameUr: string): Promise<Buffer | null> {
+  if (report.maintenanceItems.length === 0 && report.openReceivables.length === 0 && report.openAdvances.length === 0) return null
+  const body = `
+    ${maintenanceTable(report.maintenanceItems, report.maintenanceTotal)}
+    ${receivablesTable(report.openReceivables, report.receivablesTotal)}
+    ${advancesTable(report.openAdvances, report.advancesTotal)}`
+  return renderHtmlToPng(pageShell(dayNameUr, report.date, 'مینٹیننس، باقی اور ایڈوانس', body, periodLabel(report)))
 }
