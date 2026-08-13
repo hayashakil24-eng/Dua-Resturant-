@@ -875,6 +875,13 @@ export async function removeDiscount(ctx: Ctx, orderId: string) {
   return prisma.$transaction(async (tx) => {
     const o = await fetchOrder(tx, orderId)
     if (o.discountAmount == null) throw new ServiceError('This order has no discount to remove.')
+    // Separation of duties: a Cashier can undo their own discount entry, but
+    // not override one an Admin/Manager applied — same reasoning as the
+    // Cashier discount-percent cap above, re-checked here (never trusted from
+    // the client) since the UI's Remove button is hidden, not disabled.
+    if (ctx.actor.role === 'Cashier' && o.discountRole !== 'Cashier') {
+      throw new ServiceError('Only an Admin or Manager can remove this discount.')
+    }
     const updated = await tx.order.update({
       where: { id: orderId },
       data: { discountAmount: null, discountPercent: null, discountReason: null, discountNotes: null, discountBy: null, discountRole: null, discountAt: null },

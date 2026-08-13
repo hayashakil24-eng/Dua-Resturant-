@@ -558,12 +558,19 @@ export default function Orders() {
                   Discount {o.discount.percent ? `${o.discount.percent}% · ` : ''}
                   {money(o.discount.amount)} · by {o.discount.by}
                 </span>
-                <button
-                  onClick={() => removeDiscount(o.id)}
-                  className="text-xs font-semibold text-rose-300 hover:underline"
-                >
-                  Remove
-                </button>
+                {/* Separation of duties: a Cashier can undo their own discount
+                    entry but not override one an Admin/Manager applied — same
+                    rule the server re-enforces in removeDiscount (orders.
+                    service.ts), so hiding this isn't the only thing stopping
+                    it, just keeps a Cashier from seeing a button that'll fail. */}
+                {(user.role !== 'Cashier' || o.discount.role === 'Cashier') && (
+                  <button
+                    onClick={() => removeDiscount(o.id)}
+                    className="text-xs font-semibold text-rose-300 hover:underline"
+                  >
+                    Remove
+                  </button>
+                )}
               </div>
             ) : (
               <button

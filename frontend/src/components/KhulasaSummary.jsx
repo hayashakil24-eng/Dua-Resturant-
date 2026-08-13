@@ -188,11 +188,17 @@ export default function KhulasaSummary({ report, meta }) {
         </tbody>
       </table>
 
-      {/* Expenses by Type / Accounts — side by side. Explicit inline grid, not
-          a Tailwind md: breakpoint class — this renders inside a fixed-width
-          print portal, not the normal responsive viewport. */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+      {/* Expenses by Type, then Accounts — stacked full-width (not a
+          side-by-side grid). Expenses routinely has far more line items than
+          Accounts, and a shared-height grid row either stretches Accounts'
+          few rows into oversized boxes (Grid's default align-items:stretch)
+          or, with that stretch disabled, leaves a tall dead gap under the
+          shorter column instead — stacking avoids the mismatch entirely since
+          each table just takes the height its own content needs. */}
+      <div style={{ marginBottom: 20 }}>
         <ItemizedExpensesTable title="اخراجات کی قسم" groups={expenseGroups} total={report.expenses} />
+      </div>
+      <div style={{ marginBottom: 20 }}>
         <SideTable
           title="اکاؤنٹس"
           rows={accounts.map((a) => ({ label: accountLabel(a.name), amount: a.amount }))}
