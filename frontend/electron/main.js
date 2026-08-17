@@ -241,6 +241,7 @@ ipcMain.handle('print-silent', async (_e, { deviceName } = {}) => {
       margins: { marginType: 'printableArea' },
     })
     if (first.success) return first
+    log.error('print-silent: attempt 1 (printableArea) failed', { deviceName: deviceName || '(system default)', error: first.error })
 
     // usePrinterDefaultPageSize + printableArea margins together fail
     // outright ("Invalid printer settings") on printers that don't expose
@@ -251,7 +252,21 @@ ipcMain.handle('print-silent', async (_e, { deviceName } = {}) => {
     // the first attempt above; this is a compatibility fallback for
     // everything else, so printing degrades to plain default margins
     // instead of hard-failing.
-    return await printAttempt({ ...base, margins: { marginType: 'default' } })
+    const second = await printAttempt({ ...base, margins: { marginType: 'default' } })
+    if (second.success) return second
+    log.error('print-silent: attempt 2 (default margins) failed', { deviceName: deviceName || '(system default)', error: second.error })
+
+    // Some real thermal drivers (seen in the field on a Black Copper
+    // BC-98AC) reject BOTH attempts above outright, because they can't
+    // answer Chromium's page-size/margin queries at all — yet the same
+    // driver prints fine through the old non-silent window.print() dialog,
+    // where Chromium never queries any of that and just hands the job to
+    // Windows with the driver's own already-configured defaults. This last
+    // attempt reproduces that: no margins/pageSize field of any kind, so
+    // nothing here is asked of the driver.
+    const third = await printAttempt(base)
+    if (!third.success) log.error('print-silent: attempt 3 (bare minimum) failed', { deviceName: deviceName || '(system default)', error: third.error })
+    return third
   } finally {
     printing = false
   }
