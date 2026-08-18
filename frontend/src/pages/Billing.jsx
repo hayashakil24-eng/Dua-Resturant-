@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { PageHeader, PaymentBadge, EmptyState } from '../components/ui.jsx'
 import { money, time, dateLong, formatQty } from '../utils/format.js'
-import { safePrint } from '../utils/print.js'
+import { printReceiptRaw } from '../utils/print.js'
+import { buildReceiptEscPos } from '../utils/escpos.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import { tableLabel, SPECIAL_TABLE_IDS } from '../data/mockData.js'
 import DiscountModal from '../components/DiscountModal.jsx'
@@ -49,8 +50,36 @@ export function Receipt({
   useEscapeKey(onClose)
 
   // Guarded print — ignores rapid repeat clicks so the bill prints once.
+  // Raw ESC/POS (see print.js/escpos.js) rather than the old HTML/CSS silent
+  // print: Chromium's print pipeline fails outright against real thermal
+  // printer drivers on this Electron version (confirmed against both the
+  // client's BC-98AC and an unrelated EPSON L3150 — see
+  // PRINTER_ISSUE_HANDOFF.md), so the bill never reached the printer at all.
   const handlePrint = () => {
-    if (safePrint('print-receipt')) {
+    const buildBytes = () =>
+      buildReceiptEscPos({
+        order,
+        rate,
+        subtotal,
+        tax,
+        discount,
+        total,
+        unitOf,
+        tableLabelText: tableLabel(order.table),
+        isDelivery,
+        udhaarPaid,
+        udhaarRemaining,
+        // Deliberately 'en-PK' (not format.js's time()/locale-aware date),
+        // so the raw bill always prints Latin digits regardless of the
+        // app's current language — see escpos.js's fmtMoney comment for why.
+        dateLabel: new Date(order.createdAt).toLocaleDateString('en-PK'),
+        timeLabel: new Date(order.createdAt).toLocaleTimeString('en-PK', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        }),
+      })
+    if (printReceiptRaw(buildBytes)) {
       setPrinting(true)
       setTimeout(() => setPrinting(false), 1500)
     }

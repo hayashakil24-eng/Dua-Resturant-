@@ -15,6 +15,7 @@ import log from 'electron-log/main'
 // avoids relying on that static analysis entirely.
 import electronUpdaterPkg from 'electron-updater'
 const { autoUpdater } = electronUpdaterPkg
+import { sendRawToPrinter } from './rawPrint.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -269,6 +270,23 @@ ipcMain.handle('print-silent', async (_e, { deviceName } = {}) => {
     return third
   } finally {
     printing = false
+  }
+})
+
+// Raw ESC/POS printing (see rawPrint.js's header comment for why this exists
+// alongside print-silent above) — takes pre-built printer command bytes from
+// the renderer (src/utils/escpos.js) and hands them to the Windows spooler
+// as a RAW job, never through webContents.print()/Chromium at all. `bytes`
+// arrives as a Uint8Array — Electron's IPC structured-clones typed arrays,
+// so no base64/array-of-numbers encoding is needed on either side.
+ipcMain.handle('print-raw', async (_e, { deviceName, bytes } = {}) => {
+  try {
+    const result = await sendRawToPrinter(deviceName, Buffer.from(bytes))
+    if (!result.success) log.error('print-raw failed', { deviceName: deviceName || '(none)', error: result.error })
+    return result
+  } catch (err) {
+    log.error('print-raw threw', { deviceName: deviceName || '(none)', error: err.message })
+    return { success: false, error: err.message }
   }
 })
 

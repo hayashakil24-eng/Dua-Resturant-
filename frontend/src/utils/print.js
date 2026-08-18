@@ -86,3 +86,58 @@ export function safePrint(bodyClass) {
   }
   return true
 }
+
+// Raw ESC/POS printing — see electron/rawPrint.js and src/utils/escpos.js
+// for why safePrint() above (which goes through Chromium's silent print
+// pipeline) can't be trusted on real thermal-printer drivers on this
+// Electron version. Same debounce/error-reporting shape as safePrint so
+// call sites and PrintErrorToast.jsx behave identically either way;
+// `buildBytes` is called lazily (only once we know a raw print will
+// actually be attempted) since it does real work (formatting the whole
+// receipt/docket). `fallback` runs instead when there's no `printRaw` IPC to
+// call through (browser dev mode, NO_ELECTRON=1) — each surface supplies
+// its own, since what a surface needs to do to fall back differs (the
+// receipt can just re-run the HTML print path; a KOT docket first needs its
+// caller to render the print-scoped DOM via KitchenSlips.jsx).
+function printRawJob(cls, buildBytes, fallback) {
+  const state = debounceState.get(cls) || { printing: false, lastPrintAt: 0 }
+  const now = Date.now()
+  if (state.printing || now - state.lastPrintAt < DEBOUNCE_MS) return false
+  state.printing = true
+  state.lastPrintAt = now
+  debounceState.set(cls, state)
+  const release = () => {
+    state.printing = false
+  }
+
+  if (window.electron?.printRaw) {
+    let bytes
+    try {
+      bytes = buildBytes()
+    } catch (err) {
+      release()
+      onPrintError(err?.message || 'Could not prepare the print job.')
+      return false
+    }
+    window.electron
+      .printRaw(configuredPrinter(), bytes)
+      .then((res) => {
+        if (!res?.success) onPrintError(res?.error || 'Print failed.')
+      })
+      .catch((err) => onPrintError(err?.message || 'Print failed.'))
+      .finally(release)
+    return true
+  }
+
+  // Browser dev mode (NO_ELECTRON=1) — no IPC to call raw-print through.
+  release()
+  return fallback()
+}
+
+export function printReceiptRaw(buildBytes) {
+  return printRawJob('print-receipt', buildBytes, () => safePrint('print-receipt'))
+}
+
+export function printKotRaw(buildBytes, fallback) {
+  return printRawJob('print-kot', buildBytes, fallback)
+}

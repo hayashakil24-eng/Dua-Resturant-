@@ -54,7 +54,7 @@ This is a known category of issue with cheap/generic thermal printer drivers (so
 as "Generic / Text Only" drivers) — Electron's `webContents.print()` "smart" options
 assume proper DEVMODE reporting that these drivers don't always provide.
 
-## Fix already applied (uncommitted, local working tree only)
+## Fix already applied (committed as `e21c900`)
 File: `frontend/electron/main.js`, IPC handler `print-silent`.
 
 Added a **third fallback attempt** after the existing two, with no `margins`/`pageSize`
@@ -75,8 +75,8 @@ file instead of only a generic toast. Log file path (unpackaged/dev):
 (packaged app: check `installDirectory`/userData path logged at `APP STARTED` — same
 `electron-log` config, should be the same `%AppData%\Roaming\cafe-ali\logs\app.log`).
 
-**Status: this fix has NOT been validated against a real printer yet.** It was tested on a
-dev machine with no physical printer attached — only Windows virtual printers (Microsoft
+**Status: committed to `main` as `e21c900`, but this fix has NOT been validated against a
+real printer yet.** It was tested on a dev machine with no physical printer attached — only Windows virtual printers (Microsoft
 Print to PDF, XPS Document Writer, Fax), which all use a `PORTPROMPT:`/`SHRFAX:` port and
 therefore **always** fail with the same `"Invalid printer settings"` error regardless of
 any option combination (Chromium can't get valid capabilities from a port that requires an
@@ -85,8 +85,9 @@ not treat it as evidence against the fix. A real conclusion requires the actual 
 any real USB/hardware-port printer).
 
 ## What still needs to happen (on the client's / a machine with the real printer)
-1. Pull/apply this change to `frontend/electron/main.js` (diff below, or just re-run this
-   session's work if the repo is shared/synced).
+1. Make sure the machine testing this is running code that includes commit `e21c900`
+   (already on `main` — `git log --oneline -1 -- frontend/electron/main.js` should show it;
+   no manual patching needed).
 2. Rebuild/run the app (`cd frontend && npm run dev`, or build+install a fresh `npm run
    dist` installer) on a machine where the real BC-98AC is attached.
 3. Print a real bill.
@@ -107,44 +108,6 @@ any real USB/hardware-port printer).
    if it says "Generic / Text Only", that independently supports the raw-ESC/POS-printing
    theory in step 5, and the manufacturer's site may have a proper GDI driver as a
    lower-effort alternative to try first.
-
-## Exact diff (in case the working tree isn't shared/synced)
-
-```diff
---- a/frontend/electron/main.js
-+++ b/frontend/electron/main.js
-@@ -241,6 +241,7 @@ ipcMain.handle('print-silent', async (_e, { deviceName } = {}) => {
-       margins: { marginType: 'printableArea' },
-     })
-     if (first.success) return first
-+    log.error('print-silent: attempt 1 (printableArea) failed', { deviceName: deviceName || '(system default)', error: first.error })
- 
-     // usePrinterDefaultPageSize + printableArea margins together fail
-     // outright ("Invalid printer settings") on printers that don't expose
-@@ -251,7 +252,21 @@ ipcMain.handle('print-silent', async (_e, { deviceName } = {}) => {
-     // the first attempt above; this is a compatibility fallback for
-     // everything else, so printing degrades to plain default margins
-     // instead of hard-failing.
--    return await printAttempt({ ...base, margins: { marginType: 'default' } })
-+    const second = await printAttempt({ ...base, margins: { marginType: 'default' } })
-+    if (second.success) return second
-+    log.error('print-silent: attempt 2 (default margins) failed', { deviceName: deviceName || '(system default)', error: second.error })
-+
-+    // Some real thermal drivers (seen in the field on a Black Copper
-+    // BC-98AC) reject BOTH attempts above outright, because they can't
-+    // answer Chromium's page-size/margin queries at all — yet the same
-+    // driver prints fine through the old non-silent window.print() dialog,
-+    // where Chromium never queries any of that and just hands the job to
-+    // Windows with the driver's own already-configured defaults. This last
-+    // attempt reproduces that: no margins/pageSize field of any kind, so
-+    // nothing here is asked of the driver.
-+    const third = await printAttempt(base)
-+    if (!third.success) log.error('print-silent: attempt 3 (bare minimum) failed', { deviceName: deviceName || '(system default)', error: third.error })
-+    return third
-   } finally {
-     printing = false
-   }
-```
 
 ## Not part of this issue (separate, unresolved, do not mix up)
 A separate 2-PC networking problem came up during testing (`control-panel` on PC1 as the

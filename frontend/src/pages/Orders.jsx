@@ -18,7 +18,9 @@ import { Receipt } from './Billing.jsx'
 // Reuse the exact same department-routed kitchen-docket pipeline POS.jsx uses
 // for a fresh KOT — fed a synthetic single-item "order" for a docket reprint.
 import KitchenSlips from '../components/KitchenSlips.jsx'
-import { safePrint } from '../utils/print.js'
+import { safePrint, printKotRaw } from '../utils/print.js'
+import { buildKotEscPos } from '../utils/escpos.js'
+import { groupOrderItemsByDepartment } from '../utils/kot.js'
 
 const FILTERS = ['All', 'Paid', 'Unpaid', 'Udhaar', 'Complimentary', 'Cancelled']
 const CANCEL_REASONS = ['Customer Request', 'Wrong Order', 'Out of Stock', 'Other']
@@ -374,7 +376,7 @@ function CancelItemModal({ item, orderMaterialLoss, onConfirm, onClose }) {
 }
 
 export default function Orders() {
-  const { orders, orderTotal, markPaid, cancelOrder, cancelOrderItem, orderMaterialLoss, markOrderUdhaar, markOrderComplimentary, shiftOrderTable, applyDiscount, removeDiscount, onlineAccounts, auditLog, user, menu, gstEnabled, gstRate, maxCashierDiscountPercent } = useApp()
+  const { orders, orderTotal, markPaid, cancelOrder, cancelOrderItem, orderMaterialLoss, markOrderUdhaar, markOrderComplimentary, shiftOrderTable, applyDiscount, removeDiscount, onlineAccounts, auditLog, user, menu, gstEnabled, gstRate, maxCashierDiscountPercent, getDepartmentForItem } = useApp()
   // Order items don't carry their own unit — only the menu item they were
   // sold from does.
   const unitOf = (menuItemId) => menu.find((m) => m.id === menuItemId)?.unit || 'pcs'
@@ -472,15 +474,26 @@ export default function Orders() {
   // REPRINT marker in KitchenSlips.jsx.
   const reprintItem = (order, item) => {
     if (order.cancelled || item.cancelled) return
-    setReprintOrder({
+    const synthetic = {
       id: order.id,
       table: order.table,
       waiter: order.waiter,
       items: [item],
       createdAt: order.createdAt,
       reprint: true,
-    })
-    setTimeout(() => safePrint('print-kot'), 80)
+    }
+    const d = new Date(synthetic.createdAt || Date.now())
+    const dateStr = d.toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })
+    const timeStr = d.toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit', hour12: true })
+    const { slips, unitOf } = groupOrderItemsByDepartment(synthetic, { getDepartmentForItem, menu })
+    printKotRaw(
+      () => buildKotEscPos({ order: synthetic, slips, unitOf, tableLabelText: tableLabel(synthetic.table), dateStr, timeStr }),
+      () => {
+        setReprintOrder(synthetic)
+        setTimeout(() => safePrint('print-kot'), 80)
+        return true
+      },
+    )
   }
 
   // Same handler shape as Billing.jsx's handleApplyDiscount. Returns the

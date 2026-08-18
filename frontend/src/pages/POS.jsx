@@ -8,7 +8,9 @@ import PaymentModal from '../components/PaymentModal.jsx'
 import ManageMostOrderedModal from '../components/ManageMostOrderedModal.jsx'
 import DeliveryDetailsModal from '../components/DeliveryDetailsModal.jsx'
 import KitchenSlips from '../components/KitchenSlips.jsx'
-import { safePrint } from '../utils/print.js'
+import { safePrint, printKotRaw } from '../utils/print.js'
+import { buildKotEscPos } from '../utils/escpos.js'
+import { groupOrderItemsByDepartment } from '../utils/kot.js'
 import { getRecipeStock, getStockShortfall } from '../utils/inventoryFlow.js'
 import { canModify } from '../config/permissions.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
@@ -266,6 +268,7 @@ export default function POS() {
     onlineAccounts,
     gstRate,
     addTransaction,
+    getDepartmentForItem,
   } = useApp()
 
   // Recipe-based stock status per menu item (only items with an approved recipe
@@ -606,12 +609,26 @@ export default function POS() {
     return order
   }
 
-  // Print department-wise kitchen slips (one per counter) for an order that was
-  // just sent to the kitchen. Renders the slips, then prints on the next tick.
+  // Print department-wise kitchen slips (one per counter) for an order that
+  // was just sent to the kitchen. Raw ESC/POS (see print.js/escpos.js) —
+  // same reason as Billing.jsx's receipt: Chromium's silent print pipeline
+  // fails outright against real thermal printer drivers on this Electron
+  // version. Browser-dev-mode (NO_ELECTRON=1) fallback still renders
+  // KitchenSlips.jsx into the DOM and goes through the old print path.
   const printKitchenSlips = (order) => {
     if (!order?.items?.length) return
-    setKotOrder(order)
-    setTimeout(() => safePrint('print-kot'), 80)
+    const d = new Date(order.createdAt || Date.now())
+    const dateStr = d.toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })
+    const timeStr = d.toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit', hour12: true })
+    const { slips, unitOf } = groupOrderItemsByDepartment(order, { getDepartmentForItem, menu })
+    printKotRaw(
+      () => buildKotEscPos({ order, slips, unitOf, tableLabelText: tableLabel(order.table), dateStr, timeStr }),
+      () => {
+        setKotOrder(order)
+        setTimeout(() => safePrint('print-kot'), 80)
+        return true
+      },
+    )
   }
 
   // "Pay Now" — validate, then open the payment modal.

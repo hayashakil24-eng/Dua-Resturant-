@@ -16,6 +16,12 @@ contextBridge.exposeInMainWorld('electron', {
   // print options — the renderer can't reach webContents.print() directly.
   listPrinters: () => ipcRenderer.invoke('list-printers'),
   printSilent: (deviceName) => ipcRenderer.invoke('print-silent', { deviceName }),
+  // Raw ESC/POS printing (main.js's print-raw + rawPrint.js) — bypasses
+  // Chromium's print pipeline entirely, for surfaces where printSilent's
+  // capability-query failure can't be worked around (see rawPrint.js).
+  // `bytes` is a Uint8Array already built by src/utils/escpos.js; this is
+  // still a printer NAME + a byte buffer, never raw OS/driver access.
+  printRaw: (deviceName, bytes) => ipcRenderer.invoke('print-raw', { deviceName, bytes }),
   // Auto-update (main.js's autoUpdater) — the background/scheduled checks
   // only ever tell the renderer about a *found* update (a failed/offline
   // check there is deliberately silent, see main.js). checkForUpdatesNow and

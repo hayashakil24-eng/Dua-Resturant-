@@ -2,6 +2,7 @@ import { createPortal } from 'react-dom'
 import { useApp } from '../context/AppContext.jsx'
 import { tableLabel } from '../data/mockData.js'
 import { formatQty } from '../utils/format.js'
+import { groupOrderItemsByDepartment } from '../utils/kot.js'
 
 // Groups an order's items by department (counter) and renders one thermal-style
 // slip per counter into a <body>-level portal (#printable-kots). The slips are
@@ -14,22 +15,7 @@ export default function KitchenSlips({ order }) {
   const { getDepartmentForItem, menu } = useApp()
   if (!order || !order.items?.length) return null
 
-  // `it.id` may be a plain menuItemId or a "menuId::variant" cart key
-  // depending on the caller (a freshly-placed order vs the POS's own
-  // just-built items array) — strip any variant suffix before matching.
-  const unitOf = (it) =>
-    menu.find((m) => m.id === (it.menuItemId || String(it.id).split('::')[0]))?.unit || 'pcs'
-
-  // One group per counter; unmapped items fall back to a single "Kitchen" slip.
-  const groups = new Map()
-  order.items.forEach((it) => {
-    const dept = getDepartmentForItem(it.id)
-    const id = dept?.id || 'kitchen'
-    const name = dept?.name || 'Kitchen'
-    if (!groups.has(id)) groups.set(id, { name, items: [] })
-    groups.get(id).items.push(it)
-  })
-  const slips = [...groups.values()]
+  const { slips, unitOf } = groupOrderItemsByDepartment(order, { getDepartmentForItem, menu })
 
   const d = new Date(order.createdAt || Date.now())
   const dateStr = d.toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })
