@@ -194,336 +194,178 @@
   {
     "name": "Mutton Shahi Karahi",
     "category": "Café Ali Special Karahi",
-    "price": 3000,
+    "price": 4999,
     "image": "/Mutton Shahi Karahi.webp",
-    "description": "Per Kg",
-    "variants": [
-      {
-        "label": "Half",
-        "price": 3000
-      },
-      {
-        "label": "Full",
-        "price": 4999
-      }
-    ]
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Mutton White Karahi",
     "category": "Café Ali Special Karahi",
-    "price": 3100,
+    "price": 5199,
     "image": "/Mutton White Karahi.png",
-    "description": "Per Kg",
-    "variants": [
-      {
-        "label": "Half",
-        "price": 3100
-      },
-      {
-        "label": "Full",
-        "price": 5199
-      }
-    ]
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Mutton Peshawari Karahi",
     "category": "Café Ali Special Karahi",
-    "price": 3000,
+    "price": 4999,
     "image": "/Mutton Peshawari Karahi.webp",
-    "description": "Per Kg",
-    "variants": [
-      {
-        "label": "Half",
-        "price": 3000
-      },
-      {
-        "label": "Full",
-        "price": 4999
-      }
-    ]
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Mutton Sizzling Karahi",
     "category": "Café Ali Special Karahi",
-    "price": 3000,
+    "price": 4999,
     "image": "/Mutton Sizzling Karahi.webp",
-    "description": "Per Kg",
-    "variants": [
-      {
-        "label": "Half",
-        "price": 3000
-      },
-      {
-        "label": "Full",
-        "price": 4999
-      }
-    ]
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Lamb Peshawari Karahi",
     "category": "Café Ali Special Karahi",
-    "price": 3300,
+    "price": 5499,
     "image": "/Lamb Peshawari Karahi.webp",
-    "description": "Per Kg",
-    "variants": [
-      {
-        "label": "Half",
-        "price": 3300
-      },
-      {
-        "label": "Full",
-        "price": 5499
-      }
-    ]
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Lamb White Karahi",
     "category": "Café Ali Special Karahi",
-    "price": 3400,
+    "price": 5699,
     "image": "/Lamb White Karahi.jpg",
-    "description": "Per Kg",
-    "variants": [
-      {
-        "label": "Half",
-        "price": 3400
-      },
-      {
-        "label": "Full",
-        "price": 5699
-      }
-    ]
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Lamb Brown Karahi",
     "category": "Café Ali Special Karahi",
-    "price": 3000,
+    "price": 4999,
     "image": "/Lamb Brown Karahi.jpg",
-    "description": "Per Kg",
-    "variants": [
-      {
-        "label": "Half",
-        "price": 3000
-      },
-      {
-        "label": "Full",
-        "price": 4999
-      }
-    ]
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Mutton Brown Karahi",
     "category": "Café Ali Special Karahi",
-    "price": 3000,
+    "price": 4999,
     "image": "/Mutton Brown Karahi.jpg",
-    "description": "Per Kg",
-    "variants": [
-      {
-        "label": "Half",
-        "price": 3000
-      },
-      {
-        "label": "Full",
-        "price": 4999
-      }
-    ]
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Mutton Namkee Bonles Karahi",
     "category": "Café Ali Special Karahi",
-    "price": 4100,
+    "price": 6799,
     "image": "/Mutton Namkee Bonles Karahi.jpg",
-    "description": "Per Kg",
-    "variants": [
-      {
-        "label": "Half",
-        "price": 4100
-      },
-      {
-        "label": "Full",
-        "price": 6799
-      }
-    ]
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Desi Murga Karahi",
     "category": "Café Ali Special Karahi",
-    "price": 3000,
+    "price": 4999,
     "image": "/Desi Murga Karahi.png",
-    "description": "Per Kg",
-    "variants": [
-      {
-        "label": "Half",
-        "price": 3000
-      },
-      {
-        "label": "Full",
-        "price": 4999
-      }
-    ]
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Prawn Karahi Red/White",
     "category": "Café Ali Special Karahi",
-    "price": 2800,
+    "price": 4699,
     "image": "/Prawn Karahi Red-White.jpg",
-    "description": "Per Kg",
-    "variants": [
-      {
-        "label": "Half",
-        "price": 2800
-      },
-      {
-        "label": "Full",
-        "price": 4699
-      }
-    ]
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Batair Karahi",
     "category": "Café Ali Special Karahi",
-    "price": 2200,
+    "price": 3699,
     "image": "/Batair Karahi.jpg",
-    "description": "Per Kg",
-    "variants": [
-      {
-        "label": "Half",
-        "price": 2200
-      },
-      {
-        "label": "Full",
-        "price": 3699
-      }
-    ]
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Lamb Zaitoon Karahi",
     "category": "Café Ali Special Karahi",
-    "price": 3400,
+    "price": 5660,
     "image": "/Lamb Zaitoon Karahi.jpg",
-    "description": "Per Kg",
-    "variants": [
-      {
-        "label": "Half",
-        "price": 3400
-      },
-      {
-        "label": "Full",
-        "price": 5660
-      }
-    ]
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Mutton Zaitoon Karahi",
     "category": "Café Ali Special Karahi",
-    "price": 3350,
+    "price": 5560,
     "image": "/Mutton Zaitoon Karahi.jpg",
-    "description": "Per Kg",
-    "variants": [
-      {
-        "label": "Half",
-        "price": 3350
-      },
-      {
-        "label": "Full",
-        "price": 5560
-      }
-    ]
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Balochi Tikkah Karahi",
     "category": "Café Ali Special Karahi",
-    "price": 1550,
+    "price": 2549,
     "image": "/Balochi Tikkah Karahi.webp",
-    "description": "Per Kg",
-    "variants": [
-      {
-        "label": "Half",
-        "price": 1550
-      },
-      {
-        "label": "Full",
-        "price": 2549
-      }
-    ]
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Chicken Boneless Karahi",
     "category": "Special Chicken Karahi",
     "price": 3799,
     "image": "/Chicken Boneless Karahi.jpg",
-    "description": "Per Kg"
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Chicken Brown Karahi",
     "category": "Special Chicken Karahi",
     "price": 2699,
     "image": "/Chicken Brown Karahi.jpg",
-    "description": "Per Kg"
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Chicken Peshawari Karahi",
     "category": "Special Chicken Karahi",
     "price": 2699,
     "image": "/Chicken Peshawari Karahi.jpg",
-    "description": "Per Kg"
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Chicken Zaitoon Karahi",
     "category": "Special Chicken Karahi",
     "price": 2799,
     "image": "/Chicken Zaitoon Karahi.webp",
-    "description": "Per Kg"
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Mutton Shahi Handi Boneless",
     "category": "Tempting Handi",
-    "price": 4450,
+    "price": 7400,
     "image": "/Mutton Shahi Handi Boneless.jpg",
-    "description": "Per Kg",
-    "variants": [
-      {
-        "label": "Half",
-        "price": 4450
-      },
-      {
-        "label": "Full",
-        "price": 7400
-      }
-    ]
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Mutton Paneer Handi",
     "category": "Tempting Handi",
-    "price": 4550,
+    "price": 7560,
     "image": "/Mutton Paneer Handi.jpg",
-    "description": "Per Kg",
-    "variants": [
-      {
-        "label": "Half",
-        "price": 4550
-      },
-      {
-        "label": "Full",
-        "price": 7560
-      }
-    ]
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Mutton Makhni Handi",
     "category": "Tempting Handi",
-    "price": 4450,
+    "price": 7399,
     "image": "/Mutton Makhni Handi.jpg",
-    "description": "Per Kg",
-    "variants": [
-      {
-        "label": "Half",
-        "price": 4450
-      },
-      {
-        "label": "Full",
-        "price": 7399
-      }
-    ]
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Chicken Shahi Handi",
@@ -536,70 +378,34 @@
   {
     "name": "Chicken Makhni Handi",
     "category": "Tempting Handi",
-    "price": 1900,
+    "price": 3199,
     "image": "/Chicken Makhni Handi.webp",
-    "description": "Per Kg",
-    "variants": [
-      {
-        "label": "Half",
-        "price": 1900
-      },
-      {
-        "label": "Full",
-        "price": 3199
-      }
-    ]
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Chicken Tikkah Handi",
     "category": "Tempting Handi",
-    "price": 2000,
+    "price": 3299,
     "image": "/Chicken Tikkah Handi.jpg",
-    "description": "Per Kg",
-    "variants": [
-      {
-        "label": "Half",
-        "price": 2000
-      },
-      {
-        "label": "Full",
-        "price": 3299
-      }
-    ]
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Chicken Paneer Reshmi",
     "category": "Tempting Handi",
-    "price": 2000,
+    "price": 3299,
     "image": "/Chicken Paneer Reshmi.jpg",
-    "description": "Per Kg",
-    "variants": [
-      {
-        "label": "Half",
-        "price": 2000
-      },
-      {
-        "label": "Full",
-        "price": 3299
-      }
-    ]
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Prawn Handi",
     "category": "Tempting Handi",
-    "price": 3600,
+    "price": 5999,
     "image": "/Prawn Handi.jpg",
-    "description": "Per Kg",
-    "variants": [
-      {
-        "label": "Half",
-        "price": 3600
-      },
-      {
-        "label": "Full",
-        "price": 5999
-      }
-    ]
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Mutton Pulao",
@@ -620,28 +426,32 @@
     "category": "Café Ali Special BBQ",
     "price": 4999,
     "image": "/Mutton Chops.webp",
-    "description": "Per Kg"
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Mutton Ribbs",
     "category": "Café Ali Special BBQ",
     "price": 4999,
     "image": "/Mutton Ribbs.jpg",
-    "description": "Per Kg"
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Mutton Leg",
     "category": "Café Ali Special BBQ",
     "price": 4999,
     "image": "/Mutton Leg.webp",
-    "description": "Per Kg"
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Mutton Namkeen Boti",
     "category": "Café Ali Special BBQ",
     "price": 4999,
     "image": "/Mutton Namkeen Boti.webp",
-    "description": "Per Kg"
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Shahi Batair 6 piece",
@@ -655,14 +465,16 @@
     "category": "Café Ali Special BBQ",
     "price": 6450,
     "image": "/Grilled Prawn.webp",
-    "description": "Per Kg"
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Fish Grilled Namkin / Spicy",
     "category": "Café Ali Special BBQ",
     "price": 3260,
     "image": "/Fish Grilled Namkin - Spicy.jpg",
-    "description": "Per Kg"
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Fish Boneless Boti",
@@ -676,7 +488,8 @@
     "category": "Café Ali Special BBQ",
     "price": 4999,
     "image": "/Lamb Namkin Boti.webp",
-    "description": "Per Kg"
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Chicken Grilled Chargha",
@@ -1216,7 +1029,8 @@
     "category": "Chicken BBQ",
     "price": 2599,
     "image": "/Chicken Arbic Boti.jpg",
-    "description": "Per Kg"
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Chicken Milali Boti",
@@ -1272,62 +1086,48 @@
     "category": "Chef Special",
     "price": 4999,
     "image": "/Khaddi Kabab.jpg",
-    "description": "Per Kg"
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Dum Pukht",
     "category": "Chef Special",
     "price": 4999,
     "image": "/Dum Pukht.webp",
-    "description": "Per Kg"
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Lamb Namkeen Boneless Boti",
     "category": "Chef Special",
     "price": 7499,
     "image": "/Lamb Namkeen Boneless Boti.webp",
-    "description": "Per Kg"
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Mutton Namkeen Boneless Boti",
     "category": "Chef Special",
     "price": 7499,
     "image": "/Mutton Namkeen Boneless Boti.jpg",
-    "description": "Per Kg"
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Café Ali Special Platter",
     "category": "Chef Special",
-    "price": 6200,
+    "price": 11999,
     "image": "/Café Ali Special Platter Full.jpg",
-    "description": "Per Kg",
-    "variants": [
-      {
-        "label": "Half",
-        "price": 6200
-      },
-      {
-        "label": "Full",
-        "price": 11999
-      }
-    ]
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Chicken Platter",
     "category": "Chef Special",
-    "price": 3800,
+    "price": 7500,
     "image": "/Chicken Platter Full.png",
-    "description": "Per Kg",
-    "variants": [
-      {
-        "label": "Half",
-        "price": 3800
-      },
-      {
-        "label": "Full",
-        "price": 7500
-      }
-    ]
+    "description": "Per Kg — enter exact weight at the POS",
+    "unit": "kg"
   },
   {
     "name": "Chicken Shashlik with Rice",

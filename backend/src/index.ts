@@ -30,3 +30,8 @@ export { ensureAdminAccount } from './auth/bootstrap.js'
 // unseeded Control Panel database — without it a fresh install has an empty menu
 // and no tables. See db/seedBaseline.ts's header.
 export { seedBaseline } from './db/seedBaseline.js'
+// Idempotent backfill for an already-seeded database's menu rows that predate
+// a data fix (currently: Karahi/Handi/Platter items mislabeled "Per Kg" in
+// their description without the Billing Unit actually set to kg). See
+// db/dataFixes.ts's header.
+export { backfillKgBilledMenuItems } from './db/dataFixes.js'

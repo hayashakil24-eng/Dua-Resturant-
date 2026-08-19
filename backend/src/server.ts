@@ -10,18 +10,21 @@ import { startBackupSchedule } from './backup/schedule.js'
 import { startSyncSchedule } from './sync/job.js'
 import { startWhatsappReportSchedule } from './whatsapp/schedule.js'
 import { startAttendanceDevicePolling } from './services/attendanceDevice.service.js'
+import { backfillKgBilledMenuItems } from './db/dataFixes.js'
 
 const app = buildApp()
 
 app
   .listen({ port: env.port, host: env.host })
-  .then(() => {
+  .then(async () => {
     attachSocket(app.server)
     startDiscoveryResponder()
     startBackupSchedule()
     startSyncSchedule()
     startWhatsappReportSchedule()
     startAttendanceDevicePolling()
+    const kgFixed = await backfillKgBilledMenuItems()
+    if (kgFixed) app.log.info(`Converted ${kgFixed} menu item(s) to kg billing.`)
     app.log.info(`Cafe Ali backend listening on http://${env.host}:${env.port}`)
   })
   .catch((err) => {

@@ -260,6 +260,7 @@ async function startBackend() {
       startWhatsappReportSchedule,
       startAttendanceDevicePolling,
       seedBaseline,
+      backfillKgBilledMenuItems,
       env,
     } = await importBackend()
 
@@ -270,6 +271,11 @@ async function startBackend() {
     // is a no-op once seeded, and it back-fills an already-set-up empty install
     // on its next launch too.
     await seedBaseline()
+    // Backfills an already-seeded install's menu rows that predate the kg-
+    // billing data fix (see db/dataFixes.ts) — distinct from seedBaseline
+    // above, which only fills empty collections and so never touches these
+    // already-existing rows.
+    await backfillKgBilledMenuItems()
 
     const fastify = buildApp()
     await fastify.listen({ port: env.port, host: '0.0.0.0' })
