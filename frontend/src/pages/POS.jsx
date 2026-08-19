@@ -622,7 +622,7 @@ export default function POS() {
     const timeStr = d.toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit', hour12: true })
     const { slips, unitOf } = groupOrderItemsByDepartment(order, { getDepartmentForItem, menu })
     printKotRaw(
-      () => buildKotEscPos({ order, slips, unitOf, tableLabelText: tableLabel(order.table), dateStr, timeStr }),
+      () => buildKotEscPos({ order, slips, unitOf, tableLabelText: tableLabel(order.table), dateStr, timeStr, cashierName: user?.name }),
       () => {
         setKotOrder(order)
         setTimeout(() => safePrint('print-kot'), 80)

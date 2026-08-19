@@ -300,12 +300,35 @@
     border-top: 1px dashed #000;
     margin: 6px 0;
   }
+  /* Order type banner (DINE IN / TAKEAWAY / DELIVERY) — plain centered
+     text, distinct from .kot-dept's bordered box which is reserved for
+     the counter name / Order # above it. */
+  .kot-type {
+    text-align: center;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin: 2px 0 6px;
+  }
+  /* Repeated "* ORDER # x *" marker near the bottom of the slip. */
+  .kot-marker {
+    text-align: center;
+    font-size: 13px;
+    font-weight: 700;
+    margin: 4px 0;
+  }
   .kot-item {
     display: flex;
-    justify-content: space-between;
     font-size: 14px;
     font-weight: 700;
     line-height: 1.7;
+  }
+  .kot-item-sr {
+    width: 18px;
+    flex: none;
+  }
+  .kot-item-name {
+    flex: 1;
   }
   .kot-foot {
     text-align: center;

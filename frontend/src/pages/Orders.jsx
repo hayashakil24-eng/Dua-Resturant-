@@ -481,13 +481,17 @@ export default function Orders() {
       items: [item],
       createdAt: order.createdAt,
       reprint: true,
+      // Needed for the docket's Client Name line — otherwise every
+      // reprinted delivery item would wrongly fall back to "Walking
+      // Customer" since this synthetic order drops it by default.
+      deliveryCustomerName: order.deliveryCustomerName,
     }
     const d = new Date(synthetic.createdAt || Date.now())
     const dateStr = d.toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })
     const timeStr = d.toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit', hour12: true })
     const { slips, unitOf } = groupOrderItemsByDepartment(synthetic, { getDepartmentForItem, menu })
     printKotRaw(
-      () => buildKotEscPos({ order: synthetic, slips, unitOf, tableLabelText: tableLabel(synthetic.table), dateStr, timeStr }),
+      () => buildKotEscPos({ order: synthetic, slips, unitOf, tableLabelText: tableLabel(synthetic.table), dateStr, timeStr, cashierName: user?.name }),
       () => {
         setReprintOrder(synthetic)
         setTimeout(() => safePrint('print-kot'), 80)

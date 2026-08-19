@@ -6,6 +6,8 @@
 // built here as raw printer command bytes instead and sent straight to the
 // Windows spooler, never through webContents.print().
 //
+import { SPECIAL_TABLE_IDS } from '../data/mockData.js'
+
 // COLS is the number of monospace Font-A characters per line the target
 // printer fits on an 80mm roll — 42 is a commonly-safe default across cheap
 // 80mm ESC/POS clones (Black Copper/Xprinter/Gainscha-style firmware), but
@@ -280,31 +282,89 @@ export function buildReceiptEscPos({
 // both print paths so they can't drift on which items land on which
 // counter). Each slip ends with its own cut, same as separate physical
 // tickets torn off one at a time.
-export function buildKotEscPos({ order, slips, unitOf, tableLabelText, dateStr, timeStr }) {
+//
+// `cashierName` is the currently logged-in user issuing the print (not
+// `order.waiter`, a distinct field for the floor waiter serving the
+// table) — printed as "Cashier :" rather than the generic "Admin :" a
+// style reference used, since Cafe Ali's own role system (Admin/Manager/
+// Cashier/Kitchen) makes that the accurate label for who's actually
+// running the till.
+export function buildKotEscPos({ order, slips, unitOf, tableLabelText, dateStr, timeStr, cashierName }) {
   const b = new ReceiptBuilder()
+
+  const orderNo = (order.id.match(/\d+/) || [order.id])[0]
+  const orderTypeLabel =
+    Number(order.table) === SPECIAL_TABLE_IDS.delivery
+      ? 'DELIVERY'
+      : Number(order.table) === SPECIAL_TABLE_IDS.takeaway
+        ? 'TAKEAWAY'
+        : 'DINE IN'
+  // Only delivery orders carry a real customer name in this app's data
+  // model (dine-in/takeaway have no name field at all) — "Walking
+  // Customer" is the same fallback label used elsewhere for an unnamed
+  // walk-in.
+  const clientName = order.deliveryCustomerName || 'Walking Customer'
 
   slips.forEach((g, i) => {
     b.align(1)
     b.bold(true).line('CAFE ALI').bold(false)
     if (order.reprint) b.bold(true).line('*** REPRINT ***').bold(false)
     b.bold(true).doubleSize(true).line(g.name.toUpperCase()).doubleSize(false).bold(false)
+    b.bold(true)
+    b.box([`Order # ${orderNo}`])
+    b.bold(false)
+    b.line(orderTypeLabel)
+
     b.align(0)
-    b.line(twoCol('ORDER :', order.id))
     b.line(twoCol('TABLE :', tableLabelText))
     b.line(twoCol('WAITER :', order.waiter || '-'))
-    b.rule('-')
-    for (const it of g.items) {
-      const qtyLabel = `x${it.cancelled ? '0' : formatQtyPlain(it.qty, unitOf(it))}`
-      const nameLines = wrap(it.name, COLS - qtyLabel.length - 1)
-      b.bold(true)
-      b.line(twoCol(nameLines[0], qtyLabel))
-      b.bold(false)
-      for (const extra of nameLines.slice(1)) b.line(extra)
-    }
-    b.rule('-')
-    b.align(1)
     b.line(`${dateStr} - ${timeStr}`)
+    b.line(twoCol('Client :', clientName))
+    b.rule('-')
+
+    // Sr(3) Item(remainder) Qty(5) — replaces the old 2-column
+    // name+qty layout with a numbered table to match the reference style.
+    const SR_W = 3
+    const QTY_W = 5
+    const NAME_W = COLS - SR_W - QTY_W
+    b.bold(true)
+    b.line(`${padRight('Sr', SR_W)}${padRight('Item', NAME_W)}${padLeft('Qty', QTY_W)}`)
+    b.bold(false)
+    b.rule('-')
+
+    let totalQty = 0
+    g.items.forEach((it, idx) => {
+      // Cancelled items print as x0 (kitchen shouldn't prepare them, but
+      // the line stays visible for counter awareness) and don't add to
+      // the slip's total — same convention the old layout already used
+      // for the printed qty label.
+      const qty = it.cancelled ? 0 : Number(it.qty) || 0
+      totalQty += qty
+      const qtyLabel = `x${it.cancelled ? '0' : formatQtyPlain(it.qty, unitOf(it))}`
+      const nameLines = wrap(it.name, NAME_W)
+      b.bold(true)
+      b.line(`${padRight(String(idx + 1), SR_W)}${padRight(nameLines[0], NAME_W)}${padLeft(qtyLabel, QTY_W)}`)
+      b.bold(false)
+      for (const extra of nameLines.slice(1)) {
+        b.line(`${' '.repeat(SR_W)}${padRight(extra, NAME_W)}${' '.repeat(QTY_W)}`)
+      }
+    })
+    b.rule('-')
+    b.bold(true)
+    b.line(twoCol('Total Qty :', String(totalQty)))
+    b.bold(false)
+    b.rule('=')
+
+    b.align(1)
+    b.bold(true).line(`* ORDER # ${orderNo} *`).bold(false)
     b.line(`Slip ${i + 1} / ${slips.length}`)
+    b.rule('-')
+
+    b.align(0)
+    b.line(twoCol('Cashier :', cashierName || '-'))
+    b.line(twoCol('Cell :', '03132870111'))
+    b.line(twoCol('Email :', 'cafealihawksbay@gmail.com'))
+
     b.cut()
   })
 
