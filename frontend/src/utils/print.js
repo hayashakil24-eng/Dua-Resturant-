@@ -87,6 +87,50 @@ export function safePrint(bodyClass) {
   return true
 }
 
+// Reports (Summary/Item-Wise/KOT Report/History/Daily Ledger/Cafe Session)
+// print via the OS/Electron native print dialog instead of safePrint()'s
+// silent Chromium pipeline above — deliberately, not an oversight. A report
+// is a full paginated HTML page (unlike the receipt/KOT dockets), so it
+// can't move to raw ESC/POS the way those did; and safePrint's silent
+// webContents.print() is exactly what fails with "Invalid printer settings"
+// against real thermal-printer drivers (see PRINTER_ISSUE_HANDOFF.md) — the
+// visible dialog sidesteps that failure mode entirely, since Chromium only
+// issues the problematic page-size/margin capability query on the SILENT
+// path; a human picking a destination and clicking Print never triggers it.
+// This also matches the "Save PDF" half of this button's label — the native
+// dialog lets staff pick "Microsoft Print to PDF" as the destination.
+// Same debounce/class-scoping shape as safePrint so behavior stays
+// consistent, but nothing here is silent or automatic: the user must
+// actively click Print (or Cancel) in a real dialog, so — unlike a fired-
+// and-forgotten silent job — a bad driver can always be cancelled by hand
+// before anything reaches the printer.
+export function printReportDialog(bodyClass) {
+  const cls = typeof bodyClass === 'string' ? bodyClass : ''
+  const key = cls || '__default__'
+  const state = debounceState.get(key) || { printing: false, lastPrintAt: 0 }
+
+  const now = Date.now()
+  if (state.printing || now - state.lastPrintAt < DEBOUNCE_MS) return false
+
+  state.printing = true
+  state.lastPrintAt = now
+  debounceState.set(key, state)
+
+  Array.from(document.body.classList)
+    .filter((c) => c.startsWith('print-'))
+    .forEach((c) => document.body.classList.remove(c))
+  if (cls) document.body.classList.add(cls)
+
+  const release = () => {
+    state.printing = false
+    if (cls) document.body.classList.remove(cls)
+  }
+  window.addEventListener('afterprint', release, { once: true })
+  setTimeout(release, 3000)
+  window.print()
+  return true
+}
+
 // Raw ESC/POS printing — see electron/rawPrint.js and src/utils/escpos.js
 // for why safePrint() above (which goes through Chromium's silent print
 // pipeline) can't be trusted on real thermal-printer drivers on this

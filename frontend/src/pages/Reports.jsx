@@ -9,7 +9,7 @@ import SessionHistory from '../components/SessionHistory.jsx'
 import { monthFigures, isMaintenance } from '../utils/accounting.js'
 import { buildSessions, sessionLabel } from '../utils/sessions.js'
 import { buildClosingReport, toDayStr } from '../utils/closing.js'
-import { safePrint } from '../utils/print.js'
+import { printReportDialog } from '../utils/print.js'
 import { calculateDeductions } from '../utils/inventoryFlow.js'
 import { IconPrint, IconWhatsApp } from '../components/Icons.jsx'
 import { CURRENCY } from '../data/mockData.js'
@@ -791,7 +791,7 @@ export default function Reports() {
 
         {/* Actions */}
         <div className="mt-5 flex flex-wrap justify-center gap-3 no-print">
-          <button onClick={() => safePrint('print-report')} className="btn-gold px-5 py-2.5">
+          <button onClick={() => printReportDialog('print-report')} className="btn-gold px-5 py-2.5">
             <IconPrint size={18} /> {t('reports.printPdf')}
           </button>
           <button onClick={shareWhatsApp} className="btn-ghost px-5 py-2.5">

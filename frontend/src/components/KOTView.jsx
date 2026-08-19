@@ -4,7 +4,7 @@ import { useT } from '../i18n/LanguageContext.jsx'
 import { StatCard } from './ui.jsx'
 import { money, time, formatQty } from '../utils/format.js'
 import { tableLabel } from '../data/mockData.js'
-import { safePrint } from '../utils/print.js'
+import { printReportDialog } from '../utils/print.js'
 import { sessionLabel } from '../utils/sessions.js'
 import { IconPrint, IconOrders, IconCash } from './Icons.jsx'
 
@@ -54,7 +54,7 @@ export default function KOTView({ session }) {
   return (
     <div>
       <div className="mb-4 flex justify-end no-print">
-        <button onClick={() => safePrint('print-report')} className="btn-gold px-4 py-2 text-sm">
+        <button onClick={() => printReportDialog('print-report')} className="btn-gold px-4 py-2 text-sm">
           <IconPrint size={16} /> {t('dailyClosing.print')}
         </button>
       </div>
