@@ -7,6 +7,7 @@
 // Windows spooler, never through webContents.print().
 //
 import { SPECIAL_TABLE_IDS } from '../data/mockData.js'
+import { LOGO_WIDTH, LOGO_HEIGHT, LOGO_ESCPOS_BASE64 } from './receiptLogo.js'
 
 // COLS is the number of monospace Font-A characters per line the target
 // printer fits on an 80mm roll — 42 is a commonly-safe default across cheap
@@ -67,13 +68,13 @@ class ReceiptBuilder {
   // GS v 0 — raster bit image. widthPx must be a multiple of 8 (packed
   // 8 pixels/byte, MSB first, bit=1 -> print/black — see receiptLogo.js's
   // generation comment for how base64 was produced). Standard on genuine
-  // ESC/POS thermal printers, including cheap clones — but NOT currently
-  // called anywhere (see buildReceiptEscPos's comment above the logo line):
-  // sending this to a non-ESC/POS printer (confirmed on an office EPSON
-  // L3150) caused runaway/non-stop feeding, since that printer's own
-  // firmware misinterpreted the raw image bytes as its own control
-  // sequences. Only re-enable once verified against a real ESC/POS printer
-  // (the actual client BC-98AC).
+  // ESC/POS thermal printers, including cheap clones — but sending this to
+  // a non-ESC/POS printer (confirmed on an office EPSON L3150) caused
+  // runaway/non-stop feeding, since that printer's own firmware
+  // misinterpreted the raw image bytes as its own control sequences. Now
+  // called from buildReceiptEscPos on the confirmed real ESC/POS thermal
+  // printer (BC-98AC) — if it's ever pointed at a non-ESC/POS printer
+  // again, remove that call before printing anything.
   image(widthPx, heightPx, base64) {
     const widthBytes = widthPx / 8
     const binary = atob(base64)
@@ -169,16 +170,14 @@ export function buildReceiptEscPos({
   const b = new ReceiptBuilder()
 
   b.align(1) // center
-  // Logo image printing (b.image(LOGO_WIDTH, LOGO_HEIGHT, LOGO_ESCPOS_BASE64))
-  // is DISABLED here on purpose — tried once, and on the office EPSON L3150
-  // (not an ESC/POS printer; RAW bytes go straight to its own firmware,
-  // which speaks a different command language) the raw GS v 0 image bytes
-  // got misinterpreted as printer commands and caused runaway, non-stop
-  // feeding until the printer was power-cycled. This command is very likely
-  // fine on a real ESC/POS printer (the actual BC-98AC) since GS v 0 is
-  // standard there — but do NOT re-enable/test this against any printer
-  // that isn't confirmed genuinely ESC/POS-compatible; verify on the BC-98AC
-  // first.
+  // Logo image printing was disabled for a while after sending it to the
+  // office EPSON L3150 (not an ESC/POS printer) caused runaway, non-stop
+  // feeding — that printer's own firmware misread the raw GS v 0 image
+  // bytes as its own control sequences. Confirmed as of 2026-08-25 that
+  // bills print on the client's actual ESC/POS thermal printer (BC-98AC),
+  // where GS v 0 is standard, so it's re-enabled here. If it ever gets
+  // pointed at a non-ESC/POS printer again, disable this line first.
+  b.image(LOGO_WIDTH, LOGO_HEIGHT, LOGO_ESCPOS_BASE64)
   b.bold(true).doubleSize(true).line('CAFE ALI').doubleSize(false).bold(false)
   b.line('Main Hawksbay Beach, Zulfiqar Chowrangi,')
   b.line('Maripur Road, Karachi')
@@ -207,8 +206,10 @@ export function buildReceiptEscPos({
   }
   b.rule('-')
 
-  // Qty(5) Rate(9) Amount(10) — remainder goes to the item name column.
-  const QTY_W = 5
+  // Qty(8) Rate(9) Amount(10) — remainder goes to the item name column.
+  // QTY_W must fit "99.99kg" or padLeft (which keeps only the last N chars)
+  // silently truncates the leading digit(s), e.g. "0.56kg" -> ".56kg".
+  const QTY_W = 8
   const RATE_W = 9
   const AMT_W = 10
   const NAME_W = COLS - QTY_W - RATE_W - AMT_W
@@ -325,7 +326,7 @@ export function buildKotEscPos({ order, slips, unitOf, tableLabelText, dateStr, 
     // Sr(3) Item(remainder) Qty(5) — replaces the old 2-column
     // name+qty layout with a numbered table to match the reference style.
     const SR_W = 3
-    const QTY_W = 5
+    const QTY_W = 8 // fits "x99.99kg" without padLeft truncating the leading "x"
     const NAME_W = COLS - SR_W - QTY_W
     b.bold(true)
     b.line(`${padRight('Sr', SR_W)}${padRight('Item', NAME_W)}${padLeft('Qty', QTY_W)}`)
@@ -351,7 +352,10 @@ export function buildKotEscPos({ order, slips, unitOf, tableLabelText, dateStr, 
     })
     b.rule('-')
     b.bold(true)
-    b.line(twoCol('Total Qty :', String(totalQty)))
+    // Round before printing — floating-point addition of item quantities
+    // (e.g. repeated 0.5/0.56 kg lines) otherwise leaves artifacts like
+    // "6.8100000000000005" on the slip.
+    b.line(twoCol('Total Qty :', String(Math.round(totalQty * 100) / 100)))
     b.bold(false)
     b.rule('=')
 
