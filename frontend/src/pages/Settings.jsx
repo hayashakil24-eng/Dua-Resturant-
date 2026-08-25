@@ -313,12 +313,21 @@ function ServerHealthPanel() {
 // (NO_ELECTRON=1) there's no IPC to enumerate against, so the panel says so
 // instead of showing an empty picker.
 const PRINTER_STORAGE_KEY = 'receiptPrinter'
+const PRINTER_TYPE_STORAGE_KEY = 'receiptPrinterType'
 
 function PrinterSettingsPanel() {
   const t = useT()
   const isElectron = typeof window !== 'undefined' && Boolean(window.electron?.listPrinters)
   const [printers, setPrinters] = useState([])
   const [selected, setSelected] = useState(() => (typeof window !== 'undefined' && localStorage.getItem(PRINTER_STORAGE_KEY)) || '')
+  // 'thermal' (default) sends raw ESC/POS bytes — for the real receipt
+  // printer (e.g. BC-98AC). 'normal' routes through the same HTML/CSS print
+  // path Reports use — for a regular GDI printer (inkjet/laser) that
+  // doesn't understand ESC/POS control bytes and would otherwise just keep
+  // ejecting garbled pages instead of stopping at one receipt.
+  const [printerType, setPrinterType] = useState(
+    () => (typeof window !== 'undefined' && localStorage.getItem(PRINTER_TYPE_STORAGE_KEY)) || 'thermal'
+  )
   const [loading, setLoading] = useState(isElectron)
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
@@ -343,6 +352,13 @@ function PrinterSettingsPanel() {
     setSelected(name)
     if (name) localStorage.setItem(PRINTER_STORAGE_KEY, name)
     else localStorage.removeItem(PRINTER_STORAGE_KEY)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  const chooseType = (type) => {
+    setPrinterType(type)
+    localStorage.setItem(PRINTER_TYPE_STORAGE_KEY, type)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -400,6 +416,27 @@ function PrinterSettingsPanel() {
                   {t('settings.printerNone', 'No printers detected — check Windows printer settings.')}
                 </p>
               )}
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+                {t('settings.printerTypeLabel', 'Printer Type')}
+              </label>
+              <select className="input py-2.5" value={printerType} onChange={(e) => chooseType(e.target.value)}>
+                <option value="thermal">{t('settings.printerTypeThermal', 'Thermal (receipt printer)')}</option>
+                <option value="normal">{t('settings.printerTypeNormal', 'Normal (regular printer)')}</option>
+              </select>
+              <p className="mt-1.5 text-xs text-cream-dim">
+                {printerType === 'thermal'
+                  ? t(
+                      'settings.printerTypeThermalDesc',
+                      'For a real thermal receipt printer (e.g. BC-98AC). Wrong choice here will make a regular printer eject blank/garbled pages non-stop.'
+                    )
+                  : t(
+                      'settings.printerTypeNormalDesc',
+                      'For a regular printer (inkjet/laser, e.g. Epson) — prints the bill as a normal page instead of raw receipt data.'
+                    )}
+              </p>
             </div>
             {saved && <p className="text-xs text-emerald-300">{t('settings.printerSaved', 'Saved.')}</p>}
           </>

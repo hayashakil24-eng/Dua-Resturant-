@@ -36,6 +36,17 @@ export function setPrintErrorHandler(fn) {
 // never a guessed name like "Microsoft Print to PDF".
 const configuredPrinter = () => localStorage.getItem('receiptPrinter') || undefined
 
+// Raw ESC/POS (see printRawJob below) assumes the selected printer is an
+// actual thermal receipt printer that understands those control bytes. A
+// regular GDI printer (inkjet/laser — e.g. an Epson used while the real
+// thermal BC-98AC isn't at hand) doesn't: it has no page-end command it
+// recognizes in the byte stream, so it just keeps ejecting garbled pages
+// instead of stopping at one receipt. Settings → Receipt Printer lets staff
+// flip this to 'normal', which routes bill/KOT printing through the same
+// HTML/CSS print path reports use (PrinterSettingsPanel in Settings.jsx).
+// Defaults to 'thermal' — the client's actual production printer.
+const isThermalPrinter = () => (localStorage.getItem('receiptPrinterType') || 'thermal') === 'thermal'
+
 // Returns true if the print was triggered, false if it was suppressed.
 // `bodyClass` (optional) is added to <body> for the duration of the print so
 // print CSS can scope itself — e.g. the receipt collapses the app behind it so
@@ -154,7 +165,7 @@ function printRawJob(cls, buildBytes, fallback) {
     state.printing = false
   }
 
-  if (window.electron?.printRaw) {
+  if (window.electron?.printRaw && isThermalPrinter()) {
     let bytes
     try {
       bytes = buildBytes()
@@ -173,7 +184,9 @@ function printRawJob(cls, buildBytes, fallback) {
     return true
   }
 
-  // Browser dev mode (NO_ELECTRON=1) — no IPC to call raw-print through.
+  // Browser dev mode (NO_ELECTRON=1, no IPC to call raw-print through) or
+  // the printer is configured as 'normal' (not raw-ESC/POS-capable) — fall
+  // back to the HTML/CSS print path instead.
   release()
   return fallback()
 }
