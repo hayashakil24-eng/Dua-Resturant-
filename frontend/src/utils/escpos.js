@@ -60,10 +60,22 @@ class ReceiptBuilder {
     return this.raw(ESC, 0x45, on ? 1 : 0)
   }
   doubleSize(on) {
-    return this.raw(GS, 0x21, on ? 0x11 : 0x00) // double height + width
+    this._size = on ? 0x11 : 0x00 // double height + width
+    return this.raw(GS, 0x21, this._size)
+  }
+  // Double height only (same width) — safe to mix with the column-aligned
+  // item table, unlike doubleSize() above, since padRight/padLeft/COLS all
+  // assume character width never changes.
+  heightOnly(on) {
+    this._size = on ? 0x10 : 0x00
+    return this.raw(GS, 0x21, this._size)
   }
   rule(ch = '-') {
-    return this.line(ch.repeat(COLS))
+    const prev = this._size || 0x00
+    if (prev !== 0x00) this.raw(GS, 0x21, 0x00)
+    this.line(ch.repeat(COLS))
+    if (prev !== 0x00) this.raw(GS, 0x21, prev)
+    return this
   }
   // GS v 0 — raster bit image. widthPx must be a multiple of 8 (packed
   // 8 pixels/byte, MSB first, bit=1 -> print/black — see receiptLogo.js's
@@ -90,7 +102,13 @@ class ReceiptBuilder {
   // +/-/| sit in base 0x00-0x7F ASCII, so they print identically everywhere.
   box(lines) {
     const inner = COLS - 2
-    this.line(`+${'-'.repeat(inner)}+`)
+    const prev = this._size || 0x00
+    const border = () => {
+      if (prev !== 0x00) this.raw(GS, 0x21, 0x00)
+      this.line(`+${'-'.repeat(inner)}+`)
+      if (prev !== 0x00) this.raw(GS, 0x21, prev)
+    }
+    border()
     for (const l of lines) {
       const s = String(l).slice(0, inner)
       const padTotal = inner - s.length
@@ -98,7 +116,7 @@ class ReceiptBuilder {
       const right = padTotal - left
       this.line(`|${' '.repeat(left)}${s}${' '.repeat(right)}|`)
     }
-    this.line(`+${'-'.repeat(inner)}+`)
+    border()
     return this
   }
   cut() {
@@ -142,7 +160,7 @@ function wrap(str, width) {
 // mode's Eastern-Arabic digits, from format.js's money(), aren't
 // representable on a standard ESC/POS code page) — same numeric value,
 // always Latin digits, so the raw bill stays legible on any thermal printer.
-const fmtMoney = (n) => `Rs. ${Math.round(Number(n) || 0).toLocaleString('en-PK')}`
+const fmtMoney = (n) => Math.round(Number(n) || 0).toLocaleString('en-PK')
 
 function twoCol(label, value, width = COLS) {
   const gap = Math.max(1, width - label.length - value.length)
@@ -182,6 +200,11 @@ export function buildReceiptEscPos({
   b.line('Main Hawksbay Beach, Zulfiqar Chowrangi,')
   b.line('Maripur Road, Karachi')
   b.line('0313-2870111')
+  // Everything from here on prints one step bigger (double-height, same
+  // width — safe alongside the column-aligned item table below) — client
+  // asked for the whole bill to look bigger, not one specific line.
+  // Dividers/box borders stay thin automatically (see rule()/box() above).
+  b.heightOnly(true)
   b.rule('=')
   b.bold(true).line('SALE RECEIPT').bold(false)
   b.rule('=')
@@ -220,6 +243,7 @@ export function buildReceiptEscPos({
   for (const it of order.items) {
     const qtyLabel = unitOf(it.menuItemId) === 'kg' ? `${(Math.round((Number(it.qty) || 0) * 100) / 100).toFixed(2)}kg` : String(it.qty)
     const nameLines = wrap(it.name, NAME_W)
+    b.bold(true)
     b.line(`${padRight(qtyLabel, QTY_W)}${padRight(nameLines[0], NAME_W)}${padLeft(fmtMoney(Math.round(it.price)), RATE_W)}${padLeft(fmtMoney(Math.round(it.price * it.qty)), AMT_W)}`)
     for (const extra of nameLines.slice(1)) {
       b.line(`${' '.repeat(QTY_W)}${padRight(extra, NAME_W)}${' '.repeat(RATE_W)}${' '.repeat(AMT_W)}`)
@@ -227,6 +251,7 @@ export function buildReceiptEscPos({
     if (it.cancelled) {
       for (const l of wrap(`  (Cancelled by ${it.cancellation?.by || '-'})`, COLS)) b.line(l)
     }
+    b.bold(false)
   }
   b.rule('-')
 
@@ -239,7 +264,7 @@ export function buildReceiptEscPos({
   b.rule('=')
   b.bold(true).doubleSize(true)
   b.line(twoCol('NET BILL:', fmtMoney(total), COLS))
-  b.doubleSize(false).bold(false)
+  b.heightOnly(true).bold(false)
   b.rule('=')
 
   if (order.complimentary) {
@@ -326,7 +351,7 @@ export function buildKotEscPos({ order, slips, unitOf, tableLabelText, dateStr, 
     // Sr(3) Item(remainder) Qty(5) — replaces the old 2-column
     // name+qty layout with a numbered table to match the reference style.
     const SR_W = 3
-    const QTY_W = 8 // fits "x99.99kg" without padLeft truncating the leading "x"
+    const QTY_W = 8 // fits "99.99kg" comfortably
     const NAME_W = COLS - SR_W - QTY_W
     b.bold(true)
     b.line(`${padRight('Sr', SR_W)}${padRight('Item', NAME_W)}${padLeft('Qty', QTY_W)}`)
@@ -335,20 +360,24 @@ export function buildKotEscPos({ order, slips, unitOf, tableLabelText, dateStr, 
 
     let totalQty = 0
     g.items.forEach((it, idx) => {
-      // Cancelled items print as x0 (kitchen shouldn't prepare them, but
+      // Cancelled items print as 0 (kitchen shouldn't prepare them, but
       // the line stays visible for counter awareness) and don't add to
       // the slip's total — same convention the old layout already used
       // for the printed qty label.
       const qty = it.cancelled ? 0 : Number(it.qty) || 0
       totalQty += qty
-      const qtyLabel = `x${it.cancelled ? '0' : formatQtyPlain(it.qty, unitOf(it))}`
+      const qtyLabel = it.cancelled ? '0' : formatQtyPlain(it.qty, unitOf(it))
       const nameLines = wrap(it.name, NAME_W)
+      // Item rows print one step bigger than the rest of the ticket — this
+      // is the one line kitchen staff actually need to read fast.
+      b.heightOnly(true)
       b.bold(true)
       b.line(`${padRight(String(idx + 1), SR_W)}${padRight(nameLines[0], NAME_W)}${padLeft(qtyLabel, QTY_W)}`)
       b.bold(false)
       for (const extra of nameLines.slice(1)) {
         b.line(`${' '.repeat(SR_W)}${padRight(extra, NAME_W)}${' '.repeat(QTY_W)}`)
       }
+      b.heightOnly(false)
     })
     b.rule('-')
     b.bold(true)
