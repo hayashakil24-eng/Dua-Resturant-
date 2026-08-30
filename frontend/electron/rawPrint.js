@@ -111,7 +111,15 @@ exit 0
 `
 
 export async function sendRawToPrinter(printerName, buffer) {
-  if (!printerName) return { success: false, error: 'No printer selected.' }
+  // Deliberately never falls back to "whatever Windows calls its default
+  // printer" — that's very often a virtual one (Print to PDF, Fax, XPS
+  // Writer), and sending raw ESC/POS bytes there is the same failure mode
+  // as the earlier garbled/non-stop-printing bug. Settings' auto-pick
+  // (PrinterSettingsPanel in Settings.jsx) is what keeps this case rare in
+  // practice by proactively saving a real printer on first load.
+  if (!printerName) {
+    return { success: false, error: 'No receipt printer selected — go to Settings → Receipt Printer and choose your printer.' }
+  }
 
   const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'cafe-ali-print-'))
   const jobPath = path.join(tmpDir, 'job.prn')

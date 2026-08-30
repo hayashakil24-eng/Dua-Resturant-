@@ -315,6 +315,28 @@ function ServerHealthPanel() {
 const PRINTER_STORAGE_KEY = 'receiptPrinter'
 const PRINTER_TYPE_STORAGE_KEY = 'receiptPrinterType'
 
+// Windows always reports one of these as "installed" even when no physical
+// printer is attached — auto-picking among them for raw ESC/POS printing
+// would send receipt bytes into a Save-As prompt or a fax queue instead of
+// the real thermal printer, so they're never eligible candidates below.
+const VIRTUAL_PRINTER_PATTERNS = ['microsoft print to pdf', 'microsoft xps document writer', 'fax', 'onenote', 'adobe pdf']
+const isVirtualPrinter = (p) => VIRTUAL_PRINTER_PATTERNS.some((pat) => (p.name || '').toLowerCase().includes(pat))
+
+// Best-effort auto-pick for a freshly-installed machine where nobody has
+// visited this panel yet — a restaurant PC typically has exactly one real
+// printer (the thermal receipt printer) plus Windows' usual virtual ones.
+// Deliberately conservative: only commits to a choice when there's a single
+// unambiguous real candidate (or one flagged isDefault among them); with
+// zero or several real printers found, it leaves the setting untouched
+// rather than guessing — raw ESC/POS bytes going to the wrong device is
+// exactly how the earlier garbled/non-stop-printing bug happened.
+const pickAutoPrinter = (list) => {
+  const real = (list || []).filter((p) => !isVirtualPrinter(p))
+  if (real.length === 0) return null
+  if (real.length === 1) return real[0].name
+  return real.find((p) => p.isDefault)?.name || null
+}
+
 function PrinterSettingsPanel() {
   const t = useT()
   const isElectron = typeof window !== 'undefined' && Boolean(window.electron?.listPrinters)
@@ -338,7 +360,16 @@ function PrinterSettingsPanel() {
     setError('')
     window.electron
       .listPrinters()
-      .then((list) => setPrinters(list || []))
+      .then((list) => {
+        setPrinters(list || [])
+        // Only ever auto-pick when the key has literally never been written
+        // (a fresh install) — never overrides an explicit "System default"
+        // choice someone made on purpose after seeing real options.
+        if (localStorage.getItem(PRINTER_STORAGE_KEY) === null) {
+          const auto = pickAutoPrinter(list)
+          if (auto) choose(auto)
+        }
+      })
       .catch((err) => setError(err?.message || t('settings.printerListFailed', 'Could not list printers.')))
       .finally(() => setLoading(false))
   }

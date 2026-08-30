@@ -1262,6 +1262,7 @@ export default function POS() {
           onClose={() => setActiveReceipt(null)}
           onMarkPaid={() => {}}
           canMarkPaid={false}
+          autoPrint
         />
       )}
 

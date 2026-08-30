@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { PageHeader, PaymentBadge, EmptyState } from '../components/ui.jsx'
 import { money, time, dateLong, formatQty } from '../utils/format.js'
@@ -27,6 +27,7 @@ export function Receipt({
   canDiscount = false,
   onApplyDiscount = () => {},
   onRemoveDiscount = () => {},
+  autoPrint = false,
 }) {
   const { gstRate, gstEnabled, receivables, menu, user } = useApp()
   // Order items don't carry their own unit — only the menu item they were
@@ -84,6 +85,22 @@ export function Receipt({
       setTimeout(() => setPrinting(false), 1500)
     }
   }
+
+  // POS's "Pay Now" flow opens this modal right after a fresh payment and
+  // wants the bill to print immediately (after the KOT — see POS.jsx's
+  // confirmPayment), without the cashier needing to click Print by hand.
+  // Guarded to fire at most once per mount (empty deps + ref, not just the
+  // `autoPrint` value) so re-renders from unrelated state changes elsewhere
+  // in the app can never trigger a second print of the same receipt.
+  const autoPrintFiredRef = useRef(false)
+  useEffect(() => {
+    if (autoPrint && !autoPrintFiredRef.current) {
+      autoPrintFiredRef.current = true
+      handlePrint()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm no-print" onClick={onClose} />

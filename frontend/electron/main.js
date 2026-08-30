@@ -195,7 +195,7 @@ ipcMain.handle('list-printers', async () => {
   if (!mainWindow) return []
   try {
     const printers = await mainWindow.webContents.getPrintersAsync()
-    return printers.map((p) => ({ name: p.name, displayName: p.displayName, description: p.description }))
+    return printers.map((p) => ({ name: p.name, displayName: p.displayName, description: p.description, isDefault: Boolean(p.isDefault) }))
   } catch {
     return []
   }
