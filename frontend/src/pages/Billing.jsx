@@ -321,7 +321,8 @@ export function Receipt({
             </div>
 
             <div className="border-t-2 border-black px-4 py-3 text-center text-[11px]">
-              <p className="font-bold tracking-wide">!!!! THANK YOU FOR DINING WITH US !!!!</p>
+              <p className="font-bold tracking-wide">HBL Account: PK52HABB0004817900820103</p>
+              <p className="mt-1.5 font-bold tracking-wide">!!!! THANK YOU FOR DINING WITH US !!!!</p>
               <p className="mt-0.5">Please visit again</p>
               {/* Software credit — subtle by size alone (not a faded color,
                   which a thermal printer would dither into near-invisibility

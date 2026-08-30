@@ -295,6 +295,7 @@ export function buildReceiptEscPos({
   b.rule('=')
 
   b.align(1)
+  b.bold(true).line('HBL Account: PK52HABB0004817900820103').bold(false)
   b.bold(true).line('!!!! THANK YOU FOR DINING WITH US !!!!').bold(false)
   b.line('Please visit again')
   b.line('Powered by Softdap')
