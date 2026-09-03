@@ -1242,9 +1242,16 @@ export default function Dashboard() {
 
   const role = user.role
 
-  const unpaidTotal = orders
-    .filter((o) => o.payment === 'Unpaid' && !o.cancelled)
-    .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount, o.gstRate).total, 0)
+  // Memoized so this full-array scan only reruns when orders actually
+  // change, not on every 5s "last synced" tick (setLastRefresh above) or any
+  // other unrelated re-render of this component.
+  const unpaidTotal = useMemo(
+    () =>
+      orders
+        .filter((o) => o.payment === 'Unpaid' && !o.cancelled)
+        .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount, o.gstRate).total, 0),
+    [orders, orderTotal]
+  )
 
   // Role-specific headers and page headings
   const heading = {

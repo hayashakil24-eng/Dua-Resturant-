@@ -297,7 +297,13 @@ ipcMain.handle('print-raw', async (_e, { deviceName, bytes } = {}) => {
 // exposed to the renderer via preload.js/contextBridge like any other
 // privileged capability (never by flipping nodeIntegration on).
 const DISCOVERY_PORT = 41234
-const DISCOVERY_TIMEOUT_MS = 1500
+// The renderer blocks its first paint on this call (main.jsx's
+// `discoverAndSetBase().finally(render)`) — on the common single-PC setup
+// (no other server to discover), every launch pays this full timeout as a
+// blank window. A real reply arrives in single-digit milliseconds on any
+// working LAN/loopback, so 500ms is still generous headroom for a slow
+// network while cutting the guaranteed worst-case wait from 1.5s to 0.5s.
+const DISCOVERY_TIMEOUT_MS = 500
 
 ipcMain.handle('discover-server', () => {
   return new Promise((resolve) => {

@@ -7,10 +7,25 @@
     <title>Cafe Ali</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Loaded as a non-render-blocking preload (standard loadCSS pattern)
+         instead of a plain <link rel="stylesheet"> — on this restaurant's
+         known-unreliable internet, a render-blocking external stylesheet
+         can stall first paint for a long time; this way the app renders
+         immediately with the fallback font (already declared in
+         index.css's font-family chains) and swaps to the real font once it
+         arrives, same as before otherwise. -->
     <link
+      rel="preload"
+      as="style"
       href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
+      onload="this.onload=null;this.rel='stylesheet'"
     />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap"
+      />
+    </noscript>
   </head>
   <body>
     <div id="root"></div>
