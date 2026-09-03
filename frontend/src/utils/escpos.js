@@ -63,9 +63,16 @@ class ReceiptBuilder {
     this._size = on ? 0x11 : 0x00 // double height + width
     return this.raw(GS, 0x21, this._size)
   }
-  // Double height only (same width) — safe to mix with the column-aligned
-  // item table, unlike doubleSize() above, since padRight/padLeft/COLS all
-  // assume character width never changes.
+  // Double height only (same width per the ESC/POS spec) — DO NOT use this
+  // on any line near the full COLS width. Confirmed on a real printout
+  // (a KOT where every item row used heightOnly, no bold) that this
+  // printer's firmware does NOT actually keep the width unchanged in this
+  // mode — it hard-wraps well before column 42 (roughly column 24),
+  // splitting words mid-character and scrambling the row across multiple
+  // physical lines. Bold alone at full width is confirmed safe (the same
+  // photo's "Sr Item Qty" header — bold, not heightOnly — printed as one
+  // clean line). Only ever use heightOnly on short, non-full-width,
+  // standalone content if it's needed again.
   heightOnly(on) {
     this._size = on ? 0x10 : 0x00
     return this.raw(GS, 0x21, this._size)
@@ -200,11 +207,6 @@ export function buildReceiptEscPos({
   b.line('Main Hawksbay Beach, Zulfiqar Chowrangi,')
   b.line('Maripur Road, Karachi')
   b.line('0313-2870111')
-  // Everything from here on prints one step bigger (double-height, same
-  // width — safe alongside the column-aligned item table below) — client
-  // asked for the whole bill to look bigger, not one specific line.
-  // Dividers/box borders stay thin automatically (see rule()/box() above).
-  b.heightOnly(true)
   b.rule('=')
   b.bold(true).line('SALE RECEIPT').bold(false)
   b.rule('=')
@@ -229,24 +231,37 @@ export function buildReceiptEscPos({
   }
   b.rule('-')
 
-  // Qty(8) Rate(9) Amount(10) — remainder goes to the item name column.
+  // Item(remainder) Qty(8) Rate(9) Amount(10) — item name column goes
+  // first/leftmost (client request), so a wrapped multi-word name continues
+  // directly below itself rather than below the numeric columns.
   // QTY_W must fit "99.99kg" or padLeft (which keeps only the last N chars)
   // silently truncates the leading digit(s), e.g. "0.56kg" -> ".56kg".
+  //
+  // Bold here is safe (confirmed on a real printout — a full-width bold
+  // header line printed as one clean line); normal size, NOT heightOnly —
+  // see heightOnly()'s doc comment for why that mode isn't usable at this
+  // width on the client's printer.
   const QTY_W = 8
   const RATE_W = 9
   const AMT_W = 10
-  const NAME_W = COLS - QTY_W - RATE_W - AMT_W
+  // 1-char GAP reserved between Item and Qty — without it, an item name that
+  // exactly fills NAME_W butts straight up against the qty with no space
+  // (e.g. "Tropical Colada1"), since padRight only pads short names, it
+  // never guarantees separation from the next column for a name that's
+  // exactly as wide as its column.
+  const GAP = 1
+  const NAME_W = COLS - GAP - QTY_W - RATE_W - AMT_W
   b.bold(true)
-  b.line(`${padRight('Qty', QTY_W)}${padRight('Item', NAME_W)}${padLeft('Rate', RATE_W)}${padLeft('Amount', AMT_W)}`)
+  b.line(`${padRight('Item', NAME_W)}${' '.repeat(GAP)}${padRight('Qty', QTY_W)}${padLeft('Rate', RATE_W)}${padLeft('Amount', AMT_W)}`)
   b.bold(false)
   b.rule('-')
   for (const it of order.items) {
     const qtyLabel = unitOf(it.menuItemId) === 'kg' ? `${(Math.round((Number(it.qty) || 0) * 100) / 100).toFixed(2)}kg` : String(it.qty)
     const nameLines = wrap(it.name, NAME_W)
     b.bold(true)
-    b.line(`${padRight(qtyLabel, QTY_W)}${padRight(nameLines[0], NAME_W)}${padLeft(fmtMoney(Math.round(it.price)), RATE_W)}${padLeft(fmtMoney(Math.round(it.price * it.qty)), AMT_W)}`)
+    b.line(`${padRight(nameLines[0], NAME_W)}${' '.repeat(GAP)}${padRight(qtyLabel, QTY_W)}${padLeft(fmtMoney(Math.round(it.price)), RATE_W)}${padLeft(fmtMoney(Math.round(it.price * it.qty)), AMT_W)}`)
     for (const extra of nameLines.slice(1)) {
-      b.line(`${' '.repeat(QTY_W)}${padRight(extra, NAME_W)}${' '.repeat(RATE_W)}${' '.repeat(AMT_W)}`)
+      b.line(`${padRight(extra, NAME_W)}${' '.repeat(GAP)}${' '.repeat(QTY_W)}${' '.repeat(RATE_W)}${' '.repeat(AMT_W)}`)
     }
     if (it.cancelled) {
       for (const l of wrap(`  (Cancelled by ${it.cancellation?.by || '-'})`, COLS)) b.line(l)
@@ -264,7 +279,7 @@ export function buildReceiptEscPos({
   b.rule('=')
   b.bold(true).doubleSize(true)
   b.line(twoCol('NET BILL:', fmtMoney(total), COLS))
-  b.heightOnly(true).bold(false)
+  b.doubleSize(false).bold(false)
   b.rule('=')
 
   if (order.complimentary) {
@@ -369,16 +384,18 @@ export function buildKotEscPos({ order, slips, unitOf, tableLabelText, dateStr, 
       totalQty += qty
       const qtyLabel = it.cancelled ? '0' : formatQtyPlain(it.qty, unitOf(it))
       const nameLines = wrap(it.name, NAME_W)
-      // Item rows print one step bigger than the rest of the ticket — this
-      // is the one line kitchen staff actually need to read fast.
-      b.heightOnly(true)
+      // Bold, normal size — confirmed safe at this full COLS width on a
+      // real printout (this ticket's own "Sr Item Qty" header, bold and
+      // full-width, printed as one clean line). heightOnly was tried here
+      // and confirmed BROKEN on the client's printer (hard-wraps around
+      // column 24, splitting words mid-character) — see heightOnly()'s doc
+      // comment. Don't reintroduce it on this row.
       b.bold(true)
       b.line(`${padRight(String(idx + 1), SR_W)}${padRight(nameLines[0], NAME_W)}${padLeft(qtyLabel, QTY_W)}`)
       b.bold(false)
       for (const extra of nameLines.slice(1)) {
         b.line(`${' '.repeat(SR_W)}${padRight(extra, NAME_W)}${' '.repeat(QTY_W)}`)
       }
-      b.heightOnly(false)
     })
     b.rule('-')
     b.bold(true)
