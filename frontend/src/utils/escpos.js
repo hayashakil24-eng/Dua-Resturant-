@@ -59,6 +59,13 @@ class ReceiptBuilder {
   bold(on) {
     return this.raw(ESC, 0x45, on ? 1 : 0)
   }
+  // ESC - n — underline (1 = single line). Used as the closest ESC/POS
+  // equivalent to a "strikethrough" for a cancelled item — unlike
+  // bold/heightOnly, this doesn't affect character width or height, so it
+  // doesn't carry the column-overflow risk documented on heightOnly() below.
+  underline(on) {
+    return this.raw(ESC, 0x2d, on ? 1 : 0)
+  }
   doubleSize(on) {
     this._size = on ? 0x11 : 0x00 // double height + width
     return this.raw(GS, 0x21, this._size)
@@ -259,13 +266,18 @@ export function buildReceiptEscPos({
     const qtyLabel = unitOf(it.menuItemId) === 'kg' ? `${(Math.round((Number(it.qty) || 0) * 100) / 100).toFixed(2)}kg` : String(it.qty)
     const nameLines = wrap(it.name, NAME_W)
     b.bold(true)
+    // Cancelled items are underlined instead of naming who cancelled them —
+    // that staff detail stays in the app (Orders.jsx's order detail drawer
+    // already shows it), not on the customer-facing bill. Underline is the
+    // closest ESC/POS equivalent to a strikethrough, and — unlike bold +
+    // heightOnly — doesn't change character width, so it's safe at this
+    // column width.
+    if (it.cancelled) b.underline(true)
     b.line(`${padRight(nameLines[0], NAME_W)}${' '.repeat(GAP)}${padRight(qtyLabel, QTY_W)}${padLeft(fmtMoney(Math.round(it.price)), RATE_W)}${padLeft(fmtMoney(Math.round(it.price * it.qty)), AMT_W)}`)
     for (const extra of nameLines.slice(1)) {
       b.line(`${padRight(extra, NAME_W)}${' '.repeat(GAP)}${' '.repeat(QTY_W)}${' '.repeat(RATE_W)}${' '.repeat(AMT_W)}`)
     }
-    if (it.cancelled) {
-      for (const l of wrap(`  (Cancelled by ${it.cancellation?.by || '-'})`, COLS)) b.line(l)
-    }
+    if (it.cancelled) b.underline(false)
     b.bold(false)
   }
   b.rule('-')
