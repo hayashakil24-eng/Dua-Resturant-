@@ -199,11 +199,14 @@ export function Receipt({
               )}
             </div>
 
+            {/* Item | Qty | Rate | Amount — matches escpos.js's raw print
+                column order, so the on-screen preview never shows a
+                different layout from the printed receipt. */}
             <table className="w-full border-y-2 border-black text-[11px]">
               <thead>
                 <tr className="border-b border-black text-left">
-                  <th className="py-1.5 pl-4 font-bold">Qty</th>
-                  <th className="py-1.5 font-bold">Item</th>
+                  <th className="py-1.5 pl-4 font-bold">Item</th>
+                  <th className="py-1.5 font-bold">Qty</th>
                   <th className="py-1.5 text-right font-bold">Rate</th>
                   <th className="py-1.5 pr-4 text-right font-bold">Amount</th>
                 </tr>
@@ -211,12 +214,11 @@ export function Receipt({
               <tbody>
                 {order.items.map((it) => (
                   <tr key={it.id} className={`align-top ${it.cancelled ? 'line-through opacity-50' : ''}`}>
-                    <td className="py-1 pl-4 whitespace-nowrap">{formatQty(it.qty, unitOf(it.menuItemId))}</td>
                     {/* break-words + min-w-0 let a long, unbroken item name wrap
                         onto extra lines within its own column instead of ever
                         pushing the Amount column past the paper's edge —
                         Rate/Amount stay nowrap so they're never the ones that wrap. */}
-                    <td className="py-1 pr-2 min-w-0 break-words">
+                    <td className="py-1 pl-4 pr-2 min-w-0 break-words">
                       {it.name}
                       {/* A struck-through line still needs to say WHY it doesn't
                           count toward the total — otherwise the printed bill
@@ -225,6 +227,7 @@ export function Receipt({
                         <div className="text-[9px] font-normal not-italic">Cancelled by {it.cancellation?.by || '—'}</div>
                       )}
                     </td>
+                    <td className="py-1 whitespace-nowrap">{formatQty(it.qty, unitOf(it.menuItemId))}</td>
                     <td className="py-1 text-right whitespace-nowrap">{money(Math.round(it.price))}</td>
                     <td className="py-1 pr-4 text-right font-bold whitespace-nowrap">{money(Math.round(it.price * it.qty))}</td>
                   </tr>
@@ -416,7 +419,7 @@ export function Receipt({
 import { canModify } from '../config/permissions.js'
 
 export default function Billing() {
-  const { orders, orderTotal, markPaid, applyDiscount, removeDiscount, user, menu, gstEnabled, gstRate, maxCashierDiscountPercent } = useApp()
+  const { orders, orderTotal, markPaid, applyDiscount, removeDiscount, user, menu, gstEnabled, gstRate, maxCashierDiscountPercent, lastClosingAt } = useApp()
   // Track by id so the open receipt reflects live discount / paid changes.
   const [activeId, setActiveId] = useState(null)
   const [showDiscount, setShowDiscount] = useState(false)
@@ -427,30 +430,48 @@ export default function Billing() {
 
   const canDiscount = Boolean(user && canModify(user.role, 'discount'))
 
+  // Billing resets to the current business-day session the moment a day is
+  // closed — same boundary Dashboard/Reports/Closing already use. An Unpaid
+  // order is still live business (a cashier needs to act on it), so it stays
+  // visible regardless of session, mirroring AppContext.jsx's `stats.pending`.
+  const sinceMs = lastClosingAt ? new Date(lastClosingAt).getTime() : null
+  const inSession = (o) => sinceMs === null || new Date(o.createdAt).getTime() > sinceMs
+  const inScope = (o) => inSession(o) || (o.payment === 'Unpaid' && !o.cancelled)
+  // An order can carry a single voided line item (cancelOrderItem) without
+  // the order itself being cancelled — it still shows under its real Paid/
+  // Unpaid tab as usual, but should also surface under Cancelled so a
+  // partial item-cancel isn't invisible from the list.
+  const hasCancelledItem = (o) => o.items.some((it) => it.cancelled)
+
   // Search is order-number only here (Orders.jsx also matches waiter/table) —
   // on the billing counter you're holding a printed slip and typing its number.
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase()
     return orders.filter((o) => {
       const matchFilter =
-        filter === 'All' ? true : filter === 'Cancelled' ? o.cancelled : o.payment === filter && !o.cancelled
-      return matchFilter && (!q || o.id.toLowerCase().includes(q))
+        filter === 'All'
+          ? true
+          : filter === 'Cancelled'
+            ? o.cancelled || hasCancelledItem(o)
+            : o.payment === filter && !o.cancelled
+      return matchFilter && (!q || o.id.toLowerCase().includes(q)) && inScope(o)
     })
-  }, [orders, filter, query])
+  }, [orders, filter, query, lastClosingAt])
 
   const filterCount = (f) => {
-    if (f === 'All') return orders.length
-    if (f === 'Cancelled') return orders.filter((o) => o.cancelled).length
-    return orders.filter((o) => o.payment === f && !o.cancelled).length
+    if (f === 'All') return orders.filter(inScope).length
+    if (f === 'Cancelled') return orders.filter((o) => (o.cancelled || hasCancelledItem(o)) && inScope(o)).length
+    return orders.filter((o) => o.payment === f && !o.cancelled && inScope(o)).length
   }
 
   const shownRows = rows.slice(0, visibleCount)
 
-  // The four stat cards below stay deliberately unfiltered — they are the day's
-  // running totals (what the drawer should hold), so narrowing to one status
-  // must not change them.
+  // Collected/Complimentary reset with the session (mirrors AppContext.jsx's
+  // stats.revenue, which is session-scoped for Paid orders). Outstanding stays
+  // unscoped — an unpaid bill is still live business regardless of when it was
+  // created, same as stats.pending's deliberate exemption.
   const paidTotal = orders
-    .filter((o) => o.payment === 'Paid' && !o.cancelled)
+    .filter((o) => o.payment === 'Paid' && !o.cancelled && inSession(o))
     .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount, o.gstRate).total, 0)
   const unpaidTotal = orders
     .filter((o) => o.payment === 'Unpaid' && !o.cancelled)
@@ -458,7 +479,7 @@ export default function Billing() {
 
   // Complimentary roll-up. The headline number is COGS, not the bill: what the
   // giveaways actually cost the cafe is the ingredient spend.
-  const compOrders = orders.filter((o) => o.payment === 'Complimentary' && !o.cancelled)
+  const compOrders = orders.filter((o) => o.payment === 'Complimentary' && !o.cancelled && inSession(o))
   const comp = compOrders.reduce(
     (acc, o) => {
       const c = complimentaryCost(o, menu, orderTotal)

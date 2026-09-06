@@ -376,7 +376,7 @@ function CancelItemModal({ item, orderMaterialLoss, onConfirm, onClose }) {
 }
 
 export default function Orders() {
-  const { orders, orderTotal, markPaid, cancelOrder, cancelOrderItem, orderMaterialLoss, markOrderUdhaar, markOrderComplimentary, shiftOrderTable, applyDiscount, removeDiscount, onlineAccounts, auditLog, user, menu, gstEnabled, gstRate, maxCashierDiscountPercent, getDepartmentForItem } = useApp()
+  const { orders, orderTotal, markPaid, cancelOrder, cancelOrderItem, orderMaterialLoss, markOrderUdhaar, markOrderComplimentary, shiftOrderTable, applyDiscount, removeDiscount, onlineAccounts, auditLog, user, menu, gstEnabled, gstRate, maxCashierDiscountPercent, getDepartmentForItem, lastClosingAt } = useApp()
   // Order items don't carry their own unit — only the menu item they were
   // sold from does.
   const unitOf = (menuItemId) => menu.find((m) => m.id === menuItemId)?.unit || 'pcs'
@@ -426,6 +426,19 @@ export default function Orders() {
   const [visibleCount, setVisibleCount] = useState(ORDERS_PAGE_SIZE)
   const [logVisibleCount, setLogVisibleCount] = useState(ORDERS_PAGE_SIZE)
 
+  // Orders resets to the current business-day session the moment a day is
+  // closed — same boundary Dashboard/Reports/Closing already use. An Unpaid
+  // order is still live business (a cashier needs to act on it), so it stays
+  // visible regardless of session, mirroring AppContext.jsx's `stats.pending`.
+  const sinceMs = lastClosingAt ? new Date(lastClosingAt).getTime() : null
+  const inSession = (o) => sinceMs === null || new Date(o.createdAt).getTime() > sinceMs
+  const inScope = (o) => inSession(o) || (o.payment === 'Unpaid' && !o.cancelled)
+  // An order can carry a single voided line item (cancelOrderItem) without
+  // the order itself being cancelled — it still shows under its real Paid/
+  // Unpaid tab as usual, but should also surface under Cancelled so a
+  // partial item-cancel isn't invisible from the list.
+  const hasCancelledItem = (o) => o.items.some((it) => it.cancelled)
+
   const rows = useMemo(
     () =>
       orders.filter((o) => {
@@ -433,7 +446,7 @@ export default function Orders() {
           filter === 'All'
             ? true
             : filter === 'Cancelled'
-              ? o.cancelled
+              ? o.cancelled || hasCancelledItem(o)
               : o.payment === filter && !o.cancelled
         const q = query.toLowerCase()
         const matchQuery =
@@ -442,15 +455,15 @@ export default function Orders() {
           (o.waiter || '').toLowerCase().includes(q) ||
           String(o.table).includes(q) ||
           tableLabel(o.table).toLowerCase().includes(q)
-        return matchFilter && matchQuery
+        return matchFilter && matchQuery && inScope(o)
       }),
-    [orders, filter, query],
+    [orders, filter, query, lastClosingAt],
   )
 
   const filterCount = (f) => {
-    if (f === 'All') return orders.length
-    if (f === 'Cancelled') return orders.filter((o) => o.cancelled).length
-    return orders.filter((o) => o.payment === f && !o.cancelled).length
+    if (f === 'All') return orders.filter(inScope).length
+    if (f === 'Cancelled') return orders.filter((o) => (o.cancelled || hasCancelledItem(o)) && inScope(o)).length
+    return orders.filter((o) => o.payment === f && !o.cancelled && inScope(o)).length
   }
 
   const shownRows = rows.slice(0, visibleCount)
