@@ -395,19 +395,34 @@ export function buildKotEscPos({ order, slips, unitOf, tableLabelText, dateStr, 
       const qty = it.cancelled ? 0 : Number(it.qty) || 0
       totalQty += qty
       const qtyLabel = it.cancelled ? '0' : formatQtyPlain(it.qty, unitOf(it))
-      const nameLines = wrap(it.name, NAME_W)
-      // Bold, normal size — confirmed safe at this full COLS width on a
-      // real printout (this ticket's own "Sr Item Qty" header, bold and
-      // full-width, printed as one clean line). heightOnly was tried here
-      // and confirmed BROKEN on the client's printer (hard-wraps around
-      // column 24, splitting words mid-character) — see heightOnly()'s doc
-      // comment. Don't reintroduce it on this row.
-      b.bold(true)
-      b.line(`${padRight(String(idx + 1), SR_W)}${padRight(nameLines[0], NAME_W)}${padLeft(qtyLabel, QTY_W)}`)
-      b.bold(false)
+      // Item rows print bigger (heightOnly) with their OWN, narrower column
+      // widths than the header above (ITEM_* constants, not SR_W/NAME_W/
+      // QTY_W) — heightOnly characters are physically wider than normal
+      // ones on this printer (confirmed: a full 42-char heightOnly line
+      // hard-wraps around column 24, splitting a word mid-character), so a
+      // bigger row can't use the header's full-width budget. 22 total
+      // (1 + 1 + 12 + 1 + 7) keeps a 2-character margin below that measured
+      // 24-char failure point. ITEM_QTY_W must stay at 7 — the minimum that
+      // fits "99.99kg" without padLeft silently truncating a leading digit.
+      // The two 1-char GAPs are mandatory, not cosmetic: with ITEM_SR_W
+      // shrunk to a single digit there's no padding slack left over to
+      // separate it from the name (confirmed — without this gap, a single-
+      // digit Sr runs straight into the name, e.g. "1Blue Colada"), and a
+      // name that happens to exactly fill ITEM_NAME_W would otherwise butt
+      // directly against Qty the same way (e.g. "...Colada1").
+      const ITEM_SR_W = 1
+      const ITEM_QTY_W = 7
+      const ITEM_GAP = 1
+      const ITEM_NAME_W = 22 - ITEM_SR_W - ITEM_GAP - ITEM_GAP - ITEM_QTY_W
+      const nameLines = wrap(it.name, ITEM_NAME_W)
+      b.heightOnly(true)
+      b.line(
+        `${padRight(String(idx + 1), ITEM_SR_W)}${' '.repeat(ITEM_GAP)}${padRight(nameLines[0], ITEM_NAME_W)}${' '.repeat(ITEM_GAP)}${padLeft(qtyLabel, ITEM_QTY_W)}`
+      )
       for (const extra of nameLines.slice(1)) {
-        b.line(`${' '.repeat(SR_W)}${padRight(extra, NAME_W)}${' '.repeat(QTY_W)}`)
+        b.line(`${' '.repeat(ITEM_SR_W + ITEM_GAP)}${padRight(extra, ITEM_NAME_W)}${' '.repeat(ITEM_GAP + ITEM_QTY_W)}`)
       }
+      b.heightOnly(false)
     })
     b.rule('-')
     b.bold(true)
