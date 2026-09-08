@@ -143,12 +143,19 @@ function OrderCard({ order, items, now, onReady, onItemReady, onClear, deptFor, 
 }
 
 export default function KitchenDisplay() {
-  const { orders, markReady, markItemReady, clearKitchen, departments, getDepartmentForItem, menu } = useApp()
+  const { orders, markReady, markItemReady, clearKitchen, departments, getDepartmentForItem, menu, lastClosingAt } = useApp()
   const unitOf = (menuItemId) => menu.find((m) => m.id === menuItemId)?.unit || 'pcs'
   const [now, setNow] = useState(() => Date.now())
   const [dept, setDept] = useState('all') // 'all' | department id
   const [status, setStatus] = useState('all') // 'all' | 'pending' | 'ready'
   const [query, setQuery] = useState('')
+
+  // Resets with Day Closing, same boundary as Billing/Orders — a ticket
+  // still Pending/Ready from before the last closing stops showing here too
+  // (accepted trade-off: an unprepared order from a prior session won't
+  // surface on its own after this point).
+  const sinceMs = lastClosingAt ? new Date(lastClosingAt).getTime() : null
+  const inSession = (o) => sinceMs === null || new Date(o.createdAt).getTime() > sinceMs
 
   // Auto-refresh every 2 seconds (keeps elapsed timers + clock current).
   useEffect(() => {
@@ -163,9 +170,9 @@ export default function KitchenDisplay() {
   const active = useMemo(
     () =>
       orders
-        .filter((o) => (o.kitchen === 'Pending' || o.kitchen === 'Ready') && !o.cancelled)
+        .filter((o) => (o.kitchen === 'Pending' || o.kitchen === 'Ready') && !o.cancelled && inSession(o))
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
-    [orders],
+    [orders, lastClosingAt],
   )
   const cooking = active.filter((o) => o.kitchen === 'Pending').length
   const readyCount = active.length - cooking

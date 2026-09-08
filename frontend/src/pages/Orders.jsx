@@ -412,6 +412,7 @@ export default function Orders() {
   const [cancelTarget, setCancelTarget] = useState(null)
   const [itemCancelTarget, setItemCancelTarget] = useState(null) // { orderId, item } — running order → cancel one line
   const [payTarget, setPayTarget] = useState(null) // unpaid order awaiting payment
+  const [paidReceipt, setPaidReceipt] = useState(null) // just-settled order → auto-print its bill
   const [shiftTarget, setShiftTarget] = useState(null) // unpaid order → move to another table
   const [billTarget, setBillTarget] = useState(null) // unpaid order → print bill only (no settle)
   const [udhaarTarget, setUdhaarTarget] = useState(null) // unpaid order → on-account
@@ -438,6 +439,15 @@ export default function Orders() {
   // Unpaid tab as usual, but should also surface under Cancelled so a
   // partial item-cancel isn't invisible from the list.
   const hasCancelledItem = (o) => o.items.some((it) => it.cancelled)
+  // Who cancelled and how many — for the summary tag on each order row/card.
+  // Only the first cancelled item's `by` is shown; multiple different staff
+  // voiding separate items on the same order is rare enough that the exact
+  // per-item detail (already in OrderDetailsDrawer) is where that'd surface.
+  const cancelledItemsInfo = (o) => {
+    const cancelled = o.items.filter((it) => it.cancelled)
+    if (!cancelled.length) return null
+    return { by: cancelled[0].cancellation?.by || '—', count: cancelled.length }
+  }
 
   const rows = useMemo(
     () =>
@@ -890,6 +900,11 @@ export default function Orders() {
                         {o.payment === 'Complimentary' && o.complimentary?.orderedBy && (
                           <span className="mt-1 block text-xs text-cream-dim">🎁 {o.complimentary.orderedBy}</span>
                         )}
+                        {cancelledItemsInfo(o) && (
+                          <span className="mt-1 block text-xs text-rose-300">
+                            Cancelled by {cancelledItemsInfo(o).by} · {cancelledItemsInfo(o).count} item(s) cancelled
+                          </span>
+                        )}
                       </td>
                       <td className="px-5 py-4 text-cream-dim">{time(o.createdAt)}</td>
                     </tr>
@@ -916,6 +931,11 @@ export default function Orders() {
                     )}
                     {o.payment === 'Complimentary' && o.complimentary?.orderedBy && (
                       <span className="mt-1 block text-xs text-cream-dim">🎁 {o.complimentary.orderedBy}</span>
+                    )}
+                    {cancelledItemsInfo(o) && (
+                      <span className="mt-1 block text-xs text-rose-300">
+                        Cancelled by {cancelledItemsInfo(o).by} · {cancelledItemsInfo(o).count} item(s) cancelled
+                      </span>
                     )}
                   </div>
                 </div>
@@ -1056,16 +1076,33 @@ export default function Orders() {
         />
       )}
 
-      {/* Mark as Paid → same payment dialog as the POS "Pay Now" flow. */}
+      {/* Mark as Paid → same payment dialog as the POS "Pay Now" flow. Auto-
+          prints the bill on confirm, same as POS.jsx's confirmPayment — was
+          previously the only settle path that didn't (Billing.jsx's own
+          "Mark Paid" already sits inside an open, printable Receipt). */}
       {payTarget && (
         <PaymentModal
           total={orderTotal(payTarget.items, payTarget.discount?.amount, payTarget.gstRate).total}
           onlineAccounts={onlineAccounts}
-          onConfirm={(method, _amount, account) => {
-            markPaid(payTarget.id, method, account)
+          onConfirm={async (method, _amount, account) => {
+            const id = payTarget.id
+            const updated = await markPaid(id, method, account)
             setPayTarget(null)
+            if (updated?.error) return
+            setPaidReceipt(updated)
           }}
           onClose={() => setPayTarget(null)}
+        />
+      )}
+
+      {paidReceipt && (
+        <Receipt
+          order={paidReceipt}
+          orderTotal={orderTotal}
+          onClose={() => setPaidReceipt(null)}
+          onMarkPaid={() => {}}
+          canMarkPaid={false}
+          autoPrint
         />
       )}
 

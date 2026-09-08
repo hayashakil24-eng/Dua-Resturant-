@@ -236,7 +236,7 @@ function MaintenanceBox({ inMonth }) {
 
 // ---------------------------------------------------------------------------
 export default function Accounting() {
-  const { transactions, addTransaction, deleteTransaction, staff, orders, orderTotal, menu, dailyClosings } = useApp()
+  const { transactions, addTransaction, deleteTransaction, staff, orders, orderTotal, menu, dailyClosings, lastClosingAt } = useApp()
   const { t, lang } = useLang()
   const today = useMemo(() => new Date(), [])
 
@@ -274,9 +274,25 @@ export default function Accounting() {
 
   // Daily figures — a single day's ledger. Income is the day's POS sales;
   // payroll is a monthly cost so it isn't apportioned to a single day.
+  //
+  // Resets precisely at Day Closing, same boundary as Billing/Orders/
+  // Reports — but ONLY for the current day (dayDate === maxDay); a past day
+  // browsed via the date picker is already historical, so it keeps showing
+  // its full calendar day regardless of when it was closed.
+  //
+  // Expenses are boundary-checked against `tx.createdAt` (a real, immutable
+  // insertion timestamp — Transaction's `date` is just the user-picked
+  // calendar day the Add Expense form displays it under, stamped with a
+  // fixed noon placeholder, not when it was actually entered). Using `date`
+  // for this check is what caused the earlier bug: a closing at 1:41am made
+  // every same-day expense's noon placeholder look "after" it regardless of
+  // when it was really added. `date` still decides which calendar day an
+  // expense is grouped under; only the closing-boundary check uses `createdAt`.
+  const sinceMs = lastClosingAt ? new Date(lastClosingAt).getTime() : null
+  const afterClosing = (d) => sinceMs === null || dayDate !== maxDay || d.getTime() > sinceMs
   const dayFig = useMemo(() => {
-    const inDay = transactions.filter((tx) => toDayStr(new Date(tx.date)) === dayDate)
-    const inPeriod = (d) => toDayStr(d) === dayDate
+    const inDay = transactions.filter((tx) => toDayStr(new Date(tx.date)) === dayDate && afterClosing(new Date(tx.createdAt)))
+    const inPeriod = (d) => toDayStr(d) === dayDate && afterClosing(d)
     const income = periodSales(orders, orderTotal, inPeriod)
     const udhaar = periodSales(orders, orderTotal, inPeriod, 'Udhaar')
     const maintenance = inDay
@@ -288,7 +304,7 @@ export default function Accounting() {
     const profit = income - expense - maintenance
     const margin = income > 0 ? (profit / income) * 100 : 0
     return { inDay, income, udhaar, maintenance, expense, profit, margin }
-  }, [transactions, orders, orderTotal, dayDate])
+  }, [transactions, orders, orderTotal, dayDate, maxDay, sinceMs])
 
   const dayLabel = useMemo(() => dateLong(`${dayDate}T00:00:00`), [dayDate])
 
