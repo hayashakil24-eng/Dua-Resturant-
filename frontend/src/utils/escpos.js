@@ -110,6 +110,16 @@ class ReceiptBuilder {
     this.bytes.push(...data)
     return this
   }
+  // Same GS v 0 raster command as image() above, but for bytes already
+  // packed in memory (see renderStrikeRow below) rather than a base64
+  // source-code string — skips a pointless encode/decode round-trip for
+  // content generated fresh at print time instead of pre-baked offline.
+  imageBytes(widthPx, heightPx, bytes) {
+    const widthBytes = widthPx / 8
+    this.raw(GS, 0x76, 0x30, 0x00, widthBytes & 0xff, (widthBytes >> 8) & 0xff, heightPx & 0xff, (heightPx >> 8) & 0xff)
+    this.bytes.push(...bytes)
+    return this
+  }
   // Plain ASCII box (+/-/|) around one or more centered lines — deliberately
   // not box-drawing/extended-ASCII glyphs, which depend on the printer's
   // active code page and could render as garbage on an untested printer;
@@ -168,6 +178,93 @@ function wrap(str, width) {
   }
   if (cur) lines.push(cur)
   return lines.length ? lines : ['']
+}
+
+// Collapses OrderItem rows that only differ because a partial cancel split
+// one cart line into "remaining active" + "cancelled" pieces (see
+// orders.service.ts's cancelOrderItem, which inserts a cloned row per
+// cancel action rather than mutating qty in place, to keep each
+// cancellation's own reason/who/when) back into one printed row per
+// distinct (item, cancelled-status) — summing qty — so repeated partial
+// cancels on the same line (e.g. two separate 1-unit cancels) don't show as
+// several identical-looking rows. Never merges an active row with a
+// cancelled row of the same item — only rows that already share
+// menuItemId/variant/name/price/cancelled-status collapse together.
+export function groupReceiptItems(items) {
+  const groups = new Map()
+  for (const it of items) {
+    const key = `${it.menuItemId}::${it.variantLabel || ''}::${it.name}::${it.price}::${it.cancelled ? 1 : 0}`
+    const existing = groups.get(key)
+    if (existing) {
+      existing.qty += it.qty
+    } else {
+      groups.set(key, { ...it, qty: it.qty })
+    }
+  }
+  return [...groups.values()]
+}
+
+// ESC/POS's base command set has no strikethrough text attribute at all —
+// only bold, underline, and double-height/width exist (confirmed: the
+// underline this replaced printed as a faint line below the text, not
+// through it, and the client wants a real line-through). The only way to
+// get an actual strikethrough on this hardware is to draw it as a bitmap
+// and send it via GS v 0 (ReceiptBuilder.imageBytes() above) — same raster
+// command already proven working on the client's real BC-98AC printer for
+// the pre-baked logo (receiptLogo.js), just generated fresh here since item
+// text differs per order and can't be pre-baked offline the way the logo
+// was. Uses the renderer's native <canvas> — a built-in browser API, not an
+// npm dependency (receiptLogo.js's header explains why an npm image
+// package was avoided for the logo; canvas sidesteps that entirely).
+//
+// STRIKE_WIDTH_PX/STRIKE_HEIGHT_PX are a best-effort default pending a real
+// print-test pass — 576 is the near-universal printable dot-width for a
+// genuine 80mm ESC/POS thermal engine (72mm print area x 8 dots/mm) and
+// divides cleanly by 8 as GS v 0 requires, same "commonly-safe default, not
+// yet verified against the actual client BC-98AC" status as COLS above. If
+// a real printout comes out too wide/narrow or the text too small/large,
+// these two constants (plus the font-size fraction below) are the only
+// knobs to adjust — isolated to this one function.
+const STRIKE_WIDTH_PX = 576
+const STRIKE_HEIGHT_PX = 32
+
+// Renders one already-formatted, fixed-width row of bill text (the exact
+// padded name/qty/rate/amount string the plain-text path below also
+// builds) as a 1-bit raster bitmap with a real horizontal line struck
+// through it. Only called for a cancelled item's row (and its wrapped
+// continuation lines) — every active row keeps using the fast, unchanged
+// plain-text b.line() path.
+function renderStrikeRow(text) {
+  const canvas = document.createElement('canvas')
+  canvas.width = STRIKE_WIDTH_PX
+  canvas.height = STRIKE_HEIGHT_PX
+  const ctx = canvas.getContext('2d')
+  ctx.fillStyle = '#fff'
+  ctx.fillRect(0, 0, STRIKE_WIDTH_PX, STRIKE_HEIGHT_PX)
+  ctx.fillStyle = '#000'
+  ctx.font = `bold ${Math.floor(STRIKE_HEIGHT_PX * 0.6)}px monospace`
+  ctx.textBaseline = 'middle'
+  // Manual per-character positioning (not one fillText() call) spreads the
+  // already-fixed-width `text` evenly across the full raster width, so it
+  // lines up with the plain-text rows' column layout above and below it.
+  const charW = STRIKE_WIDTH_PX / text.length
+  for (let i = 0; i < text.length; i++) {
+    ctx.fillText(text[i], i * charW, STRIKE_HEIGHT_PX / 2)
+  }
+  // The strike line itself — drawn last, on top of the text, dead center.
+  ctx.fillRect(0, Math.floor(STRIKE_HEIGHT_PX / 2) - 1, STRIKE_WIDTH_PX, 2)
+
+  const { data } = ctx.getImageData(0, 0, STRIKE_WIDTH_PX, STRIKE_HEIGHT_PX)
+  const widthBytes = STRIKE_WIDTH_PX / 8
+  const bytes = new Uint8Array(widthBytes * STRIKE_HEIGHT_PX)
+  for (let y = 0; y < STRIKE_HEIGHT_PX; y++) {
+    for (let x = 0; x < STRIKE_WIDTH_PX; x++) {
+      const idx = (y * STRIKE_WIDTH_PX + x) * 4
+      const luminance = (data[idx] + data[idx + 1] + data[idx + 2]) / 3
+      if (luminance < 128) bytes[y * widthBytes + (x >> 3)] |= 0x80 >> (x & 7)
+    }
+  }
+  return bytes
 }
 
 // Deliberately plain ASCII regardless of the app's active language (Urdu
@@ -262,23 +359,30 @@ export function buildReceiptEscPos({
   b.line(`${padRight('Item', NAME_W)}${' '.repeat(GAP)}${padRight('Qty', QTY_W)}${padLeft('Rate', RATE_W)}${padLeft('Amount', AMT_W)}`)
   b.bold(false)
   b.rule('-')
-  for (const it of order.items) {
+  for (const it of groupReceiptItems(order.items)) {
     const qtyLabel = unitOf(it.menuItemId) === 'kg' ? `${(Math.round((Number(it.qty) || 0) * 100) / 100).toFixed(2)}kg` : String(it.qty)
     const nameLines = wrap(it.name, NAME_W)
-    b.bold(true)
-    // Cancelled items are underlined instead of naming who cancelled them —
-    // that staff detail stays in the app (Orders.jsx's order detail drawer
-    // already shows it), not on the customer-facing bill. Underline is the
-    // closest ESC/POS equivalent to a strikethrough, and — unlike bold +
-    // heightOnly — doesn't change character width, so it's safe at this
-    // column width.
-    if (it.cancelled) b.underline(true)
-    b.line(`${padRight(nameLines[0], NAME_W)}${' '.repeat(GAP)}${padRight(qtyLabel, QTY_W)}${padLeft(fmtMoney(Math.round(it.price)), RATE_W)}${padLeft(fmtMoney(Math.round(it.price * it.qty)), AMT_W)}`)
-    for (const extra of nameLines.slice(1)) {
-      b.line(`${padRight(extra, NAME_W)}${' '.repeat(GAP)}${' '.repeat(QTY_W)}${' '.repeat(RATE_W)}${' '.repeat(AMT_W)}`)
+    const firstRow = `${padRight(nameLines[0], NAME_W)}${' '.repeat(GAP)}${padRight(qtyLabel, QTY_W)}${padLeft(fmtMoney(Math.round(it.price)), RATE_W)}${padLeft(fmtMoney(Math.round(it.price * it.qty)), AMT_W)}`
+    // Cancelled items print as a rasterized image with a real line struck
+    // through the text (see renderStrikeRow above) — that staff detail
+    // (who cancelled it) stays in the app (Orders.jsx's order detail drawer
+    // already shows it), not on the customer-facing bill, same privacy
+    // intent as before; only the strike mechanism changed. Active rows are
+    // untouched — still the fast plain-text b.line() path.
+    if (it.cancelled) {
+      b.imageBytes(STRIKE_WIDTH_PX, STRIKE_HEIGHT_PX, renderStrikeRow(firstRow))
+      for (const extra of nameLines.slice(1)) {
+        const extraRow = `${padRight(extra, NAME_W)}${' '.repeat(GAP)}${' '.repeat(QTY_W)}${' '.repeat(RATE_W)}${' '.repeat(AMT_W)}`
+        b.imageBytes(STRIKE_WIDTH_PX, STRIKE_HEIGHT_PX, renderStrikeRow(extraRow))
+      }
+    } else {
+      b.bold(true)
+      b.line(firstRow)
+      for (const extra of nameLines.slice(1)) {
+        b.line(`${padRight(extra, NAME_W)}${' '.repeat(GAP)}${' '.repeat(QTY_W)}${' '.repeat(RATE_W)}${' '.repeat(AMT_W)}`)
+      }
+      b.bold(false)
     }
-    if (it.cancelled) b.underline(false)
-    b.bold(false)
   }
   b.rule('-')
 

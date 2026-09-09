@@ -553,8 +553,9 @@ export function AppProvider({ children }) {
 
   const markPaid = async (id, method = 'Cash', onlineAccount = null) => {
     try {
-      await apiPost(`/api/orders/${orderSid(id)}/pay`, { method, onlineAccountId: onlineAccount?.id ?? null })
+      const { order } = await apiPost(`/api/orders/${orderSid(id)}/pay`, { method, onlineAccountId: onlineAccount?.id ?? null })
       await refresh(['orders'])
+      return normalizeOrder(order)
     } catch (e) {
       return toError(e)
     }

@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext.jsx'
 import { PageHeader, PaymentBadge, EmptyState } from '../components/ui.jsx'
 import { money, time, dateLong, formatQty } from '../utils/format.js'
 import { printReceiptRaw } from '../utils/print.js'
-import { buildReceiptEscPos } from '../utils/escpos.js'
+import { buildReceiptEscPos, groupReceiptItems } from '../utils/escpos.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import { tableLabel, SPECIAL_TABLE_IDS } from '../data/mockData.js'
 import DiscountModal from '../components/DiscountModal.jsx'
@@ -212,7 +212,7 @@ export function Receipt({
                 </tr>
               </thead>
               <tbody>
-                {order.items.map((it) => (
+                {groupReceiptItems(order.items).map((it) => (
                   <tr key={it.id} className={`align-top ${it.cancelled ? 'line-through opacity-50' : ''}`}>
                     {/* break-words + min-w-0 let a long, unbroken item name wrap
                         onto extra lines within its own column instead of ever
