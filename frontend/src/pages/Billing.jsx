@@ -137,7 +137,7 @@ export function Receipt({
               />
               <p className="mt-1.5 text-lg font-extrabold tracking-wide">CAFE ALI</p>
               <p className="mt-0.5 text-[11px]">Main Hawksbay Beach, Zulfiqar Chowrangi, Maripur Road, Karachi</p>
-              <p className="text-[11px]">0313-2870111</p>
+              <p className="text-[11px]">0341 2223399</p>
             </div>
 
             <p className="border-b-2 border-black py-2 text-center text-base font-extrabold tracking-wide">
@@ -324,7 +324,7 @@ export function Receipt({
             </div>
 
             <div className="border-t-2 border-black px-4 py-3 text-center text-[11px]">
-              <p className="font-bold tracking-wide">HBL Account: PK52HABB0004817900820103</p>
+              <p className="font-bold tracking-wide">HBL Account: PK91HABB0007867934090103</p>
               <p className="mt-1.5 font-bold tracking-wide">!!!! THANK YOU FOR DINING WITH US !!!!</p>
               <p className="mt-0.5">Please visit again</p>
               {/* Software credit — subtle by size alone (not a faded color,

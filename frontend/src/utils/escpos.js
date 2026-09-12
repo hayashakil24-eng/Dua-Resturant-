@@ -310,7 +310,7 @@ export function buildReceiptEscPos({
   b.bold(true).doubleSize(true).line('CAFE ALI').doubleSize(false).bold(false)
   b.line('Main Hawksbay Beach, Zulfiqar Chowrangi,')
   b.line('Maripur Road, Karachi')
-  b.line('0313-2870111')
+  b.line('0341 2223399')
   b.rule('=')
   b.bold(true).line('SALE RECEIPT').bold(false)
   b.rule('=')
@@ -426,7 +426,7 @@ export function buildReceiptEscPos({
   b.rule('=')
 
   b.align(1)
-  b.bold(true).line('HBL Account: PK52HABB0004817900820103').bold(false)
+  b.bold(true).line('HBL Account: PK91HABB0007867934090103').bold(false)
   b.bold(true).line('!!!! THANK YOU FOR DINING WITH US !!!!').bold(false)
   b.line('Please visit again')
   b.line('Powered by Softdap')
