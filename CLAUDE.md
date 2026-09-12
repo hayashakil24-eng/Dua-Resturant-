@@ -50,7 +50,7 @@ When adding a feature, the pattern is always: add state to `AppProvider`, add a 
 - `canModify(role, pageKey)` — gates whether a UI control renders/an action is allowed (`'full'`, `'edit'`, `'create'` all count as modify-capable).
 - `getAccessLevel(role, pageKey)` — raw level lookup for finer-grained UI (e.g. `'view'` vs `'edit'`).
 
-Every state-mutating function in `AppContext.jsx` re-checks `canModify(user.role, ...)` **inside the function itself**, not just in the UI — treat the UI check and the context-level check as two independent gates and always add both when adding a permission-sensitive action. The permissions file's own comments document several intentional **separation-of-duties splits** (e.g. only Admin approves recipes even though Kitchen creates them; only Manager adds new inventory stock even though Admin can correct existing quantities) — these splits are deliberate anti-collusion controls, not oversights, so don't "simplify" them into one role having both powers.
+Every state-mutating function in `AppContext.jsx` re-checks `canModify(user.role, ...)` **inside the function itself**, not just in the UI — treat the UI check and the context-level check as two independent gates and always add both when adding a permission-sensitive action. The permissions file's own comments document several intentional **separation-of-duties splits** (e.g. only Admin approves recipes even though Kitchen creates them; only Admin approves staff signups, never Manager) — these splits are deliberate anti-collusion controls, not oversights, so don't "simplify" them into one role having both powers.
 
 ### Audit trail convention
 

@@ -4,6 +4,7 @@ import {
   toDayStr,
   type ClosingOrder,
   type ClosingTransaction,
+  type ClosingPurchase,
   type ClosingReceivable,
   type ClosingAdvance,
 } from '../src/core/closing.js'
@@ -67,7 +68,7 @@ const orders: ClosingOrder[] = [
 ]
 
 const transactions: ClosingTransaction[] = [
-  { type: 'expense', amount: 500, date: todayAt(9, 0), category: 'Maintenance' },
+  { type: 'expense', amount: 500, date: todayAt(9, 0), createdAt: todayAt(9, 0), category: 'Maintenance' },
 ]
 
 describe('toDayStr', () => {
@@ -147,6 +148,65 @@ describe('buildClosingReport session boundary', () => {
     expect(buildClosingReport(orders, transactions, dateStr, inventory, recipes, since).periodEnd).toBeNull()
     // No boundary yet (before the first-ever closing) — calendar-day scoped.
     expect(buildClosingReport(orders, transactions, dateStr, inventory, recipes).periodStart).toBeNull()
+  })
+
+  // Regression: `date` is a user-editable calendar pick (always collapses to
+  // that day's midnight in the real app), `createdAt` is the real insert
+  // instant — session membership must follow createdAt or an expense can
+  // leak across a same-day closing boundary regardless of when it was
+  // actually added.
+  it('scopes expenses by createdAt, not the user-editable date field', () => {
+    const since = todayAt(11, 30).toISOString()
+    const leakyTxn: ClosingTransaction[] = [
+      // date says "before the boundary" but it was really added after —
+      // must be counted in the new session, not the closed one.
+      { type: 'expense', amount: 700, date: todayAt(0, 0), createdAt: todayAt(12, 0), category: 'Rent' },
+    ]
+    const report = buildClosingReport(orders, leakyTxn, dateStr, inventory, recipes, since)
+    expect(report.expenses).toBe(700)
+  })
+
+  // Same regression, for purchases — dayPurchases must also key off createdAt,
+  // not the user-editable `date` field.
+  it('scopes purchases by createdAt, not the user-editable date field', () => {
+    const since = todayAt(11, 30).toISOString()
+    const leakyPurchase: ClosingPurchase[] = [
+      { date: todayAt(0, 0), createdAt: todayAt(12, 0), totalCost: 900, paymentStatus: 'paid' },
+    ]
+    const report = buildClosingReport(orders, [], dateStr, inventory, recipes, since, leakyPurchase)
+    expect(report.cashPurchases).toBe(900)
+    expect(report.totalPurchases).toBe(900)
+  })
+})
+
+// itemsSold must match the frontend Reports.jsx dashboard's Item-Wise tab
+// semantics — Paid orders only (Udhaar/Complimentary excluded, same as
+// netSale/cash above), not a raw price*qty count of every non-cancelled order.
+describe('buildClosingReport itemsSold', () => {
+  const mixedPaymentOrders: ClosingOrder[] = [
+    {
+      createdAt: todayAt(12, 0),
+      cancelled: false,
+      payment: 'Paid',
+      method: 'Cash',
+      gstRate: 0,
+      discountAmount: 100,
+      items: [{ menuItemId: 'br2', name: 'Garlic Naan', price: 150, qty: 4 }], // 600 gross, 500 net after discount
+    },
+    {
+      // Same item, but Udhaar (credit, not yet collected) — must not count.
+      createdAt: todayAt(13, 0),
+      cancelled: false,
+      payment: 'Udhaar',
+      method: 'Udhaar',
+      gstRate: 0,
+      items: [{ menuItemId: 'br2', name: 'Garlic Naan', price: 150, qty: 10 }],
+    },
+  ]
+
+  it('scopes itemsSold to Paid orders and scales by the order\'s discount-adjusted net total', () => {
+    const report = buildClosingReport(mixedPaymentOrders, [], dateStr, [], [])
+    expect(report.itemsSold).toEqual([{ name: 'Garlic Naan', qty: 4, total: 500 }])
   })
 })
 
@@ -351,12 +411,12 @@ describe('buildClosingReport complimentary items ("Aafshal Bill")', () => {
 // bucket, not additional spend.
 describe('buildClosingReport maintenance itemization', () => {
   const maintenanceTxns: ClosingTransaction[] = [
-    { type: 'expense', amount: 1500, date: todayAt(9, 0), category: 'Cafe Ali Maintenance', subCategory: 'labour', vendor: 'Saleem Carpenter', description: 'Fixed chair' },
-    { type: 'expense', amount: 800, date: todayAt(10, 0), category: 'Cafe Ali Maintenance', subCategory: 'fuel', vendor: 'Generator', description: 'Petrol' },
+    { type: 'expense', amount: 1500, date: todayAt(9, 0), createdAt: todayAt(9, 0), category: 'Cafe Ali Maintenance', subCategory: 'labour', vendor: 'Saleem Carpenter', description: 'Fixed chair' },
+    { type: 'expense', amount: 800, date: todayAt(10, 0), createdAt: todayAt(10, 0), category: 'Cafe Ali Maintenance', subCategory: 'fuel', vendor: 'Generator', description: 'Petrol' },
     // Legacy category spelling (before the rename) still counts.
-    { type: 'expense', amount: 200, date: todayAt(10, 30), category: 'Maintenance', subCategory: 'other', vendor: null, description: null },
+    { type: 'expense', amount: 200, date: todayAt(10, 30), createdAt: todayAt(10, 30), category: 'Maintenance', subCategory: 'other', vendor: null, description: null },
     // Non-maintenance expense must not leak into maintenanceItems.
-    { type: 'expense', amount: 5000, date: todayAt(11, 0), category: 'Rent' },
+    { type: 'expense', amount: 5000, date: todayAt(11, 0), createdAt: todayAt(11, 0), category: 'Rent' },
   ]
 
   it('itemizes same-day Maintenance transactions with type/vendor, separate from other expenses', () => {

@@ -111,7 +111,14 @@ export function buildClosingReport(
   const grossSale = netSale + discount
   const netCashSales = cash // = NET SALE − accounts (all non-cash channels)
 
-  const dayExpenses = (transactions || []).filter((tx) => tx.type === 'expense' && inSession(tx.date))
+  // Session membership is decided by `tx.createdAt` (the real, immutable insert
+  // instant), never `tx.date` (a user-editable, date-only calendar pick that
+  // always collapses to that day's UTC midnight) — otherwise an expense can
+  // land on the wrong side of `sinceIso` regardless of when it was actually
+  // added. `tx.date` is still what gets displayed/reported below; only the
+  // session filter uses createdAt. Mirrors Accounting.jsx's `afterClosing` and
+  // must mirror backend/src/core/closing.ts.
+  const dayExpenses = (transactions || []).filter((tx) => tx.type === 'expense' && inSession(tx.createdAt))
   const expenses = dayExpenses.reduce((s, tx) => s + tx.amount, 0)
   // Per-category breakdown (e.g. Maintenance/Construction) — same grouping as
   // Accounting.jsx's ExpenseBreakdown, just scoped to this one day instead of
@@ -183,8 +190,11 @@ export function buildClosingReport(
 
   // Purchases today, split by payment type — from StockPurchase records
   // directly, since a credit purchase never creates a Transaction at all (no
-  // cash moved yet — see recordPurchase). Mirrors backend/src/core/closing.ts.
-  const dayPurchases = (purchases || []).filter((p) => inSession(p.date))
+  // cash moved yet — see recordPurchase). Session membership uses
+  // `p.createdAt` (the real insert instant), not `p.date` (a user-editable,
+  // date-only field) — same reasoning as dayExpenses above. Mirrors
+  // backend/src/core/closing.ts.
+  const dayPurchases = (purchases || []).filter((p) => inSession(p.createdAt))
   const cashPurchases = dayPurchases.filter((p) => p.paymentStatus === 'paid').reduce((s, p) => s + p.totalCost, 0)
   const creditPurchases = dayPurchases.filter((p) => p.paymentStatus !== 'paid').reduce((s, p) => s + p.totalCost, 0)
   const totalPurchases = cashPurchases + creditPurchases

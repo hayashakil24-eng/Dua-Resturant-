@@ -3,8 +3,7 @@
 //
 // Auth fields (username/passwordHash/systemRole) are NOT touched here — a
 // staff record created through this flow has no login by default, same as the
-// frontend which had no concept of credentials. The frontend didn't audit
-// advances; that parity is kept.
+// frontend which had no concept of credentials.
 
 import { Prisma } from '@prisma/client'
 import { prisma } from '../db/client.js'
@@ -112,7 +111,7 @@ export async function addStaff(ctx: Ctx, emp: StaffInput) {
   }
 }
 
-export async function updateStaff(_ctx: Ctx, id: string, updates: StaffInput) {
+export async function updateStaff(ctx: Ctx, id: string, updates: StaffInput) {
   const current = await prisma.staff.findUnique({ where: { id } })
   if (!current) throw new ServiceError('Employee not found.', 404)
   const data: Record<string, unknown> = { ...updates }
@@ -131,6 +130,7 @@ export async function updateStaff(_ctx: Ctx, id: string, updates: StaffInput) {
   try {
     return await prisma.$transaction(async (tx) => {
       const updated = await tx.staff.update({ where: { id }, data })
+      await writeAudit(tx, { action: 'STAFF_UPDATED', actor: ctx.actor, details: { staffId: id, changes: updates } })
       await enqueueOutbox(tx, 'Staff', updated.id, updated)
       return updated
     })
@@ -147,11 +147,12 @@ export async function deleteStaff(ctx: Ctx, id: string) {
   })
 }
 
-export async function toggleStaff(_ctx: Ctx, id: string) {
+export async function toggleStaff(ctx: Ctx, id: string) {
   const s = await prisma.staff.findUnique({ where: { id } })
   if (!s) throw new ServiceError('Employee not found.', 404)
   return prisma.$transaction(async (tx) => {
     const updated = await tx.staff.update({ where: { id }, data: { active: !s.active } })
+    await writeAudit(tx, { action: 'STAFF_TOGGLED', actor: ctx.actor, details: { staffId: id, active: updated.active } })
     await enqueueOutbox(tx, 'Staff', updated.id, updated)
     return updated
   })
@@ -326,14 +327,17 @@ export async function deleteAdvance(ctx: Ctx, id: string) {
 
 // Mark a month's pending advances recovered. Whole-month (payroll confirm) when
 // staffId is omitted, or scoped to one staff (their "Done" in the payroll modal).
-export async function recoverAdvances(_ctx: Ctx, year: number, monthIndex: number, staffId?: string) {
+export async function recoverAdvances(ctx: Ctx, year: number, monthIndex: number, staffId?: string) {
   const start = new Date(year, monthIndex, 1)
   const end = new Date(year, monthIndex + 1, 1)
-  const result = await prisma.advance.updateMany({
-    where: { status: 'pending', date: { gte: start, lt: end }, ...(staffId ? { staffId } : {}) },
-    data: { status: 'recovered' },
+  return prisma.$transaction(async (tx) => {
+    const result = await tx.advance.updateMany({
+      where: { status: 'pending', date: { gte: start, lt: end }, ...(staffId ? { staffId } : {}) },
+      data: { status: 'recovered' },
+    })
+    await writeAudit(tx, { action: 'ADVANCES_RECOVERED', actor: ctx.actor, details: { count: result.count, year, monthIndex, staffId } })
+    return { recovered: result.count }
   })
-  return { recovered: result.count }
 }
 
 // Records that a staff member's salary for (year, month) was actually paid.

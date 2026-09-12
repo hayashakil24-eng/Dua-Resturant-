@@ -88,7 +88,7 @@ export const PERMISSIONS = {
     recipeCreate: 'none',
     inventoryAdd: 'full', // Admin records purchases too (client asked for Buy Stock on the Admin table)
     inventoryDirectEdit: 'full', // Admin may edit existing stock for corrections
-    inventoryCreate: 'full', // ONLY Admin creates brand-new inventory items
+    inventoryCreate: 'full', // Admin may also create brand-new inventory items
     wastageReport: 'full',
     wastageApproval: 'full',
     staffApproval: 'full', // ONLY Admin approves staff signups

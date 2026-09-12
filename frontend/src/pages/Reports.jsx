@@ -216,17 +216,25 @@ export default function Reports() {
     const stock = estimateStockUsed(scopeOrders, inventory, recipes)
 
     // Full item-wise breakdown — every item sold in the scope, qty + revenue.
+    // Scoped to Paid orders only (not Udhaar/Complimentary) and each order's
+    // items scaled by its own discount+tax-adjusted net total, so this
+    // column's sum always reconciles with the headline `collected` figure
+    // above instead of overstating it with credit/free orders' gross price.
     const itemMap = {}
-    scopeOrders.forEach((o) =>
-      o.items.forEach((it) => {
+    paidOrders.forEach((o) => {
+      const activeItems = o.items.filter((it) => !it.cancelled)
+      const rawSubtotal = activeItems.reduce((s, it) => s + Math.round(it.price * it.qty), 0)
+      const { total: orderNet } = orderTotal(o.items, o.discount?.amount, o.gstRate)
+      const scale = rawSubtotal > 0 ? orderNet / rawSubtotal : 0
+      activeItems.forEach((it) => {
         const cur = itemMap[it.name] || { name: it.name, qty: 0, total: 0 }
         cur.qty += it.qty
         // Rounded per line — qty can be a decimal kg weight now, and every
         // money figure shown must stay a whole rupee.
-        cur.total += Math.round(it.price * it.qty)
+        cur.total += Math.round(it.price * it.qty * scale)
         itemMap[it.name] = cur
-      }),
-    )
+      })
+    })
     const items = Object.values(itemMap).sort((a, b) => b.total - a.total)
 
     // Discount summary — count, total given, and breakdown by reason.
@@ -267,9 +275,11 @@ export default function Reports() {
     }
 
     // Session — expenses = transactions logged inside the same recording
-    // window as the orders above (maintenance split out)
+    // window as the orders above (maintenance split out). Session membership
+    // uses `tx.createdAt` (the real insert instant), not `tx.date` (a
+    // user-editable, date-only field) — mirrors closing.js's `inSession`.
     const dayExpenses = transactions.filter(
-      (tx) => tx.type === 'expense' && selected.contains(tx.date),
+      (tx) => tx.type === 'expense' && selected.contains(tx.createdAt),
     )
     const dailyMaintenance = dayExpenses.filter((tx) => isMaintenance(tx.category)).reduce((s, tx) => s + tx.amount, 0)
     const dailyExpenses = dayExpenses.filter((tx) => !isMaintenance(tx.category)).reduce((s, tx) => s + tx.amount, 0)

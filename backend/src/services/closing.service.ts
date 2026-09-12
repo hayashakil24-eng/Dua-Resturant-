@@ -57,6 +57,7 @@ async function gather() {
     type: t.type,
     amount: t.amount,
     date: t.date,
+    createdAt: t.createdAt,
     category: t.category,
     description: t.description,
     subCategory: t.subCategory,
@@ -69,7 +70,7 @@ async function gather() {
     status: r.status,
     ingredients: r.ingredients.map((ing) => ({ inventoryItemId: ing.inventoryItemId, itemName: ing.itemName, quantity: ing.quantity, unit: ing.unit })),
   }))
-  const closingPurchases: ClosingPurchase[] = purchases.map((p) => ({ date: p.date, totalCost: p.totalCost, paymentStatus: p.paymentStatus }))
+  const closingPurchases: ClosingPurchase[] = purchases.map((p) => ({ date: p.date, createdAt: p.createdAt, totalCost: p.totalCost, paymentStatus: p.paymentStatus }))
   const closingReceivables: ClosingReceivable[] = receivables.map((r) => ({ name: r.name, type: r.type, balance: r.balance, status: r.status }))
   const closingAdvances: ClosingAdvance[] = advances.map((a) => ({
     staffName: a.staff.name,

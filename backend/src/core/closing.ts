@@ -48,6 +48,11 @@ export interface ClosingTransaction {
   type: string // 'income' | 'expense'
   amount: number
   date: Date | string
+  // Real, immutable insert instant (Prisma `@default(now())`) — used ONLY to
+  // decide session membership below (`inSession`), never for display/reporting,
+  // since `date` is a user-editable calendar pick that always collapses to that
+  // day's midnight and so can land on the wrong side of a same-day closing.
+  createdAt: Date | string
   category?: string | null
   description?: string | null
   // Populated only on Maintenance-category rows — see accounting.service.ts's
@@ -150,6 +155,10 @@ export interface OpenAdvanceLine {
 // come from one place and can never drift apart.
 export interface ClosingPurchase {
   date: Date | string
+  // Real, immutable insert instant — used ONLY for session-membership
+  // (`inSession`), never for display/reporting. See ClosingTransaction's
+  // matching `createdAt` comment.
+  createdAt: Date | string
   totalCost: number
   paymentStatus: string // 'paid' | 'unpaid'
 }
@@ -413,7 +422,9 @@ export function buildClosingReport(
   const grossSale = netSale + discount
   const netCashSales = cash // = NET SALE − accounts (all non-cash channels)
 
-  const dayExpenses = (transactions || []).filter((tx) => tx.type === 'expense' && inSession(tx.date))
+  // Session membership uses `tx.createdAt`, not `tx.date` — see ClosingTransaction's
+  // createdAt comment. Must mirror frontend/src/utils/closing.js.
+  const dayExpenses = (transactions || []).filter((tx) => tx.type === 'expense' && inSession(tx.createdAt))
   const expenses = dayExpenses.reduce((s, tx) => s + tx.amount, 0)
   // Per-category breakdown (e.g. Maintenance/Construction) — same grouping as
   // the frontend's Accounting.jsx ExpenseBreakdown, scoped to this one day.
@@ -483,7 +494,9 @@ export function buildClosingReport(
   // Purchases today, split by payment type — from StockPurchase rows
   // directly (not derived from `transactions`), since a credit purchase never
   // creates a Transaction at all (see ClosingPurchase's doc comment above).
-  const dayPurchases = purchases.filter((p) => inSession(p.date))
+  // Session membership uses `p.createdAt`, not `p.date` — same reasoning as
+  // dayExpenses above. Mirrors frontend/src/utils/closing.js.
+  const dayPurchases = purchases.filter((p) => inSession(p.createdAt))
   const cashPurchases = dayPurchases.filter((p) => p.paymentStatus === 'paid').reduce((s, p) => s + p.totalCost, 0)
   const creditPurchases = dayPurchases.filter((p) => p.paymentStatus !== 'paid').reduce((s, p) => s + p.totalCost, 0)
   const totalPurchases = cashPurchases + creditPurchases
@@ -518,19 +531,25 @@ export function buildClosingReport(
     .map((d) => ({ name: d.itemName, qty: Math.round(d.amount * 10) / 10, unit: d.unit }))
     .sort((a, b) => b.qty - a.qty)
 
-  // Item-wise sales — every line across every non-cancelled order this
-  // session, aggregated by menu item name. Mirrors the frontend Reports.jsx
-  // dashboard's Item-Wise tab exactly (same `active`/qty*price shape); the
-  // WhatsApp render layer re-sorts a copy of this same array by qty for its
-  // own Top Selling block instead of computing a second aggregate.
+  // Item-wise sales — scoped to Paid orders only (not Udhaar/Complimentary),
+  // each order's items scaled by its own discount+tax-adjusted net total, so
+  // this matches the frontend Reports.jsx dashboard's Item-Wise tab exactly
+  // (same Paid-only + discount/tax-scaled semantics) instead of the raw
+  // price*qty of every non-cancelled order. The WhatsApp render layer re-sorts
+  // a copy of this same array by qty for its own Top Selling block instead of
+  // computing a second aggregate.
+  const paidOrders = active.filter((o) => o.payment === 'Paid')
   const itemSales = new Map<string, { qty: number; total: number }>()
-  for (const o of active) {
-    for (const it of o.items) {
+  for (const o of paidOrders) {
+    const activeItems = o.items.filter((it) => !it.cancelled)
+    const rawSubtotal = activeItems.reduce((s, it) => s + Math.round(it.price * it.qty), 0)
+    const scale = rawSubtotal > 0 ? totalOf(o).total / rawSubtotal : 0
+    for (const it of activeItems) {
       const cur = itemSales.get(it.name) ?? { qty: 0, total: 0 }
       cur.qty += it.qty
       // Rounded per line — qty can be a decimal kg weight now, and every
       // money figure shown/saved must stay a whole rupee.
-      cur.total += Math.round(it.price * it.qty)
+      cur.total += Math.round(it.price * it.qty * scale)
       itemSales.set(it.name, cur)
     }
   }
