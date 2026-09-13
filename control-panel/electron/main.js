@@ -437,9 +437,17 @@ ipcMain.handle('run-setup', async (_e, { backupDir, panelPassword }) => {
 })
 
 ipcMain.handle('unlock-panel', async (_e, password) => {
-  const ok = await verifyPanelPassword(password)
-  if (ok) panelUnlocked = true
-  return { ok }
+  try {
+    const ok = await verifyPanelPassword(password)
+    if (ok) panelUnlocked = true
+    return { ok }
+  } catch (err) {
+    // A rejection here (e.g. the bundled backend module failing to load —
+    // see importBackend's packaging notes above) must still resolve, or the
+    // renderer's await never returns and the Unlock button stays disabled
+    // forever with no way to recover short of restarting the app.
+    return { ok: false, error: err.message }
+  }
 })
 
 // Every handler below controls or reveals something about the running

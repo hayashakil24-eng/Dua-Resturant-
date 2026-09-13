@@ -183,15 +183,23 @@ completeSetupBtn.addEventListener('click', async () => {
 
 unlockBtn.addEventListener('click', async () => {
   unlockBtn.disabled = true
-  const { ok } = await window.controlPanel.unlockPanel(lockPasswordInput.value)
-  unlockBtn.disabled = false
-  if (ok) {
-    lockError.classList.add('hidden')
-    showDashboard()
-    startPolling()
-  } else {
-    lockError.textContent = 'Wrong password.'
+  try {
+    const { ok, error } = await window.controlPanel.unlockPanel(lockPasswordInput.value)
+    if (ok) {
+      lockError.classList.add('hidden')
+      showDashboard()
+      startPolling()
+    } else {
+      lockError.textContent = error ? `Unlock failed: ${error}` : 'Wrong password.'
+      lockError.classList.remove('hidden')
+    }
+  } catch (err) {
+    // Keeps the button recoverable even if the IPC call itself rejects,
+    // instead of leaving it stuck disabled with no way to retry.
+    lockError.textContent = `Unlock failed: ${err.message || 'unknown error'}`
     lockError.classList.remove('hidden')
+  } finally {
+    unlockBtn.disabled = false
   }
 })
 lockPasswordInput.addEventListener('keydown', (e) => {
