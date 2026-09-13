@@ -44,7 +44,9 @@ export default function ShiftEndModal({ shift, onClose, onComplete }) {
   const counted = Number(actual)
   const hasCount = actual !== '' && !Number.isNaN(counted)
   const difference = sales.expectedCash - counted // + shortage, − excess
-  const matched = Math.abs(difference) < 10
+  // Exact match — mirrors shifts.service.ts's endShift: integer Rupees only,
+  // no coin/paisa tracking anywhere, so no difference is legitimate rounding.
+  const matched = difference === 0
 
   const submit = async () => {
     if (!hasCount || counted < 0) return setError('Drawer ka cash gin kar likhein.')

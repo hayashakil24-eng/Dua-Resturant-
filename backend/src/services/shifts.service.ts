@@ -160,8 +160,11 @@ export async function endShift(
     const sales = await computeSales(tx, shift)
     const actual = Math.max(0, Number(actualCash) || 0)
     const difference = sales.expectedCash - actual
-    // Within Rs.10 counts as matched; positive difference = shortage, negative = excess.
-    const status = Math.abs(difference) < 10 ? 'matched' : difference > 0 ? 'shortage' : 'excess'
+    // Exact match required — money is always integer Rupees (no coins/paisa
+    // tracked anywhere in this app), so there's no rounding source a tolerance
+    // would legitimately be absorbing; any nonzero difference is a real
+    // shortage/excess. Positive difference = shortage, negative = excess.
+    const status = difference === 0 ? 'matched' : difference > 0 ? 'shortage' : 'excess'
     const handedTo = handover.to ?? null
     const handedToName = handover.name ?? handover.to ?? null
     const handoverReason = handover.reason ?? ''
