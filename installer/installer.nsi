@@ -159,6 +159,25 @@ Section "Allow app to run (disable Smart App Control)" SEC_SAC
   SetRebootFlag true
 SectionEnd
 
+Section "-Firewall" SEC_FIREWALL
+  ; Hidden, always-run: opens the ports the Control Panel's embedded backend
+  ; needs to be reachable from other on-site PCs over WiFi — TCP 4000 for the
+  ; REST/Socket.IO API, UDP 41234 for the LAN "find the server" broadcast
+  ; (backend/src/realtime/discovery.ts). Without this, reachability depends
+  ; on Windows' own "Allow this app" prompt being accepted for BOTH Private
+  ; and Public network profiles, which WiFi networks often default to the
+  ; stricter Public profile for — silently blocking every other device on
+  ; site until this rule exists. Only relevant when Control Panel (the
+  ; component that actually runs the backend) is installed; RequestExecutionLevel
+  ; admin (above) means this runs elevated with no separate UAC prompt.
+  ${IfNot} ${SectionIsSelected} ${SEC_CP}
+    Goto firewall_done
+  ${EndIf}
+  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Cafe Ali Backend (TCP 4000)" dir=in action=allow protocol=TCP localport=4000'
+  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Cafe Ali Discovery (UDP 41234)" dir=in action=allow protocol=UDP localport=41234'
+  firewall_done:
+SectionEnd
+
 Section "-Finish" SEC_FINISH
   ; Hidden, always-run bookkeeping section — uninstaller registration and
   ; the Add/Remove Programs entry, not a user-facing checkbox.
@@ -207,6 +226,9 @@ FunctionEnd
 ; Uninstaller
 
 Section "Uninstall"
+  nsExec::ExecToLog 'netsh advfirewall firewall delete rule name="Cafe Ali Backend (TCP 4000)"'
+  nsExec::ExecToLog 'netsh advfirewall firewall delete rule name="Cafe Ali Discovery (UDP 41234)"'
+
   RMDir /r "$INSTDIR\App"
   RMDir /r "$INSTDIR\ControlPanel"
   Delete "$INSTDIR\Uninstall.exe"

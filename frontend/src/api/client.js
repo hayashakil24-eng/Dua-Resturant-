@@ -20,6 +20,38 @@ export function setBase(url) {
   BASE = url
 }
 
+// Manual fallback for when UDP discovery can't reach the server (Windows
+// Firewall blocking the broadcast, or a WiFi router with client/AP isolation
+// on) — a staff member types the server PC's LAN address once in Settings
+// and it's remembered here, taking priority over discovery on every future
+// launch. Empty/absent means "keep auto-detecting" (the pre-existing
+// behavior below).
+const MANUAL_BASE_KEY = 'serverBase'
+
+export function getManualBase() {
+  try {
+    return localStorage.getItem(MANUAL_BASE_KEY) || ''
+  } catch {
+    return ''
+  }
+}
+
+// Persists the override and applies it immediately (so Settings doesn't need
+// an app restart to take effect); passing '' clears the override and falls
+// back to VITE_API_URL / the loopback default — a real restart is still
+// needed after clearing for UDP discovery to run again, since it only fires
+// once at startup (see main.jsx).
+export function setManualBase(url) {
+  const trimmed = (url || '').trim().replace(/\/+$/, '')
+  try {
+    if (trimmed) localStorage.setItem(MANUAL_BASE_KEY, trimmed)
+    else localStorage.removeItem(MANUAL_BASE_KEY)
+  } catch {
+    /* ignore (private mode / quota) */
+  }
+  setBase(trimmed || import.meta.env.VITE_API_URL || 'http://127.0.0.1:4000')
+}
+
 // Phase 3 LAN discovery (docs/04-phase-3-deployment-hardening.md): in
 // the packaged Electron app, find the server PC's IP via main.js's UDP
 // broadcast (window.electron.discoverServer, preload.js) instead of requiring
@@ -27,6 +59,8 @@ export function setBase(url) {
 // VITE_API_URL always wins, and the browser-only dev server (no
 // window.electron) keeps hitting the existing localhost default.
 export async function discoverAndSetBase() {
+  const manual = getManualBase()
+  if (manual) return setBase(manual)
   if (import.meta.env.VITE_API_URL) return
   if (typeof window === 'undefined' || !window.electron?.discoverServer) return
   try {
@@ -84,7 +118,7 @@ export async function api(method, path, body) {
       body: body != null ? JSON.stringify(body) : undefined,
     })
   } catch {
-    throw new ApiError('Cannot reach the server. Is the local backend running?', 0, null)
+    throw new ApiError(`Cannot reach the server at ${BASE}. Is the local backend running?`, 0, null)
   }
   let data = null
   try {

@@ -5,7 +5,7 @@ import { PageHeader, PasswordInput } from '../components/ui.jsx'
 import { canModify } from '../config/permissions.js'
 import { useEscapeKey } from '../hooks/useEscapeKey.js'
 import { IconSettings, IconReceipt, IconWallet, IconPlus, IconClose, IconCheck, IconClock, IconRefresh, IconWhatsApp, IconLock, IconAttendance, IconPrint } from '../components/Icons.jsx'
-import { apiGet, apiPost } from '../api/client.js'
+import { apiGet, apiPost, getManualBase, setManualBase } from '../api/client.js'
 import { WALLET_TYPES, PK_BANKS, BANK_OTHER, ERR_WALLET, ERR_BANK, accountFieldsFor, sanitizeAccountNumber, sanitizeIban, validateAccount } from '../utils/accountNumber.js'
 
 // Phase 3 "basic operational visibility" (docs/04-phase-3-deployment-
@@ -27,6 +27,50 @@ function ServerHealthPanel() {
   const [attSyncing, setAttSyncing] = useState(false)
   const [attSyncMsg, setAttSyncMsg] = useState('')
   const [attSyncErr, setAttSyncErr] = useState('')
+
+  // Manual server address override (see api/client.js's getManualBase/
+  // setManualBase) — the resilient fallback for when UDP discovery can't
+  // reach the server PC over WiFi (Windows Firewall, router client
+  // isolation). Tests against the typed address directly via `fetch`
+  // (not apiGet, which always targets the *current* BASE) so a wrong value
+  // fails fast before it's saved.
+  const [manualBaseInput, setManualBaseInput] = useState(() => getManualBase())
+  const [testingAddr, setTestingAddr] = useState(false)
+  const [testAddrMsg, setTestAddrMsg] = useState('')
+  const [testAddrErr, setTestAddrErr] = useState('')
+  const [savedAddr, setSavedAddr] = useState(false)
+
+  const testServerAddress = async () => {
+    const url = manualBaseInput.trim().replace(/\/+$/, '')
+    setTestAddrMsg('')
+    setTestAddrErr('')
+    if (!url) return setTestAddrErr(t('settings.serverAddressEmpty', 'Enter an address first.'))
+    setTestingAddr(true)
+    try {
+      const res = await fetch(`${url}/api/system/health`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setTestAddrMsg(t('settings.serverAddressOk', 'Connected successfully.'))
+    } catch {
+      setTestAddrErr(t('settings.serverAddressFailed', 'Could not reach that address.'))
+    } finally {
+      setTestingAddr(false)
+    }
+  }
+
+  const saveServerAddress = () => {
+    setManualBase(manualBaseInput)
+    setSavedAddr(true)
+    setTimeout(() => setSavedAddr(false), 2000)
+    load()
+  }
+
+  const resetServerAddress = () => {
+    setManualBase('')
+    setManualBaseInput('')
+    setSavedAddr(true)
+    setTimeout(() => setSavedAddr(false), 2000)
+    load()
+  }
 
   // App auto-update — Priority-2 fix from the update-reliability investigation.
   // Electron-only (no window.electron in the NO_ELECTRON=1 browser dev loop);
@@ -175,6 +219,44 @@ function ServerHealthPanel() {
         >
           <IconRefresh size={16} />
         </button>
+      </div>
+
+      <div className="mt-5 space-y-3 border-b border-ink-line pb-5 text-sm">
+        <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-cream-dim">
+          {t('settings.serverAddressLabel', 'Server Address (for other devices over WiFi)')}
+        </label>
+        <div className="flex gap-2">
+          <input
+            className="input py-2.5"
+            placeholder="http://192.168.1.50:4000"
+            value={manualBaseInput}
+            onChange={(e) => setManualBaseInput(e.target.value)}
+          />
+          <button
+            onClick={testServerAddress}
+            disabled={testingAddr}
+            className="btn-ghost shrink-0 px-4 py-2 text-xs disabled:opacity-60"
+          >
+            {testingAddr ? t('common.loading', 'Checking…') : t('settings.testConnection', 'Test')}
+          </button>
+        </div>
+        <p className="text-xs text-cream-dim">
+          {t(
+            'settings.serverAddressDesc',
+            'Leave blank to auto-detect the server on this network. If this device shows "Cannot reach the server", type the server PC\'s address here (find its IP via Control Panel or ipconfig) and save — this always wins over auto-detection.',
+          )}
+        </p>
+        <div className="flex items-center gap-3">
+          <button onClick={saveServerAddress} className="btn-gold px-4 py-2 text-xs">
+            {t('common.save', 'Save')}
+          </button>
+          <button onClick={resetServerAddress} className="btn-ghost px-4 py-2 text-xs">
+            {t('settings.serverAddressReset', 'Reset to auto-detect')}
+          </button>
+          {savedAddr && <span className="text-xs text-emerald-300">{t('settings.printerSaved', 'Saved.')}</span>}
+          {testAddrMsg && <span className="text-xs text-emerald-300">{testAddrMsg}</span>}
+          {testAddrErr && <span className="text-xs text-rose-300">{testAddrErr}</span>}
+        </div>
       </div>
 
       <div className="mt-5 space-y-3 text-sm">
