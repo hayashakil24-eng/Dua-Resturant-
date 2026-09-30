@@ -95,7 +95,10 @@ function MostOrderedCard({ item, onAdd }) {
   // Boolean, not the raw length: an empty variants array (0) would otherwise
   // render literally in JSX (`{0 && …}` prints "0") — the "0Rs. 550" bug.
   const hasVariants = Boolean(item.variants && item.variants.length)
-  const click = () => {
+  const click = (e) => {
+    // Drop focus so a later stray Enter/Space can't re-click this card and
+    // silently add the item again (how water kept "adding itself").
+    e.currentTarget.blur()
     onAdd(item)
     setAdded(true)
     setTimeout(() => setAdded(false), 700)
@@ -179,7 +182,10 @@ function VariantModal({ item, onPick, onClose }) {
             {item.variants.map((v) => (
               <button
                 key={v.label}
-                onClick={() => onPick(v)}
+                onClick={(e) => {
+                  e.currentTarget.blur()
+                  onPick(v)
+                }}
                 className="flex w-full items-center justify-between rounded-xl border border-ink-line bg-ink-soft px-4 py-3 text-left transition hover:border-gold/50 hover:bg-gold/5"
               >
                 <span className="text-sm font-semibold text-cream">{v.label}</span>
@@ -333,6 +339,23 @@ export default function POS() {
   const [toast, setToast] = useState(null)
   const [kotOrder, setKotOrder] = useState(null) // just-placed order → department kitchen slips
   const [error, setError] = useState('')
+  // One order/append in flight at a time. The buttons stay tappable while the
+  // request is on the network, so a double-tap, a re-tap on slow WiFi, or
+  // Enter on the still-focused button re-sent the same cart — and the server
+  // merges a repeat into the existing lines, silently doubling every qty.
+  // A ref (not just state) so two taps in the same tick both see it.
+  const submittingRef = useRef(false)
+  const [submitting, setSubmitting] = useState(false)
+  const beginSubmit = () => {
+    if (submittingRef.current) return false
+    submittingRef.current = true
+    setSubmitting(true)
+    return true
+  }
+  const endSubmit = () => {
+    submittingRef.current = false
+    setSubmitting(false)
+  }
 
   const activeMenu = useMemo(() => menu.filter((m) => m.active !== false), [menu])
 
@@ -642,7 +665,8 @@ export default function POS() {
   // Confirmed in the payment modal → mark paid, then auto-open receipt to print.
   // `account` is the online destination when method === 'Online' (else null).
   const confirmPayment = async (method, _amount, account = null) => {
-    const order = await placeOrder({ payment: 'Paid', method, onlineAccount: account })
+    if (!beginSubmit()) return
+    const order = await placeOrder({ payment: 'Paid', method, onlineAccount: account }).finally(endSubmit)
     setShowPayment(false)
     if (order?.error) return setError(order.error)
     printKitchenSlips(order)
@@ -654,7 +678,8 @@ export default function POS() {
     const err = validate()
     if (err) return setError(err)
     setError('')
-    const order = await placeOrder({ payment: 'Unpaid', method: '—' })
+    if (!beginSubmit()) return
+    const order = await placeOrder({ payment: 'Unpaid', method: '—' }).finally(endSubmit)
     if (order?.error) return setError(order.error)
     printKitchenSlips(order)
     setToast(order)
@@ -689,6 +714,9 @@ export default function POS() {
   const addToOrder = async () => {
     if (items.length === 0) return setError('Add at least one new item to append.')
     setError('')
+    // Released only on error — on success the POS navigates away, and the 600ms
+    // wait below is exactly the window a second tap used to re-append in.
+    if (!beginSubmit()) return
     const newItems = items.map(({ key, name, price, qty, cost, costEstimated }) => ({
       id: key,
       name,
@@ -698,7 +726,10 @@ export default function POS() {
       costEstimated,
     }))
     const res = await appendOrderItems(continuingOrder.id, newItems)
-    if (res?.error) return setError(res.error)
+    if (res?.error) {
+      endSubmit()
+      return setError(res.error)
+    }
     // Fire kitchen slips for the appended items only (a fresh KOT per counter).
     // Delay the navigate so the slips render + print before POS unmounts.
     printKitchenSlips({
@@ -846,7 +877,11 @@ export default function POS() {
               return (
                 <button
                   key={m.id}
-                  onClick={() => onItemClick(m)}
+                  onClick={(e) => {
+                    // Same stray-Enter/Space re-add guard as MostOrderedCard.
+                    e.currentTarget.blur()
+                    onItemClick(m)
+                  }}
                   disabled={disabled}
                   className={`card group relative flex flex-col p-3 text-left transition ${
                     disabled
@@ -1180,14 +1215,18 @@ export default function POS() {
               )}
 
               {isContinuing ? (
-                <button onClick={addToOrder} className="btn-gold mt-4 w-full py-3">
+                <button
+                  onClick={addToOrder}
+                  disabled={submitting}
+                  className="btn-gold mt-4 w-full py-3 disabled:cursor-not-allowed disabled:opacity-50"
+                >
                   <IconPlus size={18} /> Add to Order · {money(total)}
                 </button>
               ) : (
                 <>
                   <button
                     onClick={openPayment}
-                    disabled={selectedTableBusy}
+                    disabled={selectedTableBusy || submitting}
                     title={selectedTableBusy ? `${tableLabel(Number(table))} is already in use` : undefined}
                     className="btn-gold mt-4 w-full py-3 disabled:cursor-not-allowed disabled:opacity-50"
                   >
@@ -1195,7 +1234,7 @@ export default function POS() {
                   </button>
                   <button
                     onClick={placeUnpaid}
-                    disabled={selectedTableBusy}
+                    disabled={selectedTableBusy || submitting}
                     title={selectedTableBusy ? `${tableLabel(Number(table))} is already in use` : undefined}
                     className="btn-ghost mt-2 flex w-full items-center justify-center gap-2 py-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-50"
                   >
