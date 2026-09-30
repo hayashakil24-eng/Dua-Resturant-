@@ -90,7 +90,7 @@ const ACTION_REFETCH_MAP = {
   WHATSAPP_RECIPIENT_ADDED: ['whatsappRecipients'],
   WHATSAPP_RECIPIENT_RECHECKED: ['whatsappRecipients'],
   WHATSAPP_RECIPIENT_REMOVED: ['whatsappRecipients'],
-  DAY_CLOSED: ['dailyClosings'],
+  DAY_CLOSED: ['dailyClosings', 'latestClosingAt'],
 }
 
 // Map any thrown ApiError to the { error } shape the existing UI already reads
@@ -152,6 +152,10 @@ export function AppProvider({ children }) {
   const [onlineAccounts, setOnlineAccounts] = useState([])
   const [whatsappRecipients, setWhatsappRecipients] = useState([])
   const [dailyClosings, setDailyClosings] = useState([])
+  // Boundary-only mirror of the latest closing's time, fetched from a route
+  // open to every authenticated role (unlike dailyClosings, which is gated
+  // behind the 'closing' permission) — see FETCHERS.latestClosingAt below.
+  const [latestClosingAt, setLatestClosingAt] = useState(null)
   const [receivables, setReceivables] = useState([])
   const [payables, setPayables] = useState([]) // money owed to suppliers for credit stock purchases
   const [departments, setDepartments] = useState([])
@@ -205,6 +209,7 @@ export function AppProvider({ children }) {
     onlineAccounts: () => apiGet('/api/online-accounts').then((d) => setOnlineAccounts(d.accounts || [])),
     whatsappRecipients: () => apiGet('/api/whatsapp/recipients').then((d) => setWhatsappRecipients(d.recipients || [])),
     dailyClosings: () => apiGet('/api/closings').then((d) => setDailyClosings(d.closings || [])),
+    latestClosingAt: () => apiGet('/api/closings/latest').then((d) => setLatestClosingAt(d.closingTime ?? null)),
     receivables: () => apiGet('/api/receivables').then((d) => setReceivables((d.receivables || []).map(normalizeReceivable))),
     payables: () => apiGet('/api/payables').then((d) => setPayables((d.payables || []).map(normalizePayable))),
     departments: () => apiGet('/api/departments').then((d) => setDepartments(d.departments || [])),
@@ -531,7 +536,10 @@ export function AppProvider({ children }) {
         deliveryAddress,
         deliveryInstructions,
       })
-      await refresh(['orders', 'inventory'])
+      // The order is already saved — a failed refetch (weak WiFi) must not be
+      // reported as a failed placement, or the POS keeps the cart and the
+      // cashier punches the same order again. The socket/next fetch catches up.
+      await refresh(['orders', 'inventory']).catch(() => {})
       return normalizeOrder(order)
     } catch (e) {
       return toError(e)
@@ -544,7 +552,9 @@ export function AppProvider({ children }) {
       const { order } = await apiPost(`/api/orders/${orderSid(orderId)}/items`, {
         items: newItems.map((it) => ({ id: it.id, menuItemId: it.menuItemId, variantLabel: it.variantLabel, name: it.name, price: it.price, qty: it.qty, cost: it.cost, costEstimated: it.costEstimated })),
       })
-      await refresh(['orders', 'inventory'])
+      // Same as addOrder: the items are already appended, so a failed refetch
+      // must not look like a failure that invites a second (doubling) append.
+      await refresh(['orders', 'inventory']).catch(() => {})
       return order ? normalizeOrder(order) : null
     } catch (e) {
       return toError(e)
@@ -1075,10 +1085,9 @@ export function AppProvider({ children }) {
   // figures (Dashboard revenue, Closing preview) scope to orders after this so
   // the screen resets the moment a day is closed (demand.md #9). Null before the
   // first ever closing = whole history counts as the current session.
-  const lastClosingAt = useMemo(() => {
-    if (!dailyClosings.length) return null
-    return dailyClosings.reduce((max, c) => (c.closingTime > max ? c.closingTime : max), dailyClosings[0].closingTime)
-  }, [dailyClosings])
+  // Sourced from latestClosingAt (not dailyClosings) so it's available to every
+  // role, including Cashier, which can't read the full dailyClosings report.
+  const lastClosingAt = latestClosingAt
 
   const stats = useMemo(() => {
     const sinceMs = lastClosingAt ? new Date(lastClosingAt).getTime() : null
