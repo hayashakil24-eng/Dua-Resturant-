@@ -440,7 +440,7 @@ const TABS = [
 ]
 
 export default function Tables() {
-  const { orders, orderTotal, tables, bulkAddTables, deleteTable, updateTableCategory, deleteTableCategory, shiftOrderTable, user } = useApp()
+  const { orders, orderTotal, tables, bulkAddTables, deleteTable, updateTableCategory, deleteTableCategory, shiftOrderTable, user, isCurrentSession } = useApp()
   const t = useT()
   const navigate = useNavigate()
   const [tab, setTab] = useState('all')
@@ -466,7 +466,7 @@ export default function Tables() {
     () =>
       tables.map((tbl) => {
         const order = orders
-          .filter((o) => o.table === tbl.id && o.payment === 'Unpaid' && !o.cancelled)
+          .filter((o) => o.table === tbl.id && o.payment === 'Unpaid' && !o.cancelled && isCurrentSession(o))
           .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))[0]
         return { ...tbl, order: order || null, status: order ? 'in-use' : 'available' }
       }),

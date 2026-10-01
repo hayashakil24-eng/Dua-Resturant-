@@ -428,12 +428,12 @@ export default function Orders() {
   const [logVisibleCount, setLogVisibleCount] = useState(ORDERS_PAGE_SIZE)
 
   // Orders resets to the current business-day session the moment a day is
-  // closed — same boundary Dashboard/Reports/Closing already use. An Unpaid
-  // order is still live business (a cashier needs to act on it), so it stays
-  // visible regardless of session, mirroring AppContext.jsx's `stats.pending`.
+  // closed — same boundary Dashboard/Reports/Closing already use. Unpaid
+  // orders included: the closing gate blocks while any session order is still
+  // Unpaid, so one from before the boundary is a leftover, not live business.
   const sinceMs = lastClosingAt ? new Date(lastClosingAt).getTime() : null
   const inSession = (o) => sinceMs === null || new Date(o.createdAt).getTime() > sinceMs
-  const inScope = (o) => inSession(o) || (o.payment === 'Unpaid' && !o.cancelled)
+  const inScope = inSession
   // An order can carry a single voided line item (cancelOrderItem) without
   // the order itself being cancelled — it still shows under its real Paid/
   // Unpaid tab as usual, but should also surface under Cancelled so a

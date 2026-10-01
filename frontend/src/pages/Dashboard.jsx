@@ -999,14 +999,14 @@ function ManagerDashboard({ stats, orders, orderTotal, attendance, unpaidTotal, 
 }
 
 function FloorMap({ orders, orderTotal }) {
-  const { tables } = useApp()
+  const { tables, isCurrentSession } = useApp()
   const t = useT()
   // Only tables that are currently occupied (have an active unpaid order). With
   // 300+ tables, rendering every vacant one buried the dashboard — the full
   // floor lives on the Tables page.
   const active = tables
     .map((tbl) => {
-      const order = orders.find((o) => o.table === tbl.id && o.payment === 'Unpaid' && !o.cancelled)
+      const order = orders.find((o) => o.table === tbl.id && o.payment === 'Unpaid' && !o.cancelled && isCurrentSession(o))
       return order ? { tbl, order } : null
     })
     .filter(Boolean)
@@ -1073,7 +1073,8 @@ function FloorMap({ orders, orderTotal }) {
 
 function CashierDashboard({ stats, orders, orderTotal, unpaidTotal, onProcessBill }) {
   const t = useT()
-  const unpaidOrders = orders.filter((o) => o.payment === 'Unpaid' && !o.cancelled)
+  const { isCurrentSession } = useApp()
+  const unpaidOrders = orders.filter((o) => o.payment === 'Unpaid' && !o.cancelled && isCurrentSession(o))
   const paidOrders = orders.filter((o) => o.payment === 'Paid' && !o.cancelled)
 
   return (
@@ -1173,7 +1174,8 @@ function CashierDashboard({ stats, orders, orderTotal, unpaidTotal, onProcessBil
 
 function PendingBillsQueue({ orders, orderTotal, onProcessBill }) {
   const t = useT()
-  const unpaidOrders = orders.filter((o) => o.payment === 'Unpaid' && !o.cancelled)
+  const { isCurrentSession } = useApp()
+  const unpaidOrders = orders.filter((o) => o.payment === 'Unpaid' && !o.cancelled && isCurrentSession(o))
 
   return (
     <div className="card overflow-hidden">
@@ -1227,7 +1229,7 @@ function PendingBillsQueue({ orders, orderTotal, onProcessBill }) {
 // ============================================================================
 
 export default function Dashboard() {
-  const { stats, orders, orderTotal, attendance, lowStock, user, markPaid } = useApp()
+  const { stats, orders, orderTotal, attendance, lowStock, user, markPaid, isCurrentSession } = useApp()
   const t = useT()
   const [activeReceipt, setActiveReceipt] = useState(null)
   const [lastRefresh, setLastRefresh] = useState(() => new Date())
@@ -1248,9 +1250,9 @@ export default function Dashboard() {
   const unpaidTotal = useMemo(
     () =>
       orders
-        .filter((o) => o.payment === 'Unpaid' && !o.cancelled)
+        .filter((o) => o.payment === 'Unpaid' && !o.cancelled && isCurrentSession(o))
         .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount, o.gstRate).total, 0),
-    [orders, orderTotal]
+    [orders, orderTotal, isCurrentSession]
   )
 
   // Role-specific headers and page headings

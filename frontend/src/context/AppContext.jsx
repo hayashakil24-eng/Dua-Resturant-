@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { io } from 'socket.io-client'
 import { MENU_CATEGORIES, TAX_RATE, registerTableLabels } from '../data/mockData.js'
 import { calculateOrderMaterialCost } from '../utils/inventoryFlow.js'
@@ -1088,6 +1088,15 @@ export function AppProvider({ children }) {
   // Sourced from latestClosingAt (not dailyClosings) so it's available to every
   // role, including Cashier, which can't read the full dailyClosings report.
   const lastClosingAt = latestClosingAt
+  // Live screens (Orders, Billing, Tables, POS, Dashboard) count an order only
+  // if it belongs to the open session — including Unpaid ones. An Unpaid order
+  // from before the last closing is no longer live business: the closing gate
+  // already decided that session, so keeping it on screen would leave its
+  // table "occupied" forever. Mirrors backend lib/businessDay.ts.
+  const isCurrentSession = useCallback(
+    (o) => !lastClosingAt || new Date(o.createdAt).getTime() > new Date(lastClosingAt).getTime(),
+    [lastClosingAt],
+  )
 
   const stats = useMemo(() => {
     const sinceMs = lastClosingAt ? new Date(lastClosingAt).getTime() : null
@@ -1095,8 +1104,8 @@ export function AppProvider({ children }) {
     const revenue = orders
       .filter((o) => o.payment === 'Paid' && !o.cancelled && inSession(o))
       .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount, o.gstRate).total, 0)
-    const pending = orders.filter((o) => o.payment === 'Unpaid' && !o.cancelled).length
-    const activeTables = new Set(orders.filter((o) => o.payment === 'Unpaid' && !o.cancelled).map((o) => o.table)).size
+    const pending = orders.filter((o) => o.payment === 'Unpaid' && !o.cancelled && inSession(o)).length
+    const activeTables = new Set(orders.filter((o) => o.payment === 'Unpaid' && !o.cancelled && inSession(o)).map((o) => o.table)).size
     const present = Object.values(attendance).filter((a) => a.status === 'Present' || a.status === 'Late').length
     return {
       orderCount: orders.length,
@@ -1352,6 +1361,7 @@ export function AppProvider({ children }) {
     removeWhatsappRecipient,
     dailyClosings,
     lastClosingAt,
+    isCurrentSession,
     saveDailyClosing,
     attendance,
     overrideAttendance,

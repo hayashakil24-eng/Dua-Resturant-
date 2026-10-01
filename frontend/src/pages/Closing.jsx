@@ -44,8 +44,9 @@ export default function Closing() {
   // Bills that must be resolved (Udhaar or Complimentary) before the day can
   // be closed — closing previously just silently excluded these from the
   // totals instead of blocking, so an unresolved bill's cash was never
-  // actually accounted for anywhere. Scoped to the open session, mirroring
-  // buildClosingReport's own boundary scoping.
+  // actually accounted for anywhere. Scoped to the open session; before the
+  // first ever closing that's the whole history, not just today's date (the
+  // business day spans two dates). Mirrors closing.service assertNoPendingOrders.
   const sinceMs = lastClosingAt ? new Date(lastClosingAt).getTime() : null
   const pendingOrders = useMemo(
     () =>
@@ -53,9 +54,9 @@ export default function Closing() {
         (o) =>
           o.payment === 'Unpaid' &&
           !o.cancelled &&
-          (sinceMs === null ? toDayStr(o.createdAt) === todayStr : new Date(o.createdAt).getTime() > sinceMs),
+          (sinceMs === null || new Date(o.createdAt).getTime() > sinceMs),
       ),
-    [orders, todayStr, sinceMs],
+    [orders, sinceMs],
   )
 
   // A still-open cash drawer must be reconciled first, and there must be

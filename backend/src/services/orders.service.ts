@@ -26,6 +26,7 @@ import { NotFoundError, ServiceError } from '../lib/errors.js'
 import type { Actor } from '../lib/actor.js'
 import { broadcastEvent } from '../realtime/broadcast.js'
 import { enqueueOutbox } from '../sync/outbox.js'
+import { getBoundaryIso, sessionCreatedAtFilter } from '../lib/businessDay.js'
 
 type Tx = Prisma.TransactionClient
 type OrderWithItems = Prisma.OrderGetPayload<{ include: { items: true } }>
@@ -378,7 +379,9 @@ export async function addOrder(ctx: Ctx, input: AddOrderInput) {
     // table at once (the frontend check alone can't catch that race).
     const tableRow = await tx.table.findUnique({ where: { id: table } })
     if (tableRow && !tableRow.orderType) {
-      const running = await tx.order.findFirst({ where: { table, payment: 'Unpaid', cancelled: false } })
+      const running = await tx.order.findFirst({
+        where: { table, payment: 'Unpaid', cancelled: false, ...sessionCreatedAtFilter(await getBoundaryIso(tx)) },
+      })
       if (running) throw new ServiceError(`Table already has a running order (ORD-${running.orderNumber}) — add to it or settle it first.`)
     }
 
@@ -799,7 +802,9 @@ export async function shiftOrderTable(ctx: Ctx, orderId: string, newTable: numbe
     // Delivery/Takeaway (dest.orderType set) are seatless pseudo-tables meant to
     // hold many concurrent orders — exempt, matching POS.jsx's selectedTableBusy.
     if (!dest.orderType) {
-      const busy = await tx.order.findFirst({ where: { table, cancelled: false, payment: 'Unpaid', id: { not: orderId } } })
+      const busy = await tx.order.findFirst({
+        where: { table, cancelled: false, payment: 'Unpaid', id: { not: orderId }, ...sessionCreatedAtFilter(await getBoundaryIso(tx)) },
+      })
       if (busy) throw new ServiceError('That table already has a running order — pick a free table.')
     }
 

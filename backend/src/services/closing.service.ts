@@ -4,6 +4,7 @@
 // report in the Reports page and passed it in; here we recompute from the
 // day's orders + transactions so a saved closing can't be tampered with.
 
+import type { Prisma } from '@prisma/client'
 import { prisma } from '../db/client.js'
 import {
   buildClosingReport,
@@ -20,7 +21,7 @@ import { writeAudit } from '../lib/audit.js'
 import { ServiceError } from '../lib/errors.js'
 import type { Actor } from '../lib/actor.js'
 import { enqueueOutbox } from '../sync/outbox.js'
-import { getBoundaryIso } from '../lib/businessDay.js'
+import { getBoundaryIso, sessionCreatedAtFilter } from '../lib/businessDay.js'
 
 interface Ctx {
   actor: Actor
@@ -147,19 +148,17 @@ export async function listClosings() {
 // frontend gate) — a still-open Unpaid order in this session must be resolved
 // to Udhaar or Complimentary before the day can be closed, checked here
 // regardless of whether the request came through the Closing page's own block.
-async function assertNoPendingOrders(sinceIso: string | null): Promise<void> {
-  const candidates = await prisma.order.findMany({
-    where: { payment: 'Unpaid', cancelled: false },
-    select: { id: true, createdAt: true },
+// With no previous closing the whole history is the open session, so EVERY
+// Unpaid order counts — the old "today's calendar date only" check let
+// yesterday's bills slip past the very first closing (the business day spans
+// two dates), after which they sat before the boundary forever.
+async function assertNoPendingOrders(sinceIso: string | null, client: Prisma.TransactionClient = prisma): Promise<void> {
+  const pending = await client.order.count({
+    where: { payment: 'Unpaid', cancelled: false, ...sessionCreatedAtFilter(sinceIso) },
   })
-  const sinceMs = sinceIso ? new Date(sinceIso).getTime() : null
-  const today = toDayStr(new Date())
-  const pending = candidates.filter((o) =>
-    sinceMs !== null ? o.createdAt.getTime() > sinceMs : toDayStr(o.createdAt) === today,
-  )
-  if (pending.length > 0) {
+  if (pending > 0) {
     throw new ServiceError(
-      `${pending.length} bill(s) are still unpaid — mark each as Udhaar or Complimentary before closing.`,
+      `${pending} bill(s) are still unpaid — mark each as Udhaar or Complimentary before closing.`,
       409,
     )
   }
@@ -199,6 +198,10 @@ export async function saveDailyClosing(ctx: Ctx, dateStr?: string) {
   const previous = await prisma.dailyClosing.findFirst({ orderBy: { closingTime: 'desc' } })
   const carriedCash = (previous?.carriedCash ?? 0) + report.remainingHandover
   const record = await prisma.$transaction(async (tx) => {
+    // Re-checked right before the boundary is written: an order placed on
+    // another device while the report was being built would otherwise land
+    // just before `closingTime`, still Unpaid, outside every later session.
+    await assertNoPendingOrders(sinceIso, tx)
     const saved = await tx.dailyClosing.create({
       data: {
         date: report.date,

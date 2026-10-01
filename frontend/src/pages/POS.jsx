@@ -275,6 +275,7 @@ export default function POS() {
     gstRate,
     addTransaction,
     getDepartmentForItem,
+    isCurrentSession,
   } = useApp()
 
   // Recipe-based stock status per menu item (only items with an approved recipe
@@ -425,8 +426,8 @@ export default function POS() {
   // Tables currently occupied by an active (unpaid) order — shown as "In Use".
   const occupiedTables = useMemo(
     () =>
-      new Set(orders.filter((o) => o.payment === 'Unpaid' && !o.cancelled).map((o) => o.table)),
-    [orders],
+      new Set(orders.filter((o) => o.payment === 'Unpaid' && !o.cancelled && isCurrentSession(o)).map((o) => o.table)),
+    [orders, isCurrentSession],
   )
 
   // Physical table categories derived LIVE from the tables (special order-type
@@ -568,7 +569,7 @@ export default function POS() {
     // only ONE running order at a time (Delivery/Takeaway exempt via
     // selectedTableBusy). Add to the existing order instead.
     if (selectedTableBusy) {
-      const running = orders.find((o) => o.table === Number(table) && o.payment === 'Unpaid' && !o.cancelled)
+      const running = orders.find((o) => o.table === Number(table) && o.payment === 'Unpaid' && !o.cancelled && isCurrentSession(o))
       return `Table ${tableLabel(Number(table))} already has a running order${running ? ` (${running.id})` : ''} — add items to it from the Tables page, or settle it first.`
     }
     // Delivery/Takeaway have no waiter to assign (the field is disabled), so

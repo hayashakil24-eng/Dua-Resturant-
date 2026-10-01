@@ -14,7 +14,7 @@ const PAGE_SIZE = 12 // 3 rows × 4 cols — a restaurant can have 100+ tables, 
 // unpaid orders sharing a seat, which is a billing mix-up, not a merge. The
 // backend re-checks this too (orders.service shiftOrderTable). onConfirm(id).
 export default function ShiftTableModal({ order, onClose, onConfirm }) {
-  const { tables, orders } = useApp()
+  const { tables, orders, isCurrentSession } = useApp()
   const [dest, setDest] = useState(null)
   const [error, setError] = useState('')
   const [query, setQuery] = useState('')
@@ -27,10 +27,10 @@ export default function ShiftTableModal({ order, onClose, onConfirm }) {
     () =>
       new Set(
         orders
-          .filter((o) => o.payment === 'Unpaid' && !o.cancelled && o.id !== order.id)
+          .filter((o) => o.payment === 'Unpaid' && !o.cancelled && o.id !== order.id && isCurrentSession(o))
           .map((o) => o.table),
       ),
-    [orders, order.id],
+    [orders, order.id, isCurrentSession],
   )
 
   const options = useMemo(

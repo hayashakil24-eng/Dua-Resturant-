@@ -431,12 +431,12 @@ export default function Billing() {
   const canDiscount = Boolean(user && canModify(user.role, 'discount'))
 
   // Billing resets to the current business-day session the moment a day is
-  // closed — same boundary Dashboard/Reports/Closing already use. An Unpaid
-  // order is still live business (a cashier needs to act on it), so it stays
-  // visible regardless of session, mirroring AppContext.jsx's `stats.pending`.
+  // closed — same boundary Dashboard/Reports/Closing already use. Unpaid
+  // orders included: the closing gate blocks while any session order is still
+  // Unpaid, so one from before the boundary is a leftover, not live business.
   const sinceMs = lastClosingAt ? new Date(lastClosingAt).getTime() : null
   const inSession = (o) => sinceMs === null || new Date(o.createdAt).getTime() > sinceMs
-  const inScope = (o) => inSession(o) || (o.payment === 'Unpaid' && !o.cancelled)
+  const inScope = inSession
   // An order can carry a single voided line item (cancelOrderItem) without
   // the order itself being cancelled — it still shows under its real Paid/
   // Unpaid tab as usual, but should also surface under Cancelled so a
@@ -466,15 +466,13 @@ export default function Billing() {
 
   const shownRows = rows.slice(0, visibleCount)
 
-  // Collected/Complimentary reset with the session (mirrors AppContext.jsx's
-  // stats.revenue, which is session-scoped for Paid orders). Outstanding stays
-  // unscoped — an unpaid bill is still live business regardless of when it was
-  // created, same as stats.pending's deliberate exemption.
+  // Collected/Outstanding/Complimentary all reset with the session (mirrors
+  // AppContext.jsx's stats.revenue/stats.pending).
   const paidTotal = orders
     .filter((o) => o.payment === 'Paid' && !o.cancelled && inSession(o))
     .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount, o.gstRate).total, 0)
   const unpaidTotal = orders
-    .filter((o) => o.payment === 'Unpaid' && !o.cancelled)
+    .filter((o) => o.payment === 'Unpaid' && !o.cancelled && inSession(o))
     .reduce((s, o) => s + orderTotal(o.items, o.discount?.amount, o.gstRate).total, 0)
 
   // Complimentary roll-up. The headline number is COGS, not the bill: what the
@@ -532,7 +530,7 @@ export default function Billing() {
         </div>
         <div className="card p-5">
           <p className="text-xs uppercase tracking-widest text-cream-dim">Receipts</p>
-          <p className="mt-2 font-serif text-2xl font-semibold text-cream">{orders.length}</p>
+          <p className="mt-2 font-serif text-2xl font-semibold text-cream">{orders.filter(inScope).length}</p>
         </div>
 
         {/* Complimentary — headline is estimated COGS, with the forgone bill
@@ -576,7 +574,7 @@ export default function Billing() {
         ))}
       </div>
 
-      {orders.length === 0 ? (
+      {orders.filter(inScope).length === 0 ? (
         <EmptyState icon={IconReceipt} title="No receipts yet" hint="Placed orders will appear here for billing." />
       ) : rows.length === 0 ? (
         <EmptyState icon={IconReceipt} title="No receipts found" hint="Try a different filter or order number." />
