@@ -69,7 +69,7 @@ export interface PurchaseInput {
   // moved yet, so instead of an expense this charges a supplier Payable
   // account, settled later via payables.service.ts's recordPayablePayment
   // (which is what actually mints the expense, on the day it's really paid).
-  paid?: boolean
+  paid?: boolean | string | number
 }
 
 interface ParsedPurchase {
@@ -101,7 +101,10 @@ function parsePurchaseInput(input: PurchaseInput): ParsedPurchase {
   const date = input.date ? new Date(input.date) : new Date()
   if (Number.isNaN(date.getTime())) throw new ServiceError('A valid purchase date is required.')
 
-  const paid = input.paid !== false
+  // Normalized rather than `!== false`: a stringified/numeric "false" (e.g. a
+  // form-encoded body) would otherwise silently book a credit purchase as paid
+  // cash, or vice versa — the bucket decides Expenses vs. Credit on the closing.
+  const paid = !(input.paid === false || input.paid === 'false' || input.paid === 0)
   const supplier = (input.supplier ?? '').trim() || null
   // Can't track "who it's owed to" without a name — the whole point of this path.
   if (!paid && !supplier) throw new ServiceError('Supplier name is required for a credit purchase.')
@@ -220,7 +223,7 @@ export interface AddInventoryInput {
   // Stock. Ignored entirely when stock is 0 (nothing was bought, so nothing
   // to log): see the initialStock guard below.
   supplier?: string
-  paid?: boolean
+  paid?: boolean | string | number
 }
 
 export async function addInventoryItem(ctx: Ctx, input: AddInventoryInput) {
